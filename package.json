@@ -1,6 +1,6 @@
 {
   "name": "@homebound/form-state",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "author": "Homebound",
   "license": "MIT",
   "main": "dist/index.js",
@@ -21,7 +21,8 @@
     "test": "jest",
     "lint": "eslint . --cache --fix --ext .js,.ts,.tsx",
     "start": "start-storybook -p 9000",
-    "format": "prettier --loglevel warn --write \"**/*.{ts,tsx,css,md}\""
+    "format": "prettier --loglevel warn --write \"**/*.{ts,tsx,css,md}\"",
+    "semantic-release": "semantic-release"
   },
   "peerDependencies": {
     "react": ">=16",
