@@ -1,5 +1,4 @@
 name: Validate PR Title
-
 on:
   pull_request_target:
     types:
@@ -7,7 +6,6 @@ on:
       - reopened
       - edited
       - synchronize
-
 jobs:
   validate_pr_title:
     runs-on: ubuntu-latest

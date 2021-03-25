@@ -32,6 +32,7 @@
   "dependencies": {},
   "devDependencies": {
     "@babel/core": "^7.13.1",
+    "@homebound/rtl-utils": "^2.40.0",
     "@storybook/addon-essentials": "^6.1.20",
     "@storybook/addon-info": "^5.3.21",
     "@storybook/addon-links": "^6.1.20",

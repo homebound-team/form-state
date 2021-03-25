@@ -1,53 +1,31 @@
 version: 2.1
-
-only-run-on-branches: &only-run-on-branches
-  branches:
-    ignore:
-      - main
-
-only-run-on-main: &only-run-on-main
-  branches:
-    only:
-      - main
-
-node-image: &node-image
-  image: circleci/node:14.8.0
-  auth:
-    username: $DOCKERHUB_USERNAME
-    password: $DOCKERHUB_ACCESS_TOKEN
-
+orbs:
+  node: circleci/node@1.1.4
 workflows:
   version: 2
   workflow:
     jobs:
       - build:
-          context: npm
-      - publish:
-          requires:
-            - build
           context:
             - npm
             - github
-          filters:
-            <<: *only-run-on-main
-
 jobs:
   build:
     docker:
-      - <<: *node-image
+      - image: circleci/node:erbium
+    working_directory: ~/project
     steps:
       - checkout
-      - run: 'echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc'
-      - run: npm install
+      - run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
+      - node/with-cache:
+          steps:
+            - run: npm install
       - run: npm run build
       - run: npm test
-
-  publish:
-    docker:
-      - <<: *node-image
-    steps:
-      - checkout
-      - run: 'echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc'
-      - run: npm install
-      - run: npm run build
-      - run: npm run semantic-release
+      - when:
+          condition:
+            equal:
+              - main
+              - <<pipeline.git.branch>>
+          steps:
+            - run: npm run semantic-release
