@@ -14,6 +14,7 @@ export interface AuthorInput {
   birthday?: Date | null;
   books?: BookInput[] | null;
   address?: AuthorAddress | null;
+  favoriteColors?: string[] | null;
 }
 
 export interface AuthorAddress {

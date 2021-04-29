@@ -355,6 +355,30 @@ describe("formState", () => {
     expect(a1.dirty).toBeFalsy();
   });
 
+  it("knows list of primitives are dirty", () => {
+    const a1 = createObjectState<AuthorInput>({ favoriteColors: { type: "value" } }, {});
+    expect(a1.favoriteColors.dirty).toBeFalsy();
+    a1.favoriteColors.set(["blue"]);
+    expect(a1.dirty).toBeTruthy();
+    a1.favoriteColors.set(undefined!);
+    expect(a1.dirty).toBeFalsy();
+    // Because we were originally undefined, setting as `[]` coerces to `undefined`
+    a1.favoriteColors.set([]);
+    expect(a1.dirty).toBeFalsy();
+  });
+
+  it("knows list of primitives are dirty with initialized as empty list", () => {
+    const a1 = createObjectState<AuthorInput>({ favoriteColors: { type: "value" } }, { favoriteColors: [] });
+    expect(a1.favoriteColors.dirty).toBeFalsy();
+    a1.favoriteColors.set(["blue"]);
+    expect(a1.dirty).toBeTruthy();
+    a1.favoriteColors.set([]);
+    expect(a1.dirty).toBeFalsy();
+    // Because we were originally undefined, setting as `[]` coerces to `undefined`
+    a1.favoriteColors.set([]);
+    expect(a1.dirty).toBeFalsy();
+  });
+
   it("knows originally unset fields are dirty", () => {
     // Given firstName is purposefully not set when originally initialized
     const a1 = createAuthorInputState({});

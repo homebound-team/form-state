@@ -81,7 +81,9 @@ type Builtin = Date | Function | Uint8Array | string | number | boolean;
 /** For a given input type `T`, decorate each field into the "field state" type that holds our form-relevant state, i.e. valid/touched/etc. */
 type FieldStates<T> = {
   [P in keyof T]-?: T[P] extends Array<infer U> | null | undefined
-    ? ListFieldState<U>
+    ? U extends Builtin
+      ? FieldState<U[]>
+      : ListFieldState<U>
     : T[P] extends Builtin
     ? FieldState<T[P]>
     : ObjectState<T[P]>;
@@ -156,7 +158,9 @@ export type ObjectConfig<T> = {
   // We ignore functions (the OmitIf) to support observable classes that have
   // helper methods, i.e. `.toInput()`.
   [P in keyof OmitIf<T, Function>]: T[P] extends Array<infer U> | null | undefined
-    ? ListFieldConfig<U>
+    ? U extends Builtin
+      ? ValueFieldConfig<U[]>
+      : ListFieldConfig<U>
     : ValueFieldConfig<T[P]> | ObjectFieldConfig<T[P]>;
 };
 
@@ -234,10 +238,7 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
 
   const fieldNames = Object.keys(config);
   function getFields(proxyThis: any): FieldState<any>[] {
-    return fieldNames.map((name) => {
-      const field = proxyThis[name];
-      return field;
-    }) as FieldState<any>[];
+    return fieldNames.map((name) => proxyThis[name]) as FieldState<any>[];
   }
 
   const obj = {
@@ -401,7 +402,9 @@ function newValueFieldState<T, K extends keyof T>(
       // If the user has deleted/emptied a value that was originally set, keep it as `null`
       // so that our partial update to the backend correctly unsets it.
       const keepNull = !isEmpty(this.originalValue) && isEmpty(value);
-      const newValue = keepNull ? null : isEmpty(value) ? undefined : value;
+      // If a list of primitives was originally undefined, coerce `[]` to `undefined`
+      const coerceEmptyList = value && value instanceof Array && value.length === 0 && isEmpty(this.originalValue);
+      const newValue = keepNull ? null : isEmpty(value) || coerceEmptyList ? undefined : value;
 
       // Set the value on our parent object
       parentInstance[key] = newValue!;
@@ -589,6 +592,7 @@ function newListFieldState<T, K extends keyof T, U>(
         r.save();
       });
       originalCopy = (parentInstance[key] as any) as U[];
+      _tick.value++;
     },
 
     ensureSet() {
@@ -627,6 +631,9 @@ function areEqual<T>(a?: T, b?: T): boolean {
     const a1 = hasToJSON(a) ? a.toJSON() : a;
     const b1 = hasToJSON(b) ? b.toJSON() : b;
     return equal(a1, b1);
+  }
+  if (a && b && a instanceof Array && b instanceof Array) {
+    return equal(a, b);
   }
   return a === b;
 }
