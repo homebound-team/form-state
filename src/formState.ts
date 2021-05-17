@@ -91,10 +91,16 @@ type FieldStates<T> = {
 
 /** A validation rule, given the value and name, return the error string if valid, or undefined if valid. */
 // TODO Refactor Rule to accept an opts that includes originalValue
-export type Rule<V> = (value: V, key: string, originalValue: V) => string | undefined;
+export type Rule<T, V> = (opts: {
+  value: V;
+  key: string;
+  originalValue: V;
+  // This needs to be an ObjectState so that the rule is registered as an observer
+  object: ObjectState<T>;
+}) => string | undefined;
 
 /** A rule that validates `value` is not `undefined`, `null`, or empty string. */
-export function required<V>(v: V): string | undefined {
+export function required<V>({ value: v }: { value: V }): string | undefined {
   return v !== undefined && v !== null && (v as any) !== "" ? undefined : "Required";
 }
 
@@ -121,7 +127,7 @@ export interface FieldState<V> {
   //
   // The only code that actually cares about this type is internal to formState.ts, so just
   // any-ize it for now.
-  rules: Rule<any>[];
+  rules: Rule<any, any>[];
   readonly errors: string[];
 
   /** Blur essentially touches the field. */
@@ -159,9 +165,9 @@ export type ObjectConfig<T> = {
   // helper methods, i.e. `.toInput()`.
   [P in keyof OmitIf<T, Function>]: T[P] extends Array<infer U> | null | undefined
     ? U extends Builtin
-      ? ValueFieldConfig<U[]>
-      : ListFieldConfig<U>
-    : ValueFieldConfig<T[P]> | ObjectFieldConfig<T[P]>;
+      ? ValueFieldConfig<T, U[]>
+      : ListFieldConfig<T, U>
+    : ValueFieldConfig<T, T[P]> | ObjectFieldConfig<T[P]>;
 };
 
 // Inverse of SubType: https://medium.com/dailyjs/typescript-create-a-condition-based-subset-types-9d902cea5b8c
@@ -173,9 +179,9 @@ type OmitIf<Base, Condition> = Pick<
 >;
 
 /** Field configuration for primitive values, i.e. strings/numbers/Dates/user-defined types. */
-type ValueFieldConfig<V> = {
+type ValueFieldConfig<T, V> = {
   type: "value";
-  rules?: Rule<V | null | undefined>[];
+  rules?: Rule<T, V | null | undefined>[];
   /** If true, and this value is used on an entity in a list, the entity won't count towards the list validity. */
   isDeleteKey?: boolean;
   /** If true, the entity that contains this value will be treated as read only. */
@@ -184,10 +190,10 @@ type ValueFieldConfig<V> = {
 };
 
 /** Field configuration for list values, i.e. `U` is `Book` in a form with `books: Book[]`. */
-type ListFieldConfig<U> = {
+type ListFieldConfig<T, U> = {
   type: "list";
   /** Rules that can run on the full list of children. */
-  rules?: Rule<readonly ObjectState<U>[]>[];
+  rules?: Rule<T, readonly ObjectState<U>[]>[];
   /** Config for each child's form state, i.e. each book. */
   config: ObjectConfig<U>;
 };
@@ -210,13 +216,25 @@ export function createObjectState<T>(config: ObjectConfig<T>, instance: T): Obje
 }
 
 function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | undefined): ObjectState<T> {
+  // This is what we return, but we only know it's value until we call `observable`, so
+  // we create a mutable variable to capture it so that we can create fields/call their
+  // constructors and give them a way to access it later.
+  let proxy: ObjectState<T> | undefined = undefined;
+  function getObjectState(): ObjectState<T> {
+    if (!proxy) {
+      throw new Error("Race condition");
+    }
+    return proxy;
+  }
+
   const fieldStates = Object.entries(config).map(([_key, _config]) => {
     const key = _key as keyof T;
-    const config = _config as ValueFieldConfig<any> | ObjectFieldConfig<any> | ListFieldConfig<any>;
+    const config = _config as ValueFieldConfig<T, any> | ObjectFieldConfig<any> | ListFieldConfig<T, any>;
     let field: FieldState<any> | ListFieldState<any>;
     if (config.type === "value") {
       field = newValueFieldState(
         instance,
+        getObjectState,
         key,
         config.rules || [],
         config.isDeleteKey || false,
@@ -224,7 +242,7 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
         config.computed || false,
       );
     } else if (config.type === "list") {
-      field = newListFieldState(instance, key, config.rules || [], config.config);
+      field = newListFieldState(instance, getObjectState, key, config.rules || [], config.config);
     } else if (config.type === "object") {
       if (!instance[key]) {
         instance[key] = {} as any;
@@ -325,13 +343,15 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
     },
   };
 
-  return observable(obj);
+  proxy = observable(obj);
+  return proxy!;
 }
 
 function newValueFieldState<T, K extends keyof T>(
   parentInstance: T,
+  parentState: () => ObjectState<T>,
   key: K,
-  rules: Rule<T[K] | null | undefined>[],
+  rules: Rule<T, T[K] | null | undefined>[],
   isDeleteKey: boolean,
   isReadOnlyKey: boolean,
   computed: boolean,
@@ -378,11 +398,13 @@ function newValueFieldState<T, K extends keyof T>(
     },
 
     get valid(): boolean {
-      return this.rules.every((r) => r(this.value, key as string, this.originalValue) === undefined);
+      const opts = { value: this.value, key: key as string, originalValue: this.originalValue, object: parentState() };
+      return this.rules.every((r) => r(opts) === undefined);
     },
 
     get errors(): string[] {
-      return this.rules.map((r) => r(this.value, key as string, this.originalValue)).filter(isNotUndefined);
+      const opts = { value: this.value, key: key as string, originalValue: this.originalValue, object: parentState() };
+      return this.rules.map((r) => r(opts)).filter(isNotUndefined);
     },
 
     get required(): boolean {
@@ -441,13 +463,14 @@ function newValueFieldState<T, K extends keyof T>(
     },
   };
 
-  return field as FieldState<V | null | undefined>;
+  return field as any;
 }
 
 function newListFieldState<T, K extends keyof T, U>(
   parentInstance: T,
+  parentState: () => ObjectState<T>,
   key: K,
-  rules: Rule<readonly ObjectState<U>[]>[],
+  rules: Rule<T, readonly ObjectState<U>[]>[],
   config: ObjectConfig<U>,
 ): ListFieldState<U> {
   // Keep a map of "item in the parent list" -> "that item's ObjectState"
@@ -527,14 +550,16 @@ function newListFieldState<T, K extends keyof T, U>(
     get valid(): boolean {
       const value = this.rows;
       // TODO Passing `originalCopy || []` is probably not 100% right
-      const collectionValid = this.rules.every((r) => r(value, key as string, originalCopy || []) === undefined);
+      const opts = { value, key: key as string, originalValue: originalCopy || [], object: parentState() };
+      const collectionValid = this.rules.every((r) => r(opts) === undefined);
       const entriesValid = this.rows.filter((r) => !(r as any)._considerDeleted()).every((r) => r.valid);
       return collectionValid && entriesValid;
     },
 
     get errors(): string[] {
       if (_tick.value < 0) fail();
-      return this.rules.map((r) => r(this.rows, key as string, originalCopy || [])).filter(isNotUndefined);
+      const opts = { value: this.rows, key: key as string, originalValue: originalCopy || [], object: parentState() };
+      return this.rules.map((r) => r(opts)).filter(isNotUndefined);
     },
 
     blur() {
@@ -603,7 +628,7 @@ function newListFieldState<T, K extends keyof T, U>(
     },
   };
 
-  return list;
+  return list as any;
 }
 
 function isNotUndefined<T>(value: T | undefined): value is T {
@@ -661,7 +686,10 @@ export function pickFields<T, I>(
   }
   return Object.fromEntries(
     Object.entries(formConfig).map(([key, _keyConfig]) => {
-      const keyConfig = (_keyConfig as any) as ObjectFieldConfig<any> | ListFieldConfig<any> | ValueFieldConfig<any>;
+      const keyConfig = (_keyConfig as any) as
+        | ObjectFieldConfig<any>
+        | ListFieldConfig<any, any>
+        | ValueFieldConfig<any, any>;
       const value = (instance as any)[key];
       if (keyConfig.type === "object") {
         if (value) {
