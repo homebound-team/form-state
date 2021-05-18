@@ -90,7 +90,6 @@ type FieldStates<T> = {
 };
 
 /** A validation rule, given the value and name, return the error string if valid, or undefined if valid. */
-// TODO Refactor Rule to accept an opts that includes originalValue
 export type Rule<T, V> = (opts: {
   value: V;
   key: string;
