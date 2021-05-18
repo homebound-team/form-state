@@ -59,7 +59,7 @@ describe("formState", () => {
       {
         birthday: {
           type: "value",
-          rules: [(value) => (value?.getTime() === jan2.getTime() ? "cannot be born on jan2" : undefined)],
+          rules: [({ value }) => (value?.getTime() === jan2.getTime() ? "cannot be born on jan2" : undefined)],
         },
       },
       { birthday: jan1 },
@@ -271,7 +271,7 @@ describe("formState", () => {
     expect(ticks).toEqual(1);
     expect(numErrors).toEqual(0);
 
-    a1.books.rules.push((b) => (b.length === 0 ? "Empty" : undefined));
+    a1.books.rules.push(({ value: b }) => (b.length === 0 ? "Empty" : undefined));
     expect(a1.books.valid).toBeFalsy();
     expect(a1.books.errors).toEqual(["Empty"]);
     expect(ticks).toEqual(2);
@@ -602,7 +602,7 @@ describe("formState", () => {
         books: {
           type: "list",
           config: { title: { type: "value", rules: [required] } },
-          rules: [(value) => (value.find((b) => b.title.value === "t1") ? "Cannot have t1" : undefined)],
+          rules: [({ value }) => (value.find((b) => b.title.value === "t1") ? "Cannot have t1" : undefined)],
         },
       },
       {},
@@ -816,6 +816,28 @@ describe("formState", () => {
     expect(formState.firstName.value).toEqual("Fred");
     formState.reset();
     expect(formState.firstName.value).toEqual("first");
+  });
+
+  it("lets rules validate against other fields", () => {
+    const formState = createObjectState<AuthorInput>(
+      {
+        firstName: { type: "value", rules: [] },
+        lastName: {
+          type: "value",
+          rules: [
+            ({ object }) => {
+              if (object.firstName.value === object.lastName.value) {
+                return "Must not match first name";
+              }
+            },
+          ],
+        },
+      },
+      {},
+    );
+    formState.firstName.value = "bob";
+    formState.lastName.value = "bob";
+    expect(formState.lastName.errors).toEqual(["Must not match first name"]);
   });
 });
 

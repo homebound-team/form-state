@@ -118,7 +118,7 @@ const formConfig: ObjectConfig<AuthorInput> = {
   lastName: { type: "value", rules: [required] },
   books: {
     type: "list",
-    rules: [(list) => ((list || []).length === 0 ? "Empty" : undefined)],
+    rules: [({ value: list }) => ((list || []).length === 0 ? "Empty" : undefined)],
     config: {
       title: { type: "value", rules: [required] },
     },
