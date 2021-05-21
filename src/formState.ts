@@ -185,7 +185,16 @@ type ValueFieldConfig<T, V> = {
   isDeleteKey?: boolean;
   /** If true, the entity that contains this value will be treated as read only. */
   isReadOnlyKey?: boolean;
+  /**
+   * Marks a field as being backed by a mobx class computed field.
+   *
+   * Note that it might still be settable (some computed have setters), but we do
+   * exclude from the `reset` operation, i.e. we assume resetting other non-computed fields
+   * will effectively reset this field as well.
+   */
   computed?: boolean;
+  /** Marks a field as being initiallyread-only, i.e. `field.readOnly = true/false` can change this default. */
+  readOnly?: boolean;
 };
 
 /** Field configuration for list values, i.e. `U` is `Book` in a form with `books: Book[]`. */
@@ -239,6 +248,7 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
         config.isDeleteKey || false,
         config.isReadOnlyKey || false,
         config.computed || false,
+        config.readOnly || false,
       );
     } else if (config.type === "list") {
       field = newListFieldState(instance, getObjectState, key, config.rules || [], config.config);
@@ -354,6 +364,7 @@ function newValueFieldState<T, K extends keyof T>(
   isDeleteKey: boolean,
   isReadOnlyKey: boolean,
   computed: boolean,
+  readOnly: boolean,
 ): FieldState<T[K] | null | undefined> {
   type V = T[K];
 
@@ -372,7 +383,7 @@ function newValueFieldState<T, K extends keyof T>(
     touched: false,
 
     // TODO Should we check parent.readOnly? Currently it is pushed into us.
-    readOnly: false,
+    readOnly,
 
     _isDeleteKey: isDeleteKey,
 

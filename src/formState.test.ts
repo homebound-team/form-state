@@ -795,8 +795,13 @@ describe("formState", () => {
       },
       new ObservableObject(),
     );
+
     expect(formState.firstName.value).toEqual("first");
+    expect(formState.fullName.value).toEqual("first last");
+
     formState.firstName.value = "change";
+    expect(formState.fullName.value).toEqual("change last");
+
     formState.reset();
     expect(formState.firstName.value).toEqual("first");
   });
@@ -814,6 +819,26 @@ describe("formState", () => {
     expect(formState.firstName.value).toEqual("Bob");
     formState.fullName.set("Fred Smith");
     expect(formState.firstName.value).toEqual("Fred");
+    formState.reset();
+    expect(formState.firstName.value).toEqual("first");
+  });
+
+  it("can mark fields as read only", () => {
+    const formState = createObjectState(
+      {
+        firstName: { type: "value" },
+        lastName: { type: "value" },
+        fullName: { type: "value", readOnly: true },
+      },
+      new ObservableObject(),
+    );
+
+    expect(formState.fullName.value).toEqual("first last");
+    expect(formState.fullName.readOnly).toEqual(true);
+
+    formState.firstName.value = "change";
+    expect(formState.fullName.value).toEqual("change last");
+
     formState.reset();
     expect(formState.firstName.value).toEqual("first");
   });
