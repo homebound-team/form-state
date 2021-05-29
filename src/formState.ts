@@ -378,7 +378,7 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
       });
       // Ensure we always have the id for updates to work
       const idField = getFields(this).find((f) => (f as any)._isIdKey);
-      if (idField && !Object.keys(result).includes(idField.key)) {
+      if (idField) {
         result[idField.key] = idField.value;
       }
       return result;
