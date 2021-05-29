@@ -128,6 +128,8 @@ export interface FieldState<V> {
   // any-ize it for now.
   rules: Rule<any, any>[];
   readonly errors: string[];
+  /** Returns a subset of V with only the changed values. Currently not observable. */
+  readonly changedValue: V;
 
   /** Blur essentially touches the field. */
   blur(): void;
@@ -181,6 +183,12 @@ type OmitIf<Base, Condition> = Pick<
 type ValueFieldConfig<T, V> = {
   type: "value";
   rules?: Rule<T, V | null | undefined>[];
+  /**
+   * If true, marks this field as the id, which will be used for things like "always include in changedValue".
+   *
+   * Defaults to true for fields named `id`.
+   */
+  isIdKey?: boolean;
   /** If true, and this value is used on an entity in a list, the entity won't count towards the list validity. */
   isDeleteKey?: boolean;
   /** If true, the entity that contains this value will be treated as read only. */
@@ -204,6 +212,18 @@ type ListFieldConfig<T, U> = {
   rules?: Rule<T, readonly ObjectState<U>[]>[];
   /** Config for each child's form state, i.e. each book. */
   config: ObjectConfig<U>;
+  /**
+   * What the server-side update behavior is for this collection.
+   *
+   * When exhaustive, we include all rows in `changedValue` so that we
+   * don't orhan unchanged rows.
+   *
+   * When incremental, we only include changed rows in `changedValue`.
+   *
+   * Defaults to `exhaustive` b/c that is the safest and also Joist's
+   * default behavior.
+   */
+  update?: "exhaustive" | "incremental";
 };
 
 type ObjectFieldConfig<U> = {
@@ -245,13 +265,14 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
         getObjectState,
         key,
         config.rules || [],
+        config.isIdKey || key === "id",
         config.isDeleteKey || false,
         config.isReadOnlyKey || false,
         config.computed || false,
         config.readOnly || false,
       );
     } else if (config.type === "list") {
-      field = newListFieldState(instance, getObjectState, key, config.rules || [], config.config);
+      field = newListFieldState(instance, getObjectState, key, config.rules || [], config, config.config);
     } else if (config.type === "object") {
       if (!instance[key]) {
         instance[key] = {} as any;
@@ -277,8 +298,8 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
       return instance;
     },
 
-    set value(value: any) {
-      throw new Error("Unsupported");
+    set value(value) {
+      this.set(value);
     },
 
     // private
@@ -347,6 +368,22 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
       getFields(this).forEach((f) => f.save());
     },
 
+    // Create a result that is only populated with changed keys
+    get changedValue() {
+      const result: any = {};
+      getFields(this).forEach((f) => {
+        if (f.dirty) {
+          result[f.key] = f.changedValue;
+        }
+      });
+      // Ensure we always have the id for updates to work
+      const idField = getFields(this).find((f) => (f as any)._isIdKey);
+      if (idField && !Object.keys(result).includes(idField.key)) {
+        result[idField.key] = idField.value;
+      }
+      return result;
+    },
+
     get originalValue(): T | undefined {
       return instance;
     },
@@ -361,6 +398,7 @@ function newValueFieldState<T, K extends keyof T>(
   parentState: () => ObjectState<T>,
   key: K,
   rules: Rule<T, T[K] | null | undefined>[],
+  isIdKey: boolean,
   isDeleteKey: boolean,
   isReadOnlyKey: boolean,
   computed: boolean,
@@ -385,8 +423,8 @@ function newValueFieldState<T, K extends keyof T>(
     // TODO Should we check parent.readOnly? Currently it is pushed into us.
     readOnly,
 
+    _isIdKey: isIdKey,
     _isDeleteKey: isDeleteKey,
-
     _isReadOnlyKey: isReadOnlyKey,
 
     rules,
@@ -405,6 +443,11 @@ function newValueFieldState<T, K extends keyof T>(
 
     get dirty(): boolean {
       return !areEqual(this.originalValue, this.value);
+    },
+
+    // For primitive fields, the changed value is just the value.
+    get changedValue() {
+      return this.value;
     },
 
     get valid(): boolean {
@@ -481,6 +524,7 @@ function newListFieldState<T, K extends keyof T, U>(
   parentState: () => ObjectState<T>,
   key: K,
   rules: Rule<T, readonly ObjectState<U>[]>[],
+  listConfig: ListFieldConfig<T, U>,
   config: ObjectConfig<U>,
 ): ListFieldState<U> {
   // Keep a map of "item in the parent list" -> "that item's ObjectState"
@@ -570,6 +614,17 @@ function newListFieldState<T, K extends keyof T, U>(
       if (_tick.value < 0) fail();
       const opts = { value: this.rows, key: key as string, originalValue: originalCopy || [], object: parentState() };
       return this.rules.map((r) => r(opts)).filter(isNotUndefined);
+    },
+
+    get changedValue() {
+      const result = [] as any;
+      const pushAll = listConfig.update !== "incremental";
+      this.rows.forEach((r) => {
+        if (pushAll || r.dirty) {
+          result.push(r.changedValue);
+        }
+      });
+      return result;
     },
 
     blur() {
