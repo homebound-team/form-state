@@ -286,6 +286,8 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
     return [key, field];
   });
 
+  // We always return the same `instance` field from our `value` method, but
+  // we want to pretend that it's observable, so use a tick to force it.
   const _tick = observable({ value: 1 });
 
   const fieldNames = Object.keys(config);
