@@ -19,7 +19,7 @@ export function useFormState<T, O>(
   opts?: {
     addRules?: (state: ObjectState<T>) => void;
     readOnly?: boolean;
-    /** Fired on change, if everything is valid, currently not debounced. */
+    /** Fired on change, if everything is valid, and debounced by `onChangeDebounceDelayInMillis`. */
     onChange?: (state: ObjectState<T>) => void;
     /** How much time in millis to debounce the `onChange`, defaults to 1 second. */
     onChangeDebounceDelayInMillis?: number;
