@@ -20,6 +20,9 @@ export function FormStateApp() {
           return state.firstName.value === state.lastName.value ? "Last name cannot equal first name" : undefined;
         });
       },
+      onChange() {
+        console.log("saving", formState.changedValue);
+      },
     },
   );
 

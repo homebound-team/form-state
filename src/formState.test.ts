@@ -1,4 +1,4 @@
-import { autorun, isObservable, makeAutoObservable, observable } from "mobx";
+import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
 import { AuthorInput, BookInput, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
 import { createObjectState, ObjectConfig, pickFields, required } from "./formState";
 
@@ -968,13 +968,16 @@ describe("formState", () => {
     const formState = createObjectState(authorWithBooksConfig, { firstName: "f" });
     let value: any;
     let ticks = 0;
-    autorun(() => {
-      value = formState.value;
-      ticks++;
-    });
-    expect(ticks).toEqual(1);
+    reaction(
+      () => formState.value,
+      () => ticks++,
+      { equals: () => false },
+    );
+    expect(ticks).toEqual(0);
+    formState.firstName.value = "f";
+    expect(ticks).toEqual(0);
     formState.firstName.value = "f2";
-    expect(ticks).toEqual(2);
+    expect(ticks).toEqual(1);
   });
 });
 

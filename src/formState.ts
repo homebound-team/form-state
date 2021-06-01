@@ -19,25 +19,51 @@ export function useFormState<T, O>(
   opts?: {
     addRules?: (state: ObjectState<T>) => void;
     readOnly?: boolean;
+    /** Fired on change, if everything is valid, and debounced by `onChangeDebounceDelayInMillis`. */
+    onChange?: (state: ObjectState<T>) => void;
+    /** How much time in millis to debounce the `onChange`, defaults to 1 second. */
+    onChangeDebounceDelayInMillis?: number;
   },
 ): ObjectState<T> {
-  const { addRules, readOnly = false } = opts || {};
+  const { addRules, readOnly = false, onChange, onChangeDebounceDelayInMillis = 1_000 } = opts || {};
   const form = useMemo(() => {
     // We purposefully use a non-memo'd initFn for better developer UX, i.e. the caller
     // of `useFormState` doesn't have to `useCallback` their `initFn` just to pass it to us.
     const instance = pickFields(config, initFn(initValue));
     const form = createObjectState(config, instance);
     form.readOnly = readOnly;
+
+    if (onChange) {
+      let timeout: any;
+      reaction(
+        () => form.value,
+        () => {
+          // Reset the bounce on each change
+          if (timeout) {
+            clearTimeout(timeout);
+          }
+          if (form.valid) {
+            timeout = setTimeout(() => onChange(form), onChangeDebounceDelayInMillis);
+          }
+        },
+        // Our `form.value` never changes identity, but tell mobx to want to rerun anyway
+        { equals: () => false },
+      );
+    }
+
     // The identity of `addRules` is not stable, but assume that it is for better UX.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     (addRules || (() => {}))(form);
+
     return form;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config, ...(Array.isArray(initValue) ? initValue : [initValue])]);
+
   // Use useEffect so that we don't touch the form.init proxy during a render
   useEffect(() => {
     form.readOnly = readOnly;
   }, [form, readOnly]);
+
   return form;
 }
 
