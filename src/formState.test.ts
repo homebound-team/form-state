@@ -1,4 +1,4 @@
-import { autorun, isObservable, observable } from "mobx";
+import { autorun, isObservable, makeAutoObservable, observable } from "mobx";
 import { AuthorInput, BookInput, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
 import { createObjectState, ObjectConfig, pickFields, required } from "./formState";
 
@@ -963,11 +963,28 @@ describe("formState", () => {
       books: [{ id: "b:1", title: "t1b" }],
     });
   });
+
+  it("can observe value changes", () => {
+    const formState = createObjectState(authorWithBooksConfig, { firstName: "f" });
+    let value: any;
+    let ticks = 0;
+    autorun(() => {
+      value = formState.value;
+      ticks++;
+    });
+    expect(ticks).toEqual(1);
+    formState.firstName.value = "f2";
+    expect(ticks).toEqual(2);
+  });
 });
 
 class ObservableObject {
   firstName: string = "first";
   lastName: string = "last";
+
+  constructor() {
+    makeAutoObservable(this);
+  }
 
   get fullName() {
     return `${this.firstName} ${this.lastName}`;

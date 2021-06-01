@@ -1,6 +1,6 @@
 import equal from "fast-deep-equal";
 import isPlainObject from "is-plain-object";
-import { isObservable, observable, toJS } from "mobx";
+import { action, computed, isObservable, makeAutoObservable, observable, reaction, toJS } from "mobx";
 import { useEffect, useMemo } from "react";
 import { assertNever, fail } from "src/utils";
 
@@ -99,9 +99,11 @@ export type Rule<T, V> = (opts: {
 }) => string | undefined;
 
 /** A rule that validates `value` is not `undefined`, `null`, or empty string. */
-export function required<V>({ value: v }: { value: V }): string | undefined {
+// We pre-emptively make this a mobx action so that it's identity doesn't change when proxy-ified
+// and breaks our ability to do `rules.some(r => r === required)`.
+export const required = action(<V>({ value: v }: { value: V }): string | undefined => {
   return v !== undefined && v !== null && (v as any) !== "" ? undefined : "Required";
-}
+});
 
 /**
  * Form state for a primitive field in the form, i.e. its value but also touched/validation/etc. state.
@@ -284,6 +286,10 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
     return [key, field];
   });
 
+  // We always return the same `instance` field from our `value` method, but
+  // we want to pretend that it's observable, so use a tick to force it.
+  const _tick = observable({ value: 1 });
+
   const fieldNames = Object.keys(config);
   function getFields(proxyThis: any): FieldState<any>[] {
     return fieldNames.map((name) => proxyThis[name]) as FieldState<any>[];
@@ -295,6 +301,7 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
     key,
 
     get value() {
+      _tick.value > 0 || fail();
       return instance;
     },
 
@@ -389,7 +396,20 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
     },
   };
 
-  proxy = observable(obj);
+  proxy = makeAutoObservable(obj, {
+    // Use custom equality on `value` that is _never_ equals. This sounds weird, but
+    // because our `value` is always the same `instance` that was passed to `newObjectState`,
+    // to mobx this looks like the value never changes, and it will never invoke observers
+    // even with our tick-based hacks.
+    value: computed({ equals: () => false }),
+  });
+
+  // Any time a field changes, percolate that change up to us
+  reaction(
+    () => getFields(proxy).map((f) => f.value),
+    () => _tick.value++,
+  );
+
   return proxy!;
 }
 
