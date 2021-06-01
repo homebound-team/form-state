@@ -706,6 +706,7 @@ describe("formState", () => {
       Object {
         "address": undefined,
         "firstName": "a",
+        "id": undefined,
         "lastName": undefined,
       }
     `);
@@ -720,6 +721,7 @@ describe("formState", () => {
           "street": undefined,
         },
         "firstName": "a",
+        "id": undefined,
         "lastName": undefined,
       }
     `);
@@ -731,6 +733,7 @@ describe("formState", () => {
       Object {
         "books": undefined,
         "firstName": "a",
+        "id": undefined,
         "lastName": undefined,
       }
     `);
@@ -743,10 +746,12 @@ describe("formState", () => {
         "books": Array [
           Object {
             "classification": undefined,
+            "id": undefined,
             "title": undefined,
           },
         ],
         "firstName": "a",
+        "id": undefined,
         "lastName": undefined,
       }
     `);
@@ -864,6 +869,100 @@ describe("formState", () => {
     formState.lastName.value = "bob";
     expect(formState.lastName.errors).toEqual(["Must not match first name"]);
   });
+
+  it("can return only changed primitive fields", () => {
+    // Given an author
+    const formState = createObjectState(authorWithBooksConfig, {
+      id: "a:1",
+      firstName: "f",
+      lastName: "l",
+      books: [{ title: "t1" }],
+    });
+    // And initially nothing is changed
+    expect(formState.changedValue).toEqual({ id: "a:1" });
+    // When we change the last name
+    formState.lastName.value = "l2";
+    // Then only the id (for updates) and last name are in changed value
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      lastName: "l2",
+    });
+  });
+
+  it("can return only changed object fields", () => {
+    // Given an author with an address object
+    const formState = createObjectState(authorWithAddressConfig, {
+      id: "a:1",
+      firstName: "f",
+      address: { city: "c1", street: "s1" },
+    });
+    // And initially nothing is changed
+    expect(formState.changedValue).toEqual({ id: "a:1" });
+    // When we change the sub object
+    formState.address.street.value = "s2";
+    // Then we get the author id (for update) and only what changed in the address
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      address: { street: "s2" },
+    });
+  });
+
+  it("can return only changed list fields", () => {
+    // Given an author with some books
+    const formState = createObjectState(authorWithBooksConfig, {
+      id: "a:1",
+      firstName: "f",
+      books: [
+        { id: "b:1", title: "t1" },
+        { id: "b:2", title: "t2" },
+      ],
+    });
+    // And initially nothing is changed
+    expect(formState.changedValue).toEqual({ id: "a:1" });
+    // When we change the 1st book
+    formState.books.rows[0].title.value = "t1b";
+    // Then we get the author id (for updates) and both books b/c `author.books = [...]` is
+    // assumed to be an exhaustive set and we don't want to orphan the 2nd book.
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      books: [{ id: "b:1", title: "t1b" }, { id: "b:2" }],
+    });
+  });
+
+  it("can return only changed but incremental list fields", () => {
+    // Given an author
+    const formState = createObjectState<AuthorInput>(
+      {
+        id: { type: "value" },
+        // And the books collection is marked as incremental (i.e. line items)
+        books: {
+          type: "list",
+          update: "incremental",
+          config: {
+            id: { type: "value" },
+            title: { type: "value", rules: [required] },
+          },
+        },
+      },
+      {
+        id: "a:1",
+        firstName: "f",
+        books: [
+          { id: "b:1", title: "t1" },
+          { id: "b:2", title: "t2" },
+        ],
+      },
+    );
+    // And initially nothing is changed
+    expect(formState.changedValue).toEqual({ id: "a:1" });
+    // When we change the 1st book
+    formState.books.rows[0].title.value = "t1b";
+    // Then only the 1st book is included
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      books: [{ id: "b:1", title: "t1b" }],
+    });
+  });
 });
 
 class ObservableObject {
@@ -886,11 +985,13 @@ class ObservableObject {
 }
 
 const authorWithBooksConfig: ObjectConfig<AuthorInput> = {
+  id: { type: "value" },
   firstName: { type: "value" },
   lastName: { type: "value" },
   books: {
     type: "list",
     config: {
+      id: { type: "value" },
       title: { type: "value", rules: [required] },
       classification: { type: "value" },
     },
@@ -902,6 +1003,7 @@ function createAuthorInputState(input: AuthorInput) {
 }
 
 const authorWithAddressConfig: ObjectConfig<AuthorInput> = {
+  id: { type: "value" },
   firstName: { type: "value" },
   lastName: { type: "value" },
   address: {
