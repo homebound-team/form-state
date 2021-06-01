@@ -922,7 +922,7 @@ describe("formState", () => {
     // When we change the 1st book
     formState.books.rows[0].title.value = "t1b";
     // Then we get the author id (for updates) and both books b/c `author.books = [...]` is
-    // assumed to be an exhaustive set and we don't want to orhan the 2nd book.
+    // assumed to be an exhaustive set and we don't want to orphan the 2nd book.
     expect(formState.changedValue).toEqual({
       id: "a:1",
       books: [{ id: "b:1", title: "t1b" }, { id: "b:2" }],
