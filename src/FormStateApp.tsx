@@ -143,6 +143,7 @@ function TextField(props: { field: FieldState<string | null | undefined> }) {
               value={field.value || ""}
               onBlur={() => field.blur()}
               onChange={(e) => {
+                console.log(e.target.value);
                 field.set(e.target.value);
               }}
             />

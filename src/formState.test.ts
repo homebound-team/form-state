@@ -979,6 +979,20 @@ describe("formState", () => {
     formState.firstName.value = "f2";
     expect(ticks).toEqual(1);
   });
+
+  it("does not override a focused field", () => {
+    const formState = createObjectState(authorWithBooksConfig, { firstName: "f", lastName: "l" });
+    // Given first name is focused
+    formState.firstName.focus();
+    // When a mutation result sets both firstName and lastName
+    formState.set({ firstName: "f2", lastName: "l2" });
+    // Then we don't overwrite the user's WIP work
+    expect(formState.firstName.value).toEqual("f");
+    expect(formState.lastName.value).toEqual("l2");
+    // But the user can still actively type a value
+    formState.firstName.set("ff");
+    expect(formState.firstName.value).toEqual("ff");
+  });
 });
 
 class ObservableObject {

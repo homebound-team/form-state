@@ -158,14 +158,14 @@ export interface FieldState<V> {
   readonly errors: string[];
   /** Returns a subset of V with only the changed values. Currently not observable. */
   readonly changedValue: V;
-
+  /** Focuses the field. Disables changes from `ObjectState.set` calls. */
+  focus(): void;
   /** Blur essentially touches the field. */
   blur(): void;
-
   set(value: V): void;
-
+  /** Reverts back to the original value and resets dirty/touched. */
   reset(): void;
-
+  /** Accepts the current changed value (if any) as the original and resets dirty/touched. */
   save(): void;
 }
 
@@ -385,7 +385,7 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
         throw new Error("Currently readOnly");
       }
       getFields(this).forEach((field) => {
-        if (field.key in value) {
+        if (field.key in value && !(field as any)._focused) {
           field.set((value as any)[field.key]);
         }
       });
@@ -468,6 +468,7 @@ function newValueFieldState<T, K extends keyof T>(
 
     // TODO Should we check parent.readOnly? Currently it is pushed into us.
     readOnly,
+    _focused: false,
 
     _isIdKey: isIdKey,
     _isDeleteKey: isDeleteKey,
@@ -510,7 +511,12 @@ function newValueFieldState<T, K extends keyof T>(
       return this.rules.some((rule) => rule === required);
     },
 
+    focus() {
+      this._focused = true;
+    },
+
     blur() {
+      this._focused = false;
       // touched is readonly, but we're allowed to change it
       this.touched = true;
     },
@@ -588,6 +594,7 @@ function newListFieldState<T, K extends keyof T, U>(
       return _tick.value > 0 ? ((parentInstance[key] as any) as U[]) : fail();
     },
 
+    _focused: false,
     _readOnly: false,
 
     get readOnly(): boolean {
@@ -673,7 +680,12 @@ function newListFieldState<T, K extends keyof T, U>(
       return result;
     },
 
+    focus() {
+      this._focused = true;
+    },
+
     blur() {
+      this._focused = false;
       this.touched = true;
     },
 
