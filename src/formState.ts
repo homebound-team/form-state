@@ -385,7 +385,7 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
         throw new Error("Currently readOnly");
       }
       getFields(this).forEach((field) => {
-        if (field.key in value && !(field as any)._focused) {
+        if (field.key in value && (!field.dirty || !(field as any)._focused)) {
           field.set((value as any)[field.key]);
         }
       });
