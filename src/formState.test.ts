@@ -1005,6 +1005,30 @@ describe("formState", () => {
     // Then we do update the value
     expect(formState.firstName.value).toEqual("f2");
   });
+
+  it("trims string values on blur", () => {
+    const formState = createObjectState(authorWithBooksConfig, { firstName: "f", lastName: "l" });
+    // Given the user is typing with spaces
+    formState.firstName.set("f ");
+    // And we initially keep the space
+    expect(formState.firstName.value).toEqual("f ");
+    // When the field is blurred
+    formState.firstName.blur();
+    // Then we trim it
+    expect(formState.firstName.value).toEqual("f");
+  });
+
+  it("trims empty values to undefined on blur", () => {
+    const formState = createObjectState(authorWithBooksConfig, { firstName: "f", lastName: "l" });
+    // Given the user is typing with only spaces
+    formState.firstName.set(" ");
+    // And we initially keep the space
+    expect(formState.firstName.value).toEqual(" ");
+    // When the field is blurred
+    formState.firstName.blur();
+    // Then we trim it to null (b/c the firstName was originally set)
+    expect(formState.firstName.value).toEqual(null);
+  });
 });
 
 class ObservableObject {
