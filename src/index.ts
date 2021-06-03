@@ -1,1 +1,1 @@
-export { createObjectState, ObjectConfig, ObjectState, required, Rule, useFormState } from "src/formState";
+export { createObjectState, ObjectConfig, ObjectState, required, Rule, useFormState, FieldState } from "src/formState";
