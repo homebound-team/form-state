@@ -19,37 +19,24 @@ export function useFormState<T, O>(
   opts?: {
     addRules?: (state: ObjectState<T>) => void;
     readOnly?: boolean;
-    /** Fired on change, if everything is valid, and debounced by `onChangeDebounceDelayInMillis`. */
-    onChange?: (state: ObjectState<T>) => void;
-    /** How much time in millis to debounce the `onChange`, defaults to 1 second. */
-    onChangeDebounceDelayInMillis?: number;
+    /** Fired when the form should auto-save, i.e. after a) blur + b) all fields are valid. */
+    onSave?: (state: ObjectState<T>) => void;
   },
 ): ObjectState<T> {
-  const { addRules, readOnly = false, onChange, onChangeDebounceDelayInMillis = 1_000 } = opts || {};
+  const { addRules, readOnly = false, onSave } = opts || {};
   const form = useMemo(() => {
     // We purposefully use a non-memo'd initFn for better developer UX, i.e. the caller
     // of `useFormState` doesn't have to `useCallback` their `initFn` just to pass it to us.
     const instance = pickFields(config, initFn(initValue));
-    const form = createObjectState(config, instance);
+    const form = createObjectState(config, instance, {
+      onBlur: () => {
+        // Don't use canSave() because we don't want to set touched for all of the field
+        if (onSave && form.dirty && form.valid) {
+          onSave(form);
+        }
+      },
+    });
     form.readOnly = readOnly;
-
-    if (onChange) {
-      let timeout: any;
-      reaction(
-        () => form.value,
-        () => {
-          // Reset the bounce on each change
-          if (timeout) {
-            clearTimeout(timeout);
-          }
-          if (form.valid) {
-            timeout = setTimeout(() => onChange(form), onChangeDebounceDelayInMillis);
-          }
-        },
-        // Our `form.value` never changes identity, but tell mobx to want to rerun anyway
-        { equals: () => false },
-      );
-    }
 
     // The identity of `addRules` is not stable, but assume that it is for better UX.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -267,11 +254,21 @@ type ObjectFieldConfig<U> = {
  * interactive form that tracks the current valid/touched/etc. state of both each
  * individual fields as well as the top-level form/object itself.
  */
-export function createObjectState<T>(config: ObjectConfig<T>, instance: T): ObjectState<T> {
-  return newObjectState(config, instance, undefined);
+export function createObjectState<T>(
+  config: ObjectConfig<T>,
+  instance: T,
+  opts: { onBlur?: () => void } = {},
+): ObjectState<T> {
+  const noop = () => {};
+  return newObjectState(config, instance, undefined, opts.onBlur || noop);
 }
 
-function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | undefined): ObjectState<T> {
+function newObjectState<T>(
+  config: ObjectConfig<T>,
+  instance: T,
+  key: keyof T | undefined,
+  onBlur: () => void,
+): ObjectState<T> {
   // This is what we return, but we only know it's value until we call `observable`, so
   // we create a mutable variable to capture it so that we can create fields/call their
   // constructors and give them a way to access it later.
@@ -298,14 +295,15 @@ function newObjectState<T>(config: ObjectConfig<T>, instance: T, key: keyof T | 
         config.isReadOnlyKey || false,
         config.computed || false,
         config.readOnly || false,
+        onBlur,
       );
     } else if (config.type === "list") {
-      field = newListFieldState(instance, getObjectState, key, config.rules || [], config, config.config);
+      field = newListFieldState(instance, getObjectState, key, config.rules || [], config, config.config, onBlur);
     } else if (config.type === "object") {
       if (!instance[key]) {
         instance[key] = {} as any;
       }
-      field = newObjectState(config.config, instance[key] as any, key);
+      field = newObjectState(config.config, instance[key] as any, key, onBlur);
     } else {
       throw new Error("Unsupported");
     }
@@ -449,6 +447,7 @@ function newValueFieldState<T, K extends keyof T>(
   isReadOnlyKey: boolean,
   computed: boolean,
   readOnly: boolean,
+  onBlur: () => void,
 ): FieldState<T[K] | null | undefined> {
   type V = T[K];
 
@@ -513,6 +512,7 @@ function newValueFieldState<T, K extends keyof T>(
     blur() {
       // touched is readonly, but we're allowed to change it
       this.touched = true;
+      onBlur();
     },
 
     set(value: V | null | undefined) {
@@ -572,6 +572,7 @@ function newListFieldState<T, K extends keyof T, U>(
   rules: Rule<T, readonly ObjectState<U>[]>[],
   listConfig: ListFieldConfig<T, U>,
   config: ObjectConfig<U>,
+  onBlur: () => void,
 ): ListFieldState<U> {
   // Keep a map of "item in the parent list" -> "that item's ObjectState"
   const rowMap = new Map<U, ObjectState<U>>();
@@ -629,7 +630,7 @@ function newListFieldState<T, K extends keyof T, U>(
         // Because we're reading from this.value, child will be the proxy version
         let childState = rowMap.get(child);
         if (!childState) {
-          childState = newObjectState<U>(config, child, undefined);
+          childState = newObjectState<U>(config, child, undefined, onBlur);
           rowMap.set(child, childState);
         }
         return childState;
@@ -675,6 +676,7 @@ function newListFieldState<T, K extends keyof T, U>(
 
     blur() {
       this.touched = true;
+      onBlur();
     },
 
     set(values: U[]) {
