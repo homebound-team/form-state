@@ -1,6 +1,6 @@
 import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
 import { AuthorInput, BookInput, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
-import { createObjectState, ObjectConfig, pickFields, required } from "./formState";
+import { createObjectState, FieldState, ObjectConfig, ObjectState, pickFields, required } from "./formState";
 
 describe("formState", () => {
   it("mobx lists maintain observable identity", () => {
@@ -19,7 +19,10 @@ describe("formState", () => {
   });
 
   it("can validate a simple input", () => {
-    const a = createObjectState<BookInput>({ title: { type: "value", rules: [required] } }, { title: "b1" });
+    const a: ObjectState<BookInput> = createObjectState<BookInput>(
+      { title: { type: "value", rules: [required] } },
+      { title: "b1" },
+    );
     let numErrors = 0;
     autorun(() => {
       numErrors = a.title.errors.length;
@@ -966,7 +969,6 @@ describe("formState", () => {
 
   it("can observe value changes", () => {
     const formState = createObjectState(authorWithBooksConfig, { firstName: "f" });
-    let value: any;
     let ticks = 0;
     reaction(
       () => formState.value,
@@ -1028,6 +1030,44 @@ describe("formState", () => {
     formState.firstName.blur();
     // Then we trim it to null (b/c the firstName was originally set)
     expect(formState.firstName.value).toEqual(null);
+  });
+
+  it("reproduces the type modifier weirdness", () => {
+    // Adding/removing `-?` makes the `anyCallback` line flip between broken/working
+    type Mapped<T> = { [K in keyof T]-?: number };
+    type Callback<T> = (object: Mapped<T>) => void;
+    const fn: Callback<{ firstName: string }> = () => {};
+    // @ts-expect-error
+    const anyCallback: Callback<any> = fn;
+  });
+
+  it("can work with both required inputs and optional fields", () => {
+    // Given an input where `id` is required
+    type AuthorInput = {
+      id: string;
+      // And firstName is optional
+      firstName?: string | null;
+    };
+    // And we drop it in a form.
+    const form = createObjectState<AuthorInput>(
+      {
+        id: { type: "value" },
+        firstName: { type: "value" },
+      },
+      { id: "a:1" },
+    );
+    // Technically id should not accept null/undefined, but we force this to work
+    form.id.set(undefined);
+    // So that we can pass either form.firstName or form.id to BoundFields that
+    // inherently need to be able to set null or undefined (i.e. a text field can
+    // always be cleared.
+    let field1: FieldState<AuthorInput, string | undefined | null>;
+    field1 = form.firstName;
+    field1 = form.id;
+    // We can also work with any
+    let field2: FieldState<any, string | undefined | null>;
+    field2 = form.firstName;
+    field2 = form.id;
   });
 });
 

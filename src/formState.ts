@@ -80,35 +80,48 @@ export function useFormState<T, O>(
  * ```
  */
 // TODO Maybe rename to FormObjectState or ObjectFieldState
-export type ObjectState<T> = FieldState<T> &
-  FieldStates<T> & {
-    /** Sets the state of fields in `state`. */
-    set(state: Partial<T>): void;
+export type ObjectState<T, P = any> =
+  // Add state.field1, state.field2 for each key in T
+  FieldStates<T> &
+    // Pull in the touched, blur, dirty, etc; except for rules, we don't have object-level rules yet
+    Omit<FieldState<P, T>, "rules"> & {
+      /** Sets the state of fields in `state`. */
+      set(state: Partial<T>): void;
 
-    /** Returns whether the object can be saved, i.e. is valid, but also as a side-effect marks touched. */
-    canSave(): boolean;
-  };
+      /** Returns whether the object can be saved, i.e. is valid, but also as a side-effect marks touched. */
+      canSave(): boolean;
+    };
 
-type Builtin = Date | Function | Uint8Array | string | number | boolean;
+export type Builtin = Date | Function | Uint8Array | string | number | boolean;
 
 /** For a given input type `T`, decorate each field into the "field state" type that holds our form-relevant state, i.e. valid/touched/etc. */
 type FieldStates<T> = {
-  [P in keyof T]-?: T[P] extends Array<infer U> | null | undefined
-    ? U extends Builtin
-      ? FieldState<U[]>
-      : ListFieldState<U>
-    : T[P] extends Builtin
-    ? FieldState<T[P]>
-    : ObjectState<T[P]>;
+  [K in keyof T]-?: T[K] extends Array<infer U> | null | undefined
+    ? U extends Builtin | null | undefined
+      ? FieldState<T, U[] | null | undefined>
+      : ListFieldState<T, U>
+    : T[K] extends Builtin | null | undefined
+    ? // Even though T[K] might be required, we always push `null | required` into the V of FieldState,
+      // because when bound to form fields, the value can invariably end up as null/undefined if they
+      // clear the text fields, and keeping this as `FieldState<T, T[K]>` would result in compile errors.
+      // Granted, if T[K] actually _is_ required (like a SaveMutation.id field), we're basically trusting
+      // the user to add `required` rule to the config rule that will keep the post-validation
+      // `ObjectState.value` / `ObjectState.changedValue` from being incorrect.
+      FieldState<T, T[K] | null | undefined>
+    : ObjectState<T[K], T>;
 };
+
+// https://stackoverflow.com/questions/55541275/typescript-check-for-the-any-type
+type IfAny<T, Y, N> = 0 extends 1 & T ? Y : N;
 
 /** A validation rule, given the value and name, return the error string if valid, or undefined if valid. */
 export type Rule<T, V> = (opts: {
   value: V;
   key: string;
   originalValue: V;
-  // This needs to be an ObjectState so that the rule is registered as an observer
-  object: ObjectState<T>;
+  // We need to pass `object` as the ObjectState, so that the rule is registered as an observer.
+  // (The `IfAny` is because the `-?` in `FieldStates breaks the `any` type, see the "weirdness" test.)
+  object: IfAny<T, any, ObjectState<T>>;
 }) => string | undefined;
 
 /** A rule that validates `value` is not `undefined`, `null`, or empty string. */
@@ -124,9 +137,11 @@ export const required = action(<V>({ value: v }: { value: V }): string | undefin
  * This API also provides hooks for form elements to call into, i.e. `blur()` and `set(...)` that will
  * update the field state and re-render, i.e. when including in an `ObjectState`-typed literal that is
  * an mobx `useLocalObservable`/observable.
+ *
+ * Note that `V` will always have `null | undefined` added to it by `FieldStates`, b/c most form fields
+ * i.e. text boxes, can always be cleared out/deleted.
  */
-// TODO: How should V handle null | undefined?
-export interface FieldState<V> {
+export interface FieldState<T, V> {
   readonly key: string;
   value: V;
   readonly originalValue: V;
@@ -135,13 +150,7 @@ export interface FieldState<V> {
   readonly required: boolean;
   readonly dirty: boolean;
   readonly valid: boolean;
-  // We enforce the correctness of Rules in the config declaration, but having this
-  // typed as `Rule<V>` causes general grief in TypeScript when trying to handle generic
-  // ObjectState<any>s or FieldState<string | null | undefined> vs. FieldState<string>.
-  //
-  // The only code that actually cares about this type is internal to formState.ts, so just
-  // any-ize it for now.
-  rules: Rule<any, any>[];
+  rules: Rule<T, V>[];
   readonly errors: string[];
   /** Returns a subset of V with only the changed values. Currently not observable. */
   readonly changedValue: V;
@@ -157,7 +166,7 @@ export interface FieldState<V> {
 }
 
 /** Form state for list of children, i.e. `U` is a `Book` in a form with a `books: Book[]`. */
-export interface ListFieldState<U> extends Omit<FieldState<U[]>, "originalValue"> {
+export interface ListFieldState<T, U> extends Omit<FieldState<T, U[]>, "originalValue"> {
   readonly rows: ReadonlyArray<ObjectState<U>>;
 
   add(value: U, index?: number): void;
@@ -263,17 +272,17 @@ export function createObjectState<T>(
   return newObjectState(config, instance, undefined, opts.onBlur || noop);
 }
 
-function newObjectState<T>(
+function newObjectState<T, P = any>(
   config: ObjectConfig<T>,
   instance: T,
   key: keyof T | undefined,
   onBlur: () => void,
-): ObjectState<T> {
+): ObjectState<T, P> {
   // This is what we return, but we only know it's value until we call `observable`, so
   // we create a mutable variable to capture it so that we can create fields/call their
   // constructors and give them a way to access it later.
-  let proxy: ObjectState<T> | undefined = undefined;
-  function getObjectState(): ObjectState<T> {
+  let proxy: ObjectState<T, P> | undefined = undefined;
+  function getObjectState(): ObjectState<T, P> {
     if (!proxy) {
       throw new Error("Race condition");
     }
@@ -283,7 +292,7 @@ function newObjectState<T>(
   const fieldStates = Object.entries(config).map(([_key, _config]) => {
     const key = _key as keyof T;
     const config = _config as ValueFieldConfig<T, any> | ObjectFieldConfig<any> | ListFieldConfig<T, any>;
-    let field: FieldState<any> | ListFieldState<any>;
+    let field: FieldState<T, any> | ListFieldState<T, any> | ObjectState<T, P>;
     if (config.type === "value") {
       field = newValueFieldState(
         instance,
@@ -315,8 +324,8 @@ function newObjectState<T>(
   const _tick = observable({ value: 1 });
 
   const fieldNames = Object.keys(config);
-  function getFields(proxyThis: any): FieldState<any>[] {
-    return fieldNames.map((name) => proxyThis[name]) as FieldState<any>[];
+  function getFields(proxyThis: any): FieldState<T, any>[] {
+    return fieldNames.map((name) => proxyThis[name]) as FieldState<T, any>[];
   }
 
   const obj = {
@@ -448,7 +457,7 @@ function newValueFieldState<T, K extends keyof T>(
   computed: boolean,
   readOnly: boolean,
   onBlur: () => void,
-): FieldState<T[K] | null | undefined> {
+): FieldState<T, T[K] | null | undefined> {
   type V = T[K];
 
   // keep a copy here for reference equality
@@ -498,12 +507,12 @@ function newValueFieldState<T, K extends keyof T>(
 
     get valid(): boolean {
       const opts = { value: this.value, key: key as string, originalValue: this.originalValue, object: parentState() };
-      return this.rules.every((r) => r(opts) === undefined);
+      return this.rules.every((r) => r(opts as any) === undefined);
     },
 
     get errors(): string[] {
       const opts = { value: this.value, key: key as string, originalValue: this.originalValue, object: parentState() };
-      return this.rules.map((r) => r(opts)).filter(isNotUndefined);
+      return this.rules.map((r) => r(opts as any)).filter(isNotUndefined);
     },
 
     get required(): boolean {
@@ -586,7 +595,7 @@ function newListFieldState<T, K extends keyof T, U>(
   listConfig: ListFieldConfig<T, U>,
   config: ObjectConfig<U>,
   onBlur: () => void,
-): ListFieldState<U> {
+): ListFieldState<T, U> {
   // Keep a map of "item in the parent list" -> "that item's ObjectState"
   const rowMap = new Map<U, ObjectState<U>>();
   const _tick = observable({ value: 1 });
@@ -666,7 +675,7 @@ function newListFieldState<T, K extends keyof T, U>(
       const value = this.rows;
       // TODO Passing `originalCopy || []` is probably not 100% right
       const opts = { value, key: key as string, originalValue: originalCopy || [], object: parentState() };
-      const collectionValid = this.rules.every((r) => r(opts) === undefined);
+      const collectionValid = this.rules.every((r) => r(opts as any) === undefined);
       const entriesValid = this.rows.filter((r) => !(r as any)._considerDeleted()).every((r) => r.valid);
       return collectionValid && entriesValid;
     },
@@ -674,7 +683,7 @@ function newListFieldState<T, K extends keyof T, U>(
     get errors(): string[] {
       if (_tick.value < 0) fail();
       const opts = { value: this.rows, key: key as string, originalValue: originalCopy || [], object: parentState() };
-      return this.rules.map((r) => r(opts)).filter(isNotUndefined);
+      return this.rules.map((r) => r(opts as any)).filter(isNotUndefined);
     },
 
     get changedValue() {
