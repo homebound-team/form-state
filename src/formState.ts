@@ -83,8 +83,8 @@ export function useFormState<T, O>(
 export type ObjectState<T, P = any> =
   // Add state.field1, state.field2 for each key in T
   FieldStates<T> &
-    // Pull in the touched, blur, dirty, etc; except for rules, we don't have object-level rules yet
-    Omit<FieldState<P, T>, "rules"> & {
+    // Pull in the touched, blur, dirty, etc
+    FieldState<P, T> & {
       /** Sets the state of fields in `state`. */
       set(state: Partial<T>): void;
 
@@ -184,7 +184,7 @@ export type ObjectConfig<T> = {
   // helper methods, i.e. `.toInput()`.
   [P in keyof OmitIf<T, Function>]: T[P] extends Array<infer U> | null | undefined
     ? U extends Builtin
-      ? ValueFieldConfig<T, U[]>
+      ? ValueFieldConfig<T, T[P]>
       : ListFieldConfig<T, U>
     : ValueFieldConfig<T, T[P]> | ObjectFieldConfig<T[P]>;
 };
@@ -306,7 +306,7 @@ function newObjectState<T, P = any>(
       if (!instance[key]) {
         instance[key] = {} as any;
       }
-      field = newObjectState(config.config, instance[key] as any, key, onBlur);
+      field = newObjectState(config.config, instance[key] as any, key, onBlur) as any;
     } else {
       throw new Error("Unsupported");
     }

@@ -1,5 +1,5 @@
 import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
-import { AuthorInput, BookInput, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
+import { AuthorAddress, AuthorInput, BookInput, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
 import { createObjectState, FieldState, ObjectConfig, ObjectState, pickFields, required } from "./formState";
 
 describe("formState", () => {
@@ -1070,6 +1070,27 @@ describe("formState", () => {
     field2 = form.firstName;
     // @ts-expect-error
     field2 = form.id;
+  });
+
+  it("can have child object states passed in as field states", () => {
+    // Given an author
+    const a = createObjectState<AuthorInput>(
+      {
+        id: { type: "value" },
+        // And address is modeled as a value object
+        address: { type: "value" },
+      },
+      {},
+    );
+    // And a bound field that wants a FieldState<any, Address> (even though technically `ObjectState`
+    // turns this into a nested `ObjectState` (instead of "just a `FieldState`"), because it can't
+    // "see" the `{ type: value }`, until we pass the config as a generic to `ObjectState`.
+    let field: FieldState<any, AuthorAddress | null | undefined>;
+    // Then we can assign the value
+    field = a.address;
+    // And treat it as a value object
+    a.address.set({ street: "123", city: "nyc" });
+    expect(a.value).toEqual({ address: { street: "123", city: "nyc" } });
   });
 });
 
