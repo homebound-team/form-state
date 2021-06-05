@@ -97,17 +97,11 @@ export type Builtin = Date | Function | Uint8Array | string | number | boolean;
 /** For a given input type `T`, decorate each field into the "field state" type that holds our form-relevant state, i.e. valid/touched/etc. */
 type FieldStates<T> = {
   [K in keyof T]-?: T[K] extends Array<infer U> | null | undefined
-    ? U extends Builtin | null | undefined
-      ? FieldState<T, U[] | null | undefined>
+    ? U extends Builtin
+      ? FieldState<T, T[K]>
       : ListFieldState<T, U>
     : T[K] extends Builtin | null | undefined
-    ? // Even though T[K] might be required, we always push `null | required` into the V of FieldState,
-      // because when bound to form fields, the value can invariably end up as null/undefined if they
-      // clear the text fields, and keeping this as `FieldState<T, T[K]>` would result in compile errors.
-      // Granted, if T[K] actually _is_ required (like a SaveMutation.id field), we're basically trusting
-      // the user to add `required` rule to the config rule that will keep the post-validation
-      // `ObjectState.value` / `ObjectState.changedValue` from being incorrect.
-      FieldState<T, T[K] | null | undefined>
+    ? FieldState<T, T[K]>
     : ObjectState<T[K], T>;
 };
 

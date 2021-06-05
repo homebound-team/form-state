@@ -1056,17 +1056,19 @@ describe("formState", () => {
       },
       { id: "a:1" },
     );
-    // Technically id should not accept null/undefined, but we force this to work
+    // id should not accept null/undefined
+    // @ts-expect-error
     form.id.set(undefined);
-    // So that we can pass either form.firstName or form.id to BoundFields that
-    // inherently need to be able to set null or undefined (i.e. a text field can
-    // always be cleared.
+    // A BoundField typically has `string | undefined | null` so works on firstName
     let field1: FieldState<AuthorInput, string | undefined | null>;
     field1 = form.firstName;
+    // But not on id
+    // @ts-expect-error
     field1 = form.id;
-    // We can also work with any
+    // And same thing with any as the object type
     let field2: FieldState<any, string | undefined | null>;
     field2 = form.firstName;
+    // @ts-expect-error
     field2 = form.id;
   });
 });
