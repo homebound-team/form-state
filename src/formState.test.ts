@@ -1,6 +1,6 @@
 import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
-import { AuthorInput, BookInput, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
-import { createObjectState, ObjectConfig, pickFields, required } from "./formState";
+import { AuthorAddress, AuthorInput, BookInput, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
+import { createObjectState, FieldState, ObjectConfig, ObjectState, pickFields, required } from "./formState";
 
 describe("formState", () => {
   it("mobx lists maintain observable identity", () => {
@@ -19,7 +19,10 @@ describe("formState", () => {
   });
 
   it("can validate a simple input", () => {
-    const a = createObjectState<BookInput>({ title: { type: "value", rules: [required] } }, { title: "b1" });
+    const a: ObjectState<BookInput> = createObjectState<BookInput>(
+      { title: { type: "value", rules: [required] } },
+      { title: "b1" },
+    );
     let numErrors = 0;
     autorun(() => {
       numErrors = a.title.errors.length;
@@ -966,7 +969,6 @@ describe("formState", () => {
 
   it("can observe value changes", () => {
     const formState = createObjectState(authorWithBooksConfig, { firstName: "f" });
-    let value: any;
     let ticks = 0;
     reaction(
       () => formState.value,
@@ -1028,6 +1030,67 @@ describe("formState", () => {
     formState.firstName.blur();
     // Then we trim it to null (b/c the firstName was originally set)
     expect(formState.firstName.value).toEqual(null);
+  });
+
+  it("reproduces the type modifier weirdness", () => {
+    // Adding/removing `-?` makes the `anyCallback` line flip between broken/working
+    type Mapped<T> = { [K in keyof T]-?: number };
+    type Callback<T> = (object: Mapped<T>) => void;
+    const fn: Callback<{ firstName: string }> = () => {};
+    // @ts-expect-error
+    const anyCallback: Callback<any> = fn;
+  });
+
+  it("can work with both required inputs and optional fields", () => {
+    // Given an input where `id` is required
+    type AuthorInput = {
+      id: string;
+      // And firstName is optional
+      firstName?: string | null;
+    };
+    // And we drop it in a form.
+    const form = createObjectState<AuthorInput>(
+      {
+        id: { type: "value" },
+        firstName: { type: "value" },
+      },
+      { id: "a:1" },
+    );
+    // id should not accept null/undefined
+    // @ts-expect-error
+    form.id.set(undefined);
+    // A BoundField typically has `string | undefined | null` so works on firstName
+    let field1: FieldState<AuthorInput, string | undefined | null>;
+    field1 = form.firstName;
+    // But not on id
+    // @ts-expect-error
+    field1 = form.id;
+    // And same thing with any as the object type
+    let field2: FieldState<any, string | undefined | null>;
+    field2 = form.firstName;
+    // @ts-expect-error
+    field2 = form.id;
+  });
+
+  it("can have child object states passed in as field states", () => {
+    // Given an author
+    const a = createObjectState<AuthorInput>(
+      {
+        id: { type: "value" },
+        // And address is modeled as a value object
+        address: { type: "value" },
+      },
+      {},
+    );
+    // And a bound field that wants a FieldState<any, Address> (even though technically `ObjectState`
+    // turns this into a nested `ObjectState` (instead of "just a `FieldState`"), because it can't
+    // "see" the `{ type: value }`, until we pass the config as a generic to `ObjectState`.
+    let field: FieldState<any, AuthorAddress | null | undefined>;
+    // Then we can assign the value
+    field = a.address;
+    // And treat it as a value object
+    a.address.set({ street: "123", city: "nyc" });
+    expect(a.value).toEqual({ address: { street: "123", city: "nyc" } });
   });
 });
 

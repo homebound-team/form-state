@@ -128,7 +128,7 @@ const formConfig: ObjectConfig<AuthorInput> = {
   },
 };
 
-function TextField(props: { field: FieldState<string | null | undefined> }) {
+function TextField(props: { field: FieldState<any, string | null | undefined> }) {
   const { field } = props;
   // Somewhat odd: input won't update unless we use <Observer>, even though our
   // parent uses `<Observer>`
