@@ -566,6 +566,17 @@ describe("formState", () => {
     });
   });
 
+  it("maintain field readOnly state when form is readOnly", () => {
+    // Given a formState
+    const formState = createFormObjectState<BookInput>(
+      { title: { type: "value", rules: [required], readOnly: true } },
+      {},
+    );
+
+    // Then expect form
+    expect(formState.title.readOnly).toBeTruthy();
+  });
+
   it("canSave returns dirty and touches", () => {
     const a1 = createObjectState<AuthorInput>(
       {

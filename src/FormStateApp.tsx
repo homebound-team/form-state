@@ -117,7 +117,7 @@ export function FormStateApp() {
 
 // Configure the fields/behavior for AuthorInput's fields
 const formConfig: ObjectConfig<AuthorInput> = {
-  firstName: { type: "value", rules: [required] },
+  firstName: { type: "value", rules: [required], readOnly: true },
   lastName: { type: "value", rules: [required] },
   books: {
     type: "list",
@@ -142,6 +142,7 @@ function TextField(props: { field: FieldState<any, string | null | undefined> })
               data-testid={field.key}
               value={field.value || ""}
               onBlur={() => field.blur()}
+              readOnly={field.readOnly}
               onChange={(e) => {
                 field.set(e.target.value);
               }}
@@ -153,6 +154,7 @@ function TextField(props: { field: FieldState<any, string | null | undefined> })
                 <th>touched</th>
                 <th>valid</th>
                 <th>dirty</th>
+                <th>readOnly</th>
                 <th>errors</th>
                 <th>original value</th>
               </tr>
@@ -162,6 +164,7 @@ function TextField(props: { field: FieldState<any, string | null | undefined> })
                 <td data-testid={`${field.key}_touched`}>{field.touched.toString()}</td>
                 <td data-testid={`${field.key}_valid`}>{field.valid.toString()}</td>
                 <td data-testid={`${field.key}_dirty`}>{field.dirty.toString()}</td>
+                <td data-testid={`${field.key}_readOnly`}>{field.readOnly.toString()}</td>
                 <td data-testid={`${field.key}_errors`}>{field.errors}</td>
                 <td data-testid={`${field.key}_original`}>{field.originalValue}</td>
               </tr>

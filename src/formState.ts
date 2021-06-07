@@ -494,6 +494,28 @@ function newValueFieldState<T, K extends keyof T>(
       return !areEqual(this.originalValue, this.value);
     },
 
+    get readOnly(): boolean {
+      return this._readOnly;
+    },
+
+    /**
+     * Field readOnly is only opinionated when set.
+     * - When set to true from FormObject, accept change since true higher priority.
+     * - When set to false from FormObject, use original value
+     */
+    set readOnly(v: boolean) {
+      if (this._configReadOnly === undefined) {
+        this._readOnly = v;
+        return;
+      }
+
+      if (v) {
+        this._readOnly = v;
+      } else {
+        this._readOnly = this._configReadOnly || false;
+      }
+    },
+
     // For primitive fields, the changed value is just the value.
     get changedValue() {
       return this.value;
