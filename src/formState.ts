@@ -468,8 +468,11 @@ function newValueFieldState<T, K extends keyof T>(
 
     touched: false,
 
-    // TODO Should we check parent.readOnly? Currently it is pushed into us.
-    readOnly,
+    /** Configuration readOnly state. Mostly used to determine original state. */
+    _configReadOnly: readOnly,
+    /** Current readOnly value. */
+    _readOnly: readOnly || false,
+
     _focused: false,
 
     _isIdKey: isIdKey,
@@ -492,6 +495,28 @@ function newValueFieldState<T, K extends keyof T>(
 
     get dirty(): boolean {
       return !areEqual(this.originalValue, this.value);
+    },
+
+    get readOnly(): boolean {
+      return this._readOnly;
+    },
+
+    /**
+     * Field readOnly is only opinionated when set.
+     * - When set to true from FormObject, accept change since true is higher priority.
+     * - When set to false from FormObject, use original (`_configReadOnly`) value.
+     */
+    set readOnly(v: boolean) {
+      if (this._configReadOnly === undefined) {
+        this._readOnly = v;
+        return;
+      }
+
+      if (v) {
+        this._readOnly = v;
+      } else {
+        this._readOnly = this._configReadOnly || false;
+      }
     },
 
     // For primitive fields, the changed value is just the value.
