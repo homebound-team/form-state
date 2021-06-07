@@ -568,10 +568,7 @@ describe("formState", () => {
 
   it("maintain field readOnly state when form is readOnly", () => {
     // Given a formState
-    const formState = createFormObjectState<BookInput>(
-      { title: { type: "value", rules: [required], readOnly: true } },
-      {},
-    );
+    const formState = createObjectState<BookInput>({ title: { type: "value", rules: [required], readOnly: true } }, {});
 
     // Then expect form
     expect(formState.title.readOnly).toBeTruthy();

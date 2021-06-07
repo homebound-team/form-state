@@ -117,8 +117,8 @@ export function FormStateApp() {
 
 // Configure the fields/behavior for AuthorInput's fields
 const formConfig: ObjectConfig<AuthorInput> = {
-  firstName: { type: "value", rules: [required], readOnly: true },
-  lastName: { type: "value", rules: [required] },
+  firstName: { type: "value", rules: [required] },
+  lastName: { type: "value", rules: [required], readOnly: true },
   books: {
     type: "list",
     rules: [({ value: list }) => ((list || []).length === 0 ? "Empty" : undefined)],

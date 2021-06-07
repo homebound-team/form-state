@@ -468,8 +468,11 @@ function newValueFieldState<T, K extends keyof T>(
 
     touched: false,
 
-    // TODO Should we check parent.readOnly? Currently it is pushed into us.
-    readOnly,
+    /** Configuration readOnly value used to determine original value */
+    _configReadOnly: readOnly,
+    /** Current readOnly value */
+    _readOnly: readOnly || false,
+
     _focused: false,
 
     _isIdKey: isIdKey,
