@@ -504,7 +504,7 @@ function newValueFieldState<T, K extends keyof T>(
     /**
      * Field readOnly is only opinionated when set.
      * - When set to true from FormObject, accept change since true is higher priority.
-     * - When set to false from FormObject, use original (`_configReadOnly`) value
+     * - When set to false from FormObject, use original (`_configReadOnly`) value.
      */
     set readOnly(v: boolean) {
       if (this._configReadOnly === undefined) {
