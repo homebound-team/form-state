@@ -468,9 +468,9 @@ function newValueFieldState<T, K extends keyof T>(
 
     touched: false,
 
-    /** Configuration readOnly state. Mostly used to determine original state */
+    /** Configuration readOnly state. Mostly used to determine original state. */
     _configReadOnly: readOnly,
-    /** Current readOnly value */
+    /** Current readOnly value. */
     _readOnly: readOnly || false,
 
     _focused: false,
@@ -503,7 +503,7 @@ function newValueFieldState<T, K extends keyof T>(
 
     /**
      * Field readOnly is only opinionated when set.
-     * - When set to true from FormObject, accept change since true higher priority.
+     * - When set to true from FormObject, accept change since true is higher priority.
      * - When set to false from FormObject, use original (`_configReadOnly`) value
      */
     set readOnly(v: boolean) {
