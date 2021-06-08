@@ -14,7 +14,7 @@ import { assertNever, fail } from "src/utils";
  */
 export function useFormState<T, O>(
   config: ObjectConfig<T>,
-  initValue: O,
+  initValue: O | null | undefined,
   initFn: (initValue: O) => T,
   opts?: {
     addRules?: (state: ObjectState<T>) => void;
@@ -27,7 +27,7 @@ export function useFormState<T, O>(
   const form = useMemo(() => {
     // We purposefully use a non-memo'd initFn for better developer UX, i.e. the caller
     // of `useFormState` doesn't have to `useCallback` their `initFn` just to pass it to us.
-    const instance = pickFields(config, initFn(initValue));
+    const instance = pickFields(config, initValue ? initFn(initValue) : {});
     const form = createObjectState(config, instance, {
       onBlur: () => {
         // Don't use canSave() because we don't want to set touched for all of the field
