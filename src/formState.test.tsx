@@ -1,6 +1,15 @@
+import { render } from "@homebound/rtl-utils";
 import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
 import { AuthorAddress, AuthorInput, BookInput, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
-import { createObjectState, FieldState, ObjectConfig, ObjectState, pickFields, required } from "./formState";
+import {
+  createObjectState,
+  FieldState,
+  ObjectConfig,
+  ObjectState,
+  pickFields,
+  required,
+  useFormState,
+} from "./formState";
 
 describe("formState", () => {
   it("mobx lists maintain observable identity", () => {
@@ -1113,6 +1122,20 @@ describe("formState", () => {
     // And treat it as a value object
     a.address.set({ street: "123", city: "nyc" });
     expect(a.value).toEqual({ address: { street: "123", city: "nyc" } });
+  });
+
+  it("can filter out undefined from the init value", async () => {
+    // Given a component
+    function TestComponent() {
+      const config: ObjectConfig<AuthorInput> = { firstName: { type: "value" } };
+      // And we have query data that may or may not be defined
+      const data: { firstName: string } | undefined = { firstName: "bob" };
+      // Then the lambda is passed the "de-undefined" data
+      const form = useFormState({ config, initValue: data, initFn: (data) => ({ firstName: data.firstName }) });
+      return <div>{form.firstName.value}</div>;
+    }
+    const r = await render(<TestComponent />);
+    expect(r.baseElement).toHaveTextContent("bob");
   });
 });
 
