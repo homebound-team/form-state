@@ -20,10 +20,10 @@ export function useFormState<T, O>(
     addRules?: (state: ObjectState<T>) => void;
     readOnly?: boolean;
     /** Fired when the form should auto-save, i.e. after a) blur + b) all fields are valid. */
-    onSave?: (state: ObjectState<T>) => void;
+    autoSave?: (state: ObjectState<T>) => void;
   },
 ): ObjectState<T> {
-  const { addRules, readOnly = false, onSave } = opts || {};
+  const { addRules, readOnly = false, autoSave } = opts || {};
   const form = useMemo(() => {
     // We purposefully use a non-memo'd initFn for better developer UX, i.e. the caller
     // of `useFormState` doesn't have to `useCallback` their `initFn` just to pass it to us.
@@ -31,8 +31,8 @@ export function useFormState<T, O>(
     const form = createObjectState(config, instance, {
       onBlur: () => {
         // Don't use canSave() because we don't want to set touched for all of the field
-        if (onSave && form.dirty && form.valid) {
-          onSave(form);
+        if (autoSave && form.dirty && form.valid) {
+          autoSave(form);
         }
       },
     });
