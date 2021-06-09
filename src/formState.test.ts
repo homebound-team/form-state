@@ -566,6 +566,20 @@ describe("formState", () => {
     });
   });
 
+  it("readOnly field should not throw error onBlur", () => {
+    // Given a readOnly formState with a string field
+    const formState = createAuthorInputState({ firstName: "fn" });
+    formState.readOnly = true;
+
+    // When interacting with a string form field (focus and blur)
+    formState.firstName.focus();
+
+    // Then expect no errors to be thrown
+    expect(() => {
+      formState.firstName.blur();
+    }).not.toThrow();
+  });
+
   it("maintain field readOnly state when form is readOnly", () => {
     // Given a formState
     const formState = createObjectState<BookInput>({ title: { type: "value", rules: [required], readOnly: true } }, {});
