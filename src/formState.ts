@@ -543,13 +543,14 @@ function newValueFieldState<T, K extends keyof T>(
     },
 
     blur() {
-      // Now that the user is done editing the field, we sneak in some trim logic
-      if (typeof this.value === "string") {
+      // When field is not readOnly, sneak in some trim logic for string fields
+      if (!this.readOnly && typeof this.value === "string") {
         this.set(this.value.trim() as any);
         if (this.value === "") {
           this.set(undefined);
         }
       }
+
       this._focused = false;
       // touched is readonly, but we're allowed to change it
       this.touched = true;
