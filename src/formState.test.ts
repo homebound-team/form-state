@@ -566,12 +566,12 @@ describe("formState", () => {
     });
   });
 
-  it("should not throw errors when interacting with fields in a readOnly form", () => {
-    // Given a readOnly formState
+  it("readOnly field should not throw error onBlur", () => {
+    // Given a readOnly formState with a string field
     const formState = createAuthorInputState({ firstName: "fn" });
     formState.readOnly = true;
 
-    // When interacting (clicking in and out) with a form field (focus and blur)
+    // When interacting with a string form field (focus and blur)
     formState.firstName.focus();
 
     // Then expect no errors to be thrown
