@@ -10,29 +10,38 @@ import { assertNever, fail } from "src/utils";
 export function useFormState<T, O>(opts: {
   /** The form configuration, should be a module-level const or useMemo'd. */
   config: ObjectConfig<T>;
+
   /**
-   * The form's initial value, i.e. from GraphQL the Author that we're editing, should be stable/useMemo'd.
+   * Provides the form's initial value, as adapted from the `initInput` (if provided).
+   *
+   * If you've not passed the `initInput` key, this function will still be called, just once,
+   * to provide the initial value (i.e. you don't need to useMemo/useCallback the function).
+   *
+   * If you have passed the `initInput` key, this function will be called with the de-optional'd
+   * `initInput` (i.e. so that you don't have to do `undefined` checks while waiting for a GQL
+   * query to load), and then re-called anytime the identity of `initInput` changes.
+   */
+  initFn: (initInput: O) => T;
+
+  /**
+   * The initFn's input value, i.e. from GraphQL the Author that we're editing, so that you can
+   * adapt it to the form's value. Should be stable/useMemo'd.
    *
    * If not provided, then `initFn` will always be called.
    * If provided, then `initFn` will only be called when this is defined.
    */
   initInput?: O | null | undefined;
-  /**
-   * Provides the form's initial value, as adapted from the `initInput`.
-   *
-   * If not you've passed the `initInput` key, this will always be called.
-   * If you have passed the `initInput` key, this will get the de-optional'd `initInput` (i.e. so that
-   * you don't have to do `undefined` checks while waiting for a GQL query to load).
-   */
-  initFn: (initInput: O) => T;
-  /** The initial value to use if you pass `initInput`, but it's undefined. Defaults to `{}`. */
+
+  /** The initial value to use if you pass `initInput`, but it's `undefined`. Defaults to `{}`. */
   initValueIfUndefined?: T;
+
   /**
    * A hook to add custom, cross-field validation rules that can be difficult to setup directly in the config DSL.
    *
    * Does not need to be stable/useMemo'd.
    */
   addRules?: (state: ObjectState<T>) => void;
+
   /** Whether the form should be read only, when changed it won't re-create the whole form. */
   readOnly?: boolean;
   /**
