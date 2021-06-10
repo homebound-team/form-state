@@ -1131,11 +1131,34 @@ describe("formState", () => {
       // And we have query data that may or may not be defined
       const data: { firstName: string } | undefined = { firstName: "bob" };
       // Then the lambda is passed the "de-undefined" data
-      const form = useFormState({ config, initValue: data, initFn: (data) => ({ firstName: data.firstName }) });
+      const form = useFormState({
+        config,
+        initValue: data,
+        initFn: (data) => ({ firstName: data.firstName }),
+      });
       return <div>{form.firstName.value}</div>;
     }
     const r = await render(<TestComponent />);
     expect(r.baseElement).toHaveTextContent("bob");
+  });
+
+  it("can use a custom initial value if init value is undefined", async () => {
+    // Given a component
+    function TestComponent() {
+      const config: ObjectConfig<AuthorInput> = { firstName: { type: "value" } };
+      // And we have query data that may or may not be defined
+      const data: { firstName: string } | undefined = undefined as any;
+      // Then the lambda is passed the "de-undefined" data
+      const form = useFormState({
+        config,
+        initValue: data,
+        initFn: (data) => ({ firstName: data.firstName }),
+        initValueIfUndefined: { firstName: "fred" },
+      });
+      return <div>{form.firstName.value}</div>;
+    }
+    const r = await render(<TestComponent />);
+    expect(r.baseElement).toHaveTextContent("fred");
   });
 });
 

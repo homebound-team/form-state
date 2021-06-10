@@ -6,23 +6,43 @@ import { assertNever, fail } from "src/utils";
 
 /**
  * Creates a formState instance for editing in a form.
- *
- * @param opts.config the form configuration, should be module-level const or useMemo'd
- * @param opts.initValue the initial value from GraphQL, i.e. the Author that we're editing, should be useMemo'd
- * @param opts.initFn a function to adapt the Author "output" object to the form's object.
- * @param opts.addRules a hook to add cross-field rules that can't be declared in `config`
- * @param opts.autoSave invoked when the form should auto-save (i.e. on blur of any changed field)
  */
 export function useFormState<T, O>(opts: {
+  /** The form configuration, should be a module-level const or useMemo'd. */
   config: ObjectConfig<T>;
+  /**
+   * The form's initial value, i.e. from GraphQL the Author that we're editing, should be stable/useMemo'd.
+   *
+   * If not provided, then `initFn` will always be called.
+   * If provided, then `initFn` will only be called when this is defined.
+   */
   initValue?: O | null | undefined;
+  /**
+   * Provides the form's initial value, as adapted from the `initValue`.
+   *
+   * If not you've passed the `initValue` key, this will always be called.
+   * If you have passed the `initValue` key, this will get the de-optional'd `initValue` (i.e. so that
+   * you don't have to do `undefined` checks while waiting for a GQL query to load).
+   */
   initFn: (initValue: O) => T;
+  /** The initial value to use if you pass `initValue`, but it's undefined. Defaults to `{}`. */
+  initValueIfUndefined?: T;
+  /**
+   * A hook to add custom, cross-field validation rules that can be difficult to setup directly in the config DSL.
+   *
+   * Does not need to be stable/useMemo'd.
+   */
   addRules?: (state: ObjectState<T>) => void;
+  /** Whether the form should be read only, when changed it won't re-create the whole form. */
   readOnly?: boolean;
-  /** Fired when the form should auto-save, i.e. after a) blur + b) all fields are valid. */
+  /**
+   * Fired when the form should auto-save, i.e. after a) blur + b) all fields are valid.
+   *
+   * Does not need to be stable/useMemo'd.
+   */
   autoSave?: (state: ObjectState<T>) => void;
 }): ObjectState<T> {
-  const { config, initFn, addRules, readOnly = false, autoSave, initValue } = opts;
+  const { config, initFn, addRules, readOnly = false, autoSave, initValue, initValueIfUndefined } = opts;
   const form = useMemo(() => {
     // We purposefully use a non-memo'd initFn for better developer UX, i.e. the caller
     // of `useFormState` doesn't have to `useCallback` their `initFn` just to pass it to us.
@@ -30,7 +50,10 @@ export function useFormState<T, O>(opts: {
     // If they didn't pass initValue, always call initFn to let them provide the default.
     // Otherwise, if they did pass initValue, make sure it's not undefined before calling initFn,
     // just to help them avoid a `if !undefined` check on the init value.
-    const instance = pickFields(config, !passedInitValue ? initFn({} as any) : initValue ? initFn(initValue) : {});
+    const instance = pickFields(
+      config,
+      !passedInitValue ? initFn({} as any) : initValue ? initFn(initValue) : initValueIfUndefined,
+    );
     const form = createObjectState(config, instance, {
       onBlur: () => {
         // Don't use canSave() because we don't want to set touched for all of the field
