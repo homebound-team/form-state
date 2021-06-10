@@ -1133,7 +1133,7 @@ describe("formState", () => {
       // Then the lambda is passed the "de-undefined" data
       const form = useFormState({
         config,
-        initValue: data,
+        initInput: data,
         initFn: (data) => ({ firstName: data.firstName }),
       });
       return <div>{form.firstName.value}</div>;
@@ -1151,7 +1151,7 @@ describe("formState", () => {
       // Then the lambda is passed the "de-undefined" data
       const form = useFormState({
         config,
-        initValue: data,
+        initInput: data,
         initFn: (data) => ({ firstName: data.firstName }),
         initValueIfUndefined: { firstName: "fred" },
       });

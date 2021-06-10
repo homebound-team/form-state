@@ -16,16 +16,16 @@ export function useFormState<T, O>(opts: {
    * If not provided, then `initFn` will always be called.
    * If provided, then `initFn` will only be called when this is defined.
    */
-  initValue?: O | null | undefined;
+  initInput?: O | null | undefined;
   /**
-   * Provides the form's initial value, as adapted from the `initValue`.
+   * Provides the form's initial value, as adapted from the `initInput`.
    *
-   * If not you've passed the `initValue` key, this will always be called.
-   * If you have passed the `initValue` key, this will get the de-optional'd `initValue` (i.e. so that
+   * If not you've passed the `initInput` key, this will always be called.
+   * If you have passed the `initInput` key, this will get the de-optional'd `initInput` (i.e. so that
    * you don't have to do `undefined` checks while waiting for a GQL query to load).
    */
-  initFn: (initValue: O) => T;
-  /** The initial value to use if you pass `initValue`, but it's undefined. Defaults to `{}`. */
+  initFn: (initInput: O) => T;
+  /** The initial value to use if you pass `initInput`, but it's undefined. Defaults to `{}`. */
   initValueIfUndefined?: T;
   /**
    * A hook to add custom, cross-field validation rules that can be difficult to setup directly in the config DSL.
@@ -42,17 +42,17 @@ export function useFormState<T, O>(opts: {
    */
   autoSave?: (state: ObjectState<T>) => void;
 }): ObjectState<T> {
-  const { config, initFn, addRules, readOnly = false, autoSave, initValue, initValueIfUndefined } = opts;
+  const { config, initFn, addRules, readOnly = false, autoSave, initInput, initValueIfUndefined } = opts;
   const form = useMemo(() => {
     // We purposefully use a non-memo'd initFn for better developer UX, i.e. the caller
     // of `useFormState` doesn't have to `useCallback` their `initFn` just to pass it to us.
-    const passedInitValue = "initValue" in opts;
-    // If they didn't pass initValue, always call initFn to let them provide the default.
-    // Otherwise, if they did pass initValue, make sure it's not undefined before calling initFn,
+    const passedInitValue = "initInput" in opts;
+    // If they didn't pass initInput, always call initFn to let them provide the default.
+    // Otherwise, if they did pass initInput, make sure it's not undefined before calling initFn,
     // just to help them avoid a `if !undefined` check on the init value.
     const instance = pickFields(
       config,
-      !passedInitValue ? initFn({} as any) : initValue ? initFn(initValue) : initValueIfUndefined,
+      !passedInitValue ? initFn({} as any) : initInput ? initFn(initInput) : initValueIfUndefined,
     );
     const form = createObjectState(config, instance, {
       onBlur: () => {
@@ -70,7 +70,7 @@ export function useFormState<T, O>(opts: {
 
     return form;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, ...(Array.isArray(initValue) ? initValue : [initValue])]);
+  }, [config, ...(Array.isArray(initInput) ? initInput : [initInput])]);
 
   // Use useEffect so that we don't touch the form.init proxy during a render
   useEffect(() => {
