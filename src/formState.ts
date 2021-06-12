@@ -51,7 +51,7 @@ export function useFormState<T, O>(opts: {
    */
   autoSave?: (state: ObjectState<T>) => void;
 }): ObjectState<T> {
-  const { config, initFn, addRules, readOnly = false, autoSave, initInput, initValueIfUndefined } = opts;
+  const { config, initFn, addRules, readOnly = false, autoSave, initInput, initValueIfUndefined = {} } = opts;
   const form = useMemo(() => {
     // We purposefully use a non-memo'd initFn for better developer UX, i.e. the caller
     // of `useFormState` doesn't have to `useCallback` their `initFn` just to pass it to us.
