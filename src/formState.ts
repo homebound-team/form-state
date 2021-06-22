@@ -14,15 +14,16 @@ export type UseFormStateOpts<T, I> = {
    * User's can either:
    *
    * - Provide no initial value (don't set `init` at all)
-   * - Provide an initial value that already matches the form type `T` (see `init: ...`)
+   * - Provide an initial value that already matches the form type `T` (i.e. set `init: data`)
    * - Provide an initial value from an object that _almost_ matches the form type `T`,
    *   but needs to be mapped from it's input type `I` to the form type
-   *   (pass `init: { input: ..., map: (input) => ...}.
+   *   (i.e. set `init: { input: data, map: (data) => ...}`).
    *
-   * The value of using the 3rd option is that we a) internally `useMemo` on the identity of the
+   * The value of using the 3rd option is that: a) we internally `useMemo` on the identity of the
    * `init.input` (i.e. a response from an Apollo hook) and don't require the `map` function
-   * to have a stable identity, and also b) will null-check/undefined-check `init.input` and
-   * only call `init.map` if it's set, otherwise we'll use `init.ifDefined` or `{}`.
+   * to have a stable identity, and also b) we will null-check/undefined-check `init.input` and
+   * only call `init.map` if it's set, otherwise we'll use `init.ifDefined` or `{}`, saving you
+   * from having to null check within your `init.map` function.
    */
   init?:
     | T
@@ -41,8 +42,9 @@ export type UseFormStateOpts<T, I> = {
 
   /** Whether the form should be read only, when changed it won't re-create the whole form. */
   readOnly?: boolean;
+
   /**
-   * Fired when the form should auto-save, i.e. after a) blur + b) all fields are valid.
+   * Fired when the form should auto-save, i.e. after a) blur and b) all fields are valid.
    *
    * Does not need to be stable/useMemo'd.
    */
