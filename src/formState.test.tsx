@@ -575,20 +575,6 @@ describe("formState", () => {
     });
   });
 
-  it("readOnly field should not throw error onBlur", () => {
-    // Given a readOnly formState with a string field
-    const formState = createAuthorInputState({ firstName: "fn" });
-    formState.readOnly = true;
-
-    // When interacting with a string form field (focus and blur)
-    formState.firstName.focus();
-
-    // Then expect no errors to be thrown
-    expect(() => {
-      formState.firstName.blur();
-    }).not.toThrow();
-  });
-
   it("maintain field readOnly state when form is readOnly", () => {
     // Given a formState
     const formState = createObjectState<BookInput>({ title: { type: "value", rules: [required], readOnly: true } }, {});
@@ -1124,12 +1110,30 @@ describe("formState", () => {
     expect(a.value).toEqual({ address: { street: "123", city: "nyc" } });
   });
 
-  it("can filter out undefined from the init value", async () => {
+  it("calls initFn even if initInput is undefined", async () => {
     // Given a component
     function TestComponent() {
       const config: ObjectConfig<AuthorInput> = { firstName: { type: "value" } };
       // And we have query data that may or may not be defined
-      const data: { firstName: string } | undefined = { firstName: "bob" };
+      // const data: { firstName: string } | undefined = Math.random() > 0 ? { firstName: "bob" } : undefined;
+      // Then // the lambda is passed the "de-undefined" data
+      const form = useFormState({
+        config,
+        initFn: () => ({ firstName: "bob" }),
+      });
+      return <div>{form.firstName.value}</div>;
+    }
+    const r = await render(<TestComponent />);
+    expect(r.baseElement).toHaveTextContent("bob");
+  });
+
+  it("calls initFn even if initInput is undefined", async () => {
+    // Given a component
+    function TestComponent() {
+      const config: ObjectConfig<AuthorInput> = { firstName: { type: "value" } };
+      // And we have query data that may or may not be defined
+      // const data: { firstName: string } | undefined = Math.random() > 0 ? { firstName: "bob" } : undefined;
+      const data: { firstName: string } =  { firstName: "bob" };
       // Then the lambda is passed the "de-undefined" data
       const form = useFormState({
         config,
@@ -1140,43 +1144,6 @@ describe("formState", () => {
     }
     const r = await render(<TestComponent />);
     expect(r.baseElement).toHaveTextContent("bob");
-  });
-
-  it("provides empty hash as initial value if init value is undefined", async () => {
-    // Given a component
-    function TestComponent() {
-      const config: ObjectConfig<AuthorInput> = { firstName: { type: "value" } };
-      // And we have query data that may or may not be defined
-      const data: { firstName: string } | undefined = undefined as any;
-      // Then the lambda is passed the "de-undefined" data
-      const form = useFormState({
-        config,
-        initInput: data,
-        initFn: (data) => ({ firstName: data.firstName }),
-      });
-      return <div>{form.firstName.value}</div>;
-    }
-    const r = await render(<TestComponent />);
-    expect(r.baseElement).toHaveTextContent("");
-  });
-
-  it("can use a custom initial value if init value is undefined", async () => {
-    // Given a component
-    function TestComponent() {
-      const config: ObjectConfig<AuthorInput> = { firstName: { type: "value" } };
-      // And we have query data that may or may not be defined
-      const data: { firstName: string } | undefined = undefined as any;
-      // Then the lambda is passed the "de-undefined" data
-      const form = useFormState({
-        config,
-        initInput: data,
-        initFn: (data) => ({ firstName: data.firstName }),
-        initValueIfUndefined: { firstName: "fred" },
-      });
-      return <div>{form.firstName.value}</div>;
-    }
-    const r = await render(<TestComponent />);
-    expect(r.baseElement).toHaveTextContent("fred");
   });
 });
 

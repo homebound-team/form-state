@@ -4,36 +4,32 @@ import { action, computed, isObservable, makeAutoObservable, observable, reactio
 import { useEffect, useMemo } from "react";
 import { assertNever, fail } from "src/utils";
 
-/**
- * Creates a formState instance for editing in a form.
- */
-export function useFormState<T, O>(opts: {
-  /** The form configuration, should be a module-level const or useMemo'd. */
-  config: ObjectConfig<T>;
+type JustInit<T> = {
+  initFn: () => T;
+};
 
+type InitWithValue<T, I> = {
   /**
    * Provides the form's initial value, as adapted from the `initInput` (if provided).
    *
-   * If you've not passed the `initInput` key, this function will still be called, just once,
+   * If you've not passed the `initInput` key, this function will still be called only once,
    * to provide the initial value (i.e. you don't need to useMemo/useCallback the function).
    *
-   * If you have passed the `initInput` key, this function will be called with the de-optional'd
-   * `initInput` (i.e. so that you don't have to do `undefined` checks while waiting for a GQL
-   * query to load), and then re-called anytime the identity of `initInput` changes.
+   * If you have passed the `initInput` key, this function will be called each time `initInput`
+   * changes (i.e. the `initFn` is basically `useMemo`-d based on `config` and `initInput`.
    */
-  initFn: (initInput: O) => T;
+  initFn: (initInput: I) => T;
 
   /**
    * The initFn's input value, i.e. from GraphQL the Author that we're editing, so that you can
    * adapt it to the form's value. Should be stable/useMemo'd.
-   *
-   * If not provided, then `initFn` will always be called.
-   * If provided, then `initFn` will only be called when this is defined.
    */
-  initInput?: O | null | undefined;
+  initInput: I;
+};
 
-  /** The initial value to use if you pass `initInput`, but it's `undefined`. Defaults to `{}`. */
-  initValueIfUndefined?: T;
+type BaseOpts<T> = {
+  /** The form configuration, should be a module-level const or useMemo'd. */
+  config: ObjectConfig<T>;
 
   /**
    * A hook to add custom, cross-field validation rules that can be difficult to setup directly in the config DSL.
@@ -50,19 +46,18 @@ export function useFormState<T, O>(opts: {
    * Does not need to be stable/useMemo'd.
    */
   autoSave?: (state: ObjectState<T>) => void;
-}): ObjectState<T> {
-  const { config, initFn, addRules, readOnly = false, autoSave, initInput, initValueIfUndefined = {} } = opts;
+};
+
+/**
+ * Creates a formState instance for editing in a form.
+ */
+export function useFormState<T, I>(opts: BaseOpts<T> & (JustInit<T> | InitWithValue<T, I>)): ObjectState<T> {
+  const { config, initFn, addRules, readOnly = false, autoSave, initInput } = opts;
   const form = useMemo(() => {
     // We purposefully use a non-memo'd initFn for better developer UX, i.e. the caller
     // of `useFormState` doesn't have to `useCallback` their `initFn` just to pass it to us.
-    const passedInitValue = "initInput" in opts;
-    // If they didn't pass initInput, always call initFn to let them provide the default.
-    // Otherwise, if they did pass initInput, make sure it's not undefined before calling initFn,
-    // just to help them avoid a `if !undefined` check on the init value.
-    const instance = pickFields(
-      config,
-      !passedInitValue ? initFn({} as any) : initInput ? initFn(initInput) : initValueIfUndefined,
-    );
+    const passedInitInput = "initInput" in opts;
+    const instance = pickFields(config, !passedInitInput ? initFn({} as any) : initFn(initInput!));
     const form = createObjectState(config, instance, {
       onBlur: () => {
         // Don't use canSave() because we don't want to set touched for all of the field
@@ -578,14 +573,13 @@ function newValueFieldState<T, K extends keyof T>(
     },
 
     blur() {
-      // When field is not readOnly, sneak in some trim logic for string fields
-      if (!this.readOnly && typeof this.value === "string") {
+      // Now that the user is done editing the field, we sneak in some trim logic
+      if (typeof this.value === "string") {
         this.set(this.value.trim() as any);
         if (this.value === "") {
           this.set(undefined);
         }
       }
-
       this._focused = false;
       // touched is readonly, but we're allowed to change it
       this.touched = true;
