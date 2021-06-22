@@ -1,6 +1,15 @@
+import { render } from "@homebound/rtl-utils";
 import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
 import { AuthorAddress, AuthorInput, BookInput, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
-import { createObjectState, FieldState, ObjectConfig, ObjectState, pickFields, required } from "./formState";
+import {
+  createObjectState,
+  FieldState,
+  ObjectConfig,
+  ObjectState,
+  pickFields,
+  required,
+  useFormState,
+} from "./formState";
 
 describe("formState", () => {
   it("mobx lists maintain observable identity", () => {
@@ -566,20 +575,6 @@ describe("formState", () => {
     });
   });
 
-  it("readOnly field should not throw error onBlur", () => {
-    // Given a readOnly formState with a string field
-    const formState = createAuthorInputState({ firstName: "fn" });
-    formState.readOnly = true;
-
-    // When interacting with a string form field (focus and blur)
-    formState.firstName.focus();
-
-    // Then expect no errors to be thrown
-    expect(() => {
-      formState.firstName.blur();
-    }).not.toThrow();
-  });
-
   it("maintain field readOnly state when form is readOnly", () => {
     // Given a formState
     const formState = createObjectState<BookInput>({ title: { type: "value", rules: [required], readOnly: true } }, {});
@@ -1113,6 +1108,78 @@ describe("formState", () => {
     // And treat it as a value object
     a.address.set({ street: "123", city: "nyc" });
     expect(a.value).toEqual({ address: { street: "123", city: "nyc" } });
+  });
+
+  it("calls init.map if init.input is defined", async () => {
+    // Given a component
+    function TestComponent() {
+      type FormValue = Pick<AuthorInput, "firstName">;
+      const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+      // And we have query data that may or may not be defined
+      const data: { firstName: string } | undefined = Math.random() >= 0 ? { firstName: "bob" } : undefined;
+      // Then the lambda is passed the "de-undefined" data
+      const form = useFormState({
+        config,
+        init: { input: data, map: (d) => ({ firstName: d.firstName }) },
+      });
+      return <div>{form.firstName.value}</div>;
+    }
+    const r = await render(<TestComponent />);
+    expect(r.baseElement).toHaveTextContent("bob");
+  });
+
+  it("uses default if init.input is undefined", async () => {
+    // Given a component
+    function TestComponent() {
+      type FormValue = Pick<AuthorInput, "firstName">;
+      const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+      // And we have query data that may or may not be defined (but is actually undefined)
+      const data: { firstName: string | undefined | null } | undefined =
+        Math.random() >= 0 ? undefined : { firstName: "bob" };
+      const form = useFormState({
+        config,
+        init: { input: data, map: (d) => ({ firstName: d.firstName }) },
+      });
+      return <div>{form.firstName.value}</div>;
+    }
+    const r = await render(<TestComponent />);
+    // Then we init.map wasn't called, and we used {} instead
+    expect(r.baseElement.textContent).toEqual("");
+  });
+
+  it("uses custom init.ifUndefined if init.input is undefined", async () => {
+    // Given a component
+    function TestComponent() {
+      type FormValue = Pick<AuthorInput, "firstName">;
+      const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+      // And we have query data that may or may not be defined (but is actually undefined)
+      const data: { firstName: string | undefined | null } | undefined =
+        Math.random() >= 0 ? undefined : { firstName: "bob" };
+      const form = useFormState({
+        config,
+        // And we pass `ifUndefined`
+        init: {
+          input: data,
+          map: (d) => ({ firstName: d.firstName }),
+          ifUndefined: { firstName: "default" },
+        },
+      });
+      return <div>{form.firstName.value}</div>;
+    }
+    const r = await render(<TestComponent />);
+    // Then we use the ifUndefined value
+    expect(r.baseElement.textContent).toEqual("default");
+  });
+
+  it("doesn't required an init value", async () => {
+    function TestComponent() {
+      type FormValue = Pick<AuthorInput, "firstName">;
+      const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+      const form = useFormState({ config });
+      return <div>{form.firstName.value}</div>;
+    }
+    const r = await render(<TestComponent />);
+    expect(r.baseElement.textContent).toEqual("");
   });
 });
 

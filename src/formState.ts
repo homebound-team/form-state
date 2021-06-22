@@ -4,30 +4,68 @@ import { action, computed, isObservable, makeAutoObservable, observable, reactio
 import { useEffect, useMemo } from "react";
 import { assertNever, fail } from "src/utils";
 
+export type UseFormStateOpts<T, I> = {
+  /** The form configuration, should be a module-level const or useMemo'd. */
+  config: ObjectConfig<T>;
+
+  /**
+   * Provides the form's initial value.
+   *
+   * User's can either:
+   *
+   * - Provide no initial value (don't set `init` at all)
+   * - Provide an initial value that already matches the form type `T` (i.e. set `init: data`)
+   * - Provide an initial value from an object that _almost_ matches the form type `T`,
+   *   but needs to be mapped from it's input type `I` to the form type
+   *   (i.e. set `init: { input: data, map: (data) => ...}`).
+   *
+   * The value of using the 3rd option is that: a) we internally `useMemo` on the identity of the
+   * `init.input` (i.e. a response from an Apollo hook) and don't require the `map` function
+   * to have a stable identity, and also b) we will null-check/undefined-check `init.input` and
+   * only call `init.map` if it's set, otherwise we'll use `init.ifDefined` or `{}`, saving you
+   * from having to null check within your `init.map` function.
+   */
+  init?:
+    | T
+    | {
+        input: I;
+        map: (input: Exclude<I, null | undefined>) => T;
+        ifUndefined?: T;
+      };
+
+  /**
+   * A hook to add custom, cross-field validation rules that can be difficult to setup directly in the config DSL.
+   *
+   * Does not need to be stable/useMemo'd.
+   */
+  addRules?: (state: ObjectState<T>) => void;
+
+  /** Whether the form should be read only, when changed it won't re-create the whole form. */
+  readOnly?: boolean;
+
+  /**
+   * Fired when the form should auto-save, i.e. after a) blur and b) all fields are valid.
+   *
+   * Does not need to be stable/useMemo'd.
+   */
+  autoSave?: (state: ObjectState<T>) => void;
+};
+
 /**
  * Creates a formState instance for editing in a form.
- *
- * @param config
- * @param initValue the initial value from GraphQL, i.e. the Author that we're editing
- * @param initFn a function to adapt the Author "output" object to the form's object.
- * @param opts a hook to add cross-field rules that can't be declared in `config`
  */
-export function useFormState<T, O>(
-  config: ObjectConfig<T>,
-  initValue: O,
-  initFn: (initValue: O) => T,
-  opts?: {
-    addRules?: (state: ObjectState<T>) => void;
-    readOnly?: boolean;
-    /** Fired when the form should auto-save, i.e. after a) blur + b) all fields are valid. */
-    autoSave?: (state: ObjectState<T>) => void;
-  },
-): ObjectState<T> {
-  const { addRules, readOnly = false, autoSave } = opts || {};
+export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T> {
+  const { config, init, addRules, readOnly = false, autoSave } = opts;
   const form = useMemo(() => {
     // We purposefully use a non-memo'd initFn for better developer UX, i.e. the caller
     // of `useFormState` doesn't have to `useCallback` their `initFn` just to pass it to us.
-    const instance = pickFields(config, initFn(initValue));
+    const initValue =
+      init && "input" in init && "map" in init
+        ? init.input
+          ? init.map(init.input as any)
+          : init.ifUndefined || {}
+        : init || {};
+    const instance = pickFields(config, initValue) as T;
     const form = createObjectState(config, instance, {
       onBlur: () => {
         // Don't use canSave() because we don't want to set touched for all of the field
@@ -44,7 +82,10 @@ export function useFormState<T, O>(
 
     return form;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, ...(Array.isArray(initValue) ? initValue : [initValue])]);
+  }, [
+    config,
+    ...(init && "input" in init && "map" in init ? (Array.isArray(init.input) ? init.input : [init.input]) : [init]),
+  ]);
 
   // Use useEffect so that we don't touch the form.init proxy during a render
   useEffect(() => {
@@ -543,14 +584,13 @@ function newValueFieldState<T, K extends keyof T>(
     },
 
     blur() {
-      // When field is not readOnly, sneak in some trim logic for string fields
-      if (!this.readOnly && typeof this.value === "string") {
+      // Now that the user is done editing the field, we sneak in some trim logic
+      if (typeof this.value === "string") {
         this.set(this.value.trim() as any);
         if (this.value === "") {
           this.set(undefined);
         }
       }
-
       this._focused = false;
       // touched is readonly, but we're allowed to change it
       this.touched = true;
@@ -876,3 +916,15 @@ export function pickFields<T, I>(
     }),
   ) as any;
 }
+
+type Primitive = undefined | null | boolean | string | number | Function | Date | { toJSON(): any };
+/** Makes the keys in `T` required while keeping the values undefined. */
+export type DeepRequired<T> = T extends Primitive
+  ? T
+  : {
+      [P in keyof Required<T>]: T[P] extends Array<infer U>
+        ? Array<DeepRequired<U>>
+        : T[P] extends ReadonlyArray<infer U2>
+        ? ReadonlyArray<DeepRequired<U2>>
+        : DeepRequired<T[P]>;
+    };

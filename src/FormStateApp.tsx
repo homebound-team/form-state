@@ -3,28 +3,25 @@ import { FieldState, ObjectConfig, required, useFormState } from "src/formState"
 import { AuthorInput } from "src/formStateDomain";
 
 export function FormStateApp() {
-  const formState = useFormState(
-    formConfig,
-    undefined,
+  const formState = useFormState({
+    config: formConfig,
     // Simulate getting the initial form state back from a server call
-    () => ({
+    init: {
       firstName: "a1",
       books: [...Array(2)].map((_, i) => ({
         title: `b${i}`,
         classification: { number: `10${i + 1}`, category: `Test Category ${i}` },
       })),
-    }),
-    {
-      addRules(state) {
-        state.lastName.rules.push(() => {
-          return state.firstName.value === state.lastName.value ? "Last name cannot equal first name" : undefined;
-        });
-      },
-      autoSave() {
-        console.log("saving", formState.changedValue);
-      },
     },
-  );
+    addRules(state) {
+      state.lastName.rules.push(() => {
+        return state.firstName.value === state.lastName.value ? "Last name cannot equal first name" : undefined;
+      });
+    },
+    autoSave() {
+      console.log("saving", formState.changedValue);
+    },
+  });
 
   return (
     <Observer>
