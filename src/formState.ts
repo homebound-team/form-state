@@ -9,23 +9,28 @@ export type UseFormStateOpts<T, I> = {
   config: ObjectConfig<T>;
 
   /**
-   * Provides the form's initial value, as adapted from the `initInput` (if provided).
+   * Provides the form's initial value.
    *
-   * If you've not passed the `initInput` key, this function will still be called only once,
-   * to provide the initial value (i.e. you don't need to useMemo/useCallback the function).
+   * User's can either:
    *
-   * If you have passed the `initInput` key, this function will be called each time `initInput`
-   * changes (i.e. the `initFn` is basically `useMemo`-d based on `config` and `initInput`.
+   * - Provide no initial value (don't set `init` at all)
+   * - Provide an initial value that already matches the form type `T` (see `init: ...`)
+   * - Provide an initial value from an object that _almost_ matches the form type `T`,
+   *   but needs to be mapped from it's input type `I` to the form type
+   *   (pass `init: { input: ..., map: (input) => ...}.
+   *
+   * The value of using the 3rd option is that we a) internally `useMemo` on the identity of the
+   * `init.input` (i.e. a response from an Apollo hook) and don't require the `map` function
+   * to have a stable identity, and also b) will null-check/undefined-check `init.input` and
+   * only call `init.map` if it's set, otherwise we'll use `init.ifDefined` or `{}`.
    */
-  initIfExisting?: (initInput: Exclude<I, null | undefined>) => DeepRequired<T>;
-
-  /**
-   * The initFn's input value, i.e. from GraphQL the Author that we're editing, so that you can
-   * adapt it to the form's value. Should be stable/useMemo'd.
-   */
-  initInput?: I;
-
-  initIfNew?: T;
+  init?:
+    | T
+    | {
+        input: I;
+        map: (input: Exclude<I, null | undefined>) => T;
+        ifUndefined?: T;
+      };
 
   /**
    * A hook to add custom, cross-field validation rules that can be difficult to setup directly in the config DSL.
@@ -48,12 +53,17 @@ export type UseFormStateOpts<T, I> = {
  * Creates a formState instance for editing in a form.
  */
 export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T> {
-  const { config, initIfExisting, initIfNew = {}, addRules, readOnly = false, autoSave, initInput } = opts;
+  const { config, init, addRules, readOnly = false, autoSave } = opts;
   const form = useMemo(() => {
     // We purposefully use a non-memo'd initFn for better developer UX, i.e. the caller
     // of `useFormState` doesn't have to `useCallback` their `initFn` just to pass it to us.
-    const initValue = initIfExisting && initInput ? initIfExisting(initInput as any) : initIfNew;
-    const instance = pickFields(config, initValue);
+    const initValue =
+      init && "input" in init && "map" in init
+        ? init.input
+          ? init.map(init.input as any)
+          : init.ifUndefined || {}
+        : init || {};
+    const instance = pickFields(config, initValue) as T;
     const form = createObjectState(config, instance, {
       onBlur: () => {
         // Don't use canSave() because we don't want to set touched for all of the field
@@ -70,7 +80,10 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
 
     return form;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, ...(Array.isArray(initInput) ? initInput : [initInput])]);
+  }, [
+    config,
+    ...(init && "input" in init && "map" in init ? (Array.isArray(init.input) ? init.input : [init.input]) : [init]),
+  ]);
 
   // Use useEffect so that we don't touch the form.init proxy during a render
   useEffect(() => {
@@ -902,11 +915,9 @@ export function pickFields<T, I>(
   ) as any;
 }
 
-type A = undefined extends number | undefined ? 1 : 2;
-type B = DeepRequired<{ firstName?: string | null }>;
-
 type Primitive = undefined | null | boolean | string | number | Function | Date | { toJSON(): any };
-type DeepRequired<T> = T extends Primitive
+/** Makes the keys in `T` required while keeping the values undefined. */
+export type DeepRequired<T> = T extends Primitive
   ? T
   : {
       [P in keyof Required<T>]: T[P] extends Array<infer U>
@@ -915,5 +926,3 @@ type DeepRequired<T> = T extends Primitive
         ? ReadonlyArray<DeepRequired<U2>>
         : DeepRequired<T[P]>;
     };
-
-// | (null extends T[P] ? null : never);

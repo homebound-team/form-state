@@ -1110,7 +1110,7 @@ describe("formState", () => {
     expect(a.value).toEqual({ address: { street: "123", city: "nyc" } });
   });
 
-  it("calls initIfExisting if input data is defined", async () => {
+  it("calls init.map if init.input is defined", async () => {
     // Given a component
     function TestComponent() {
       type FormValue = Pick<AuthorInput, "firstName">;
@@ -1120,8 +1120,7 @@ describe("formState", () => {
       // Then the lambda is passed the "de-undefined" data
       const form = useFormState({
         config,
-        initInput: data,
-        initIfExisting: (d) => ({ firstName: d.firstName }),
+        init: { input: data, map: (d) => ({ firstName: d.firstName }) },
       });
       return <div>{form.firstName.value}</div>;
     }
@@ -1129,20 +1128,54 @@ describe("formState", () => {
     expect(r.baseElement).toHaveTextContent("bob");
   });
 
-  it("uses initIfNew if initInput is undefined", async () => {
+  it("uses default if init.input is undefined", async () => {
     // Given a component
     function TestComponent() {
       type FormValue = Pick<AuthorInput, "firstName">;
       const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
-      // And we have query data that may or may not be defined
+      // And we have query data that may or may not be defined (but is actually undefined)
       const data: { firstName: string | undefined | null } | undefined =
         Math.random() >= 0 ? undefined : { firstName: "bob" };
-      // Then the lambda is passed the "de-undefined" data
       const form = useFormState({
         config,
-        initInput: data,
-        initIfExisting: (data) => ({ ...data }),
+        init: { input: data, map: (d) => ({ firstName: d.firstName }) },
       });
+      return <div>{form.firstName.value}</div>;
+    }
+    const r = await render(<TestComponent />);
+    // Then we init.map wasn't called, and we used {} instead
+    expect(r.baseElement.textContent).toEqual("");
+  });
+
+  it("uses custom init.ifUndefined if init.input is undefined", async () => {
+    // Given a component
+    function TestComponent() {
+      type FormValue = Pick<AuthorInput, "firstName">;
+      const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+      // And we have query data that may or may not be defined (but is actually undefined)
+      const data: { firstName: string | undefined | null } | undefined =
+        Math.random() >= 0 ? undefined : { firstName: "bob" };
+      const form = useFormState({
+        config,
+        // And we pass `ifUndefined`
+        init: {
+          input: data,
+          map: (d) => ({ firstName: d.firstName }),
+          ifUndefined: { firstName: "default" },
+        },
+      });
+      return <div>{form.firstName.value}</div>;
+    }
+    const r = await render(<TestComponent />);
+    // Then we use the ifUndefined value
+    expect(r.baseElement.textContent).toEqual("default");
+  });
+
+  it("doesn't required an init value", async () => {
+    function TestComponent() {
+      type FormValue = Pick<AuthorInput, "firstName">;
+      const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+      const form = useFormState({ config });
       return <div>{form.firstName.value}</div>;
     }
     const r = await render(<TestComponent />);
