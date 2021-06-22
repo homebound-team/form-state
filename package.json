@@ -1,6 +1,6 @@
 {
   "name": "@homebound/form-state",
-  "version": "1.8.6",
+  "version": "2.0.0",
   "author": "Homebound",
   "license": "MIT",
   "main": "dist/index.js",
