@@ -4,11 +4,10 @@ import { action, computed, isObservable, makeAutoObservable, observable, reactio
 import { useEffect, useMemo } from "react";
 import { assertNever, fail } from "src/utils";
 
-type JustInit<T> = {
-  initFn: () => T;
-};
+export type UseFormStateOpts<T, I> = {
+  /** The form configuration, should be a module-level const or useMemo'd. */
+  config: ObjectConfig<T>;
 
-type InitWithValue<T, I> = {
   /**
    * Provides the form's initial value, as adapted from the `initInput` (if provided).
    *
@@ -18,18 +17,15 @@ type InitWithValue<T, I> = {
    * If you have passed the `initInput` key, this function will be called each time `initInput`
    * changes (i.e. the `initFn` is basically `useMemo`-d based on `config` and `initInput`.
    */
-  initFn: (initInput: I) => T;
+  initIfExisting?: (initInput: Exclude<I, null | undefined>) => DeepRequired<T>;
 
   /**
    * The initFn's input value, i.e. from GraphQL the Author that we're editing, so that you can
    * adapt it to the form's value. Should be stable/useMemo'd.
    */
-  initInput: I;
-};
+  initInput?: I;
 
-type BaseOpts<T> = {
-  /** The form configuration, should be a module-level const or useMemo'd. */
-  config: ObjectConfig<T>;
+  initIfNew?: T;
 
   /**
    * A hook to add custom, cross-field validation rules that can be difficult to setup directly in the config DSL.
@@ -51,13 +47,13 @@ type BaseOpts<T> = {
 /**
  * Creates a formState instance for editing in a form.
  */
-export function useFormState<T, I>(opts: BaseOpts<T> & (JustInit<T> | InitWithValue<T, I>)): ObjectState<T> {
-  const { config, initFn, addRules, readOnly = false, autoSave, initInput } = opts;
+export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T> {
+  const { config, initIfExisting, initIfNew = {}, addRules, readOnly = false, autoSave, initInput } = opts;
   const form = useMemo(() => {
     // We purposefully use a non-memo'd initFn for better developer UX, i.e. the caller
     // of `useFormState` doesn't have to `useCallback` their `initFn` just to pass it to us.
-    const passedInitInput = "initInput" in opts;
-    const instance = pickFields(config, !passedInitInput ? initFn({} as any) : initFn(initInput!));
+    const initValue = initIfExisting && initInput ? initIfExisting(initInput as any) : initIfNew;
+    const instance = pickFields(config, initValue);
     const form = createObjectState(config, instance, {
       onBlur: () => {
         // Don't use canSave() because we don't want to set touched for all of the field
@@ -905,3 +901,19 @@ export function pickFields<T, I>(
     }),
   ) as any;
 }
+
+type A = undefined extends number | undefined ? 1 : 2;
+type B = DeepRequired<{ firstName?: string | null }>;
+
+type Primitive = undefined | null | boolean | string | number | Function | Date | { toJSON(): any };
+type DeepRequired<T> = T extends Primitive
+  ? T
+  : {
+      [P in keyof Required<T>]: T[P] extends Array<infer U>
+        ? Array<DeepRequired<U>>
+        : T[P] extends ReadonlyArray<infer U2>
+        ? ReadonlyArray<DeepRequired<U2>>
+        : DeepRequired<T[P]>;
+    };
+
+// | (null extends T[P] ? null : never);

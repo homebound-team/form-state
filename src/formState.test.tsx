@@ -1110,16 +1110,18 @@ describe("formState", () => {
     expect(a.value).toEqual({ address: { street: "123", city: "nyc" } });
   });
 
-  it("calls initFn even if initInput is undefined", async () => {
+  it("calls initIfExisting if input data is defined", async () => {
     // Given a component
     function TestComponent() {
-      const config: ObjectConfig<AuthorInput> = { firstName: { type: "value" } };
+      type FormValue = Pick<AuthorInput, "firstName">;
+      const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
       // And we have query data that may or may not be defined
-      // const data: { firstName: string } | undefined = Math.random() > 0 ? { firstName: "bob" } : undefined;
-      // Then // the lambda is passed the "de-undefined" data
+      const data: { firstName: string } | undefined = Math.random() >= 0 ? { firstName: "bob" } : undefined;
+      // Then the lambda is passed the "de-undefined" data
       const form = useFormState({
         config,
-        initFn: () => ({ firstName: "bob" }),
+        initInput: data,
+        initIfExisting: (d) => ({ firstName: d.firstName }),
       });
       return <div>{form.firstName.value}</div>;
     }
@@ -1127,23 +1129,24 @@ describe("formState", () => {
     expect(r.baseElement).toHaveTextContent("bob");
   });
 
-  it("calls initFn even if initInput is undefined", async () => {
+  it("uses initIfNew if initInput is undefined", async () => {
     // Given a component
     function TestComponent() {
-      const config: ObjectConfig<AuthorInput> = { firstName: { type: "value" } };
+      type FormValue = Pick<AuthorInput, "firstName">;
+      const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
       // And we have query data that may or may not be defined
-      // const data: { firstName: string } | undefined = Math.random() > 0 ? { firstName: "bob" } : undefined;
-      const data: { firstName: string } =  { firstName: "bob" };
+      const data: { firstName: string | undefined | null } | undefined =
+        Math.random() >= 0 ? undefined : { firstName: "bob" };
       // Then the lambda is passed the "de-undefined" data
       const form = useFormState({
         config,
         initInput: data,
-        initFn: (data) => ({ firstName: data.firstName }),
+        initIfExisting: (data) => ({ ...data }),
       });
       return <div>{form.firstName.value}</div>;
     }
     const r = await render(<TestComponent />);
-    expect(r.baseElement).toHaveTextContent("bob");
+    expect(r.baseElement.textContent).toEqual("");
   });
 });
 
