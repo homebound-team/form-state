@@ -1,5 +1,6 @@
-import { render } from "@homebound/rtl-utils";
+import { click, render } from "@homebound/rtl-utils";
 import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
+import { useState } from "react";
 import { AuthorAddress, AuthorInput, BookInput, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
 import {
   createObjectState,
@@ -1169,6 +1170,39 @@ describe("formState", () => {
     const r = await render(<TestComponent />);
     // Then we use the ifUndefined value
     expect(r.baseElement.textContent).toEqual("default");
+  });
+
+  it("uses init if set as a value", async () => {
+    // Given a component
+    type FormValue = Pick<AuthorInput, "firstName">;
+    const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+    function TestComponent() {
+      const [, setTick] = useState(0);
+      const form = useFormState({
+        config,
+        // That's using a raw init value
+        init: { firstName: "bob" },
+      });
+      return (
+        <div>
+          <button
+            data-testid="change"
+            onClick={() => {
+              // When that value changes
+              form.firstName.set("fred");
+              // And also we re-render the component
+              setTick(1);
+            }}
+          />
+          <div data-testid="firstName">{form.firstName.value}</div>
+        </div>
+      );
+    }
+    const r = await render(<TestComponent />);
+    expect(r.firstName()).toHaveTextContent("bob");
+    click(r.change);
+    // Then the change didn't get dropped due to init being unstable
+    expect(r.firstName()).toHaveTextContent("fred");
   });
 
   it("doesn't required an init value", async () => {
