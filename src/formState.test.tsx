@@ -1129,6 +1129,30 @@ describe("formState", () => {
     expect(r.baseElement).toHaveTextContent("bob");
   });
 
+  it("memoizes on init.input being an array", async () => {
+    // Given a component
+    type FormValue = Pick<AuthorInput, "firstName">;
+    const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+    function TestComponent() {
+      const [, setTick] = useState(0);
+      const form = useFormState({
+        config,
+        init: { input: ["a", "b"], map: ([a, b]) => ({ firstName: a + b }) },
+      });
+      const onClick = () => [form.firstName.set("fred"), setTick(1)];
+      return (
+        <div>
+          <button data-testid="change" onClick={onClick} />
+          <div data-testid="firstName">{form.firstName.value}</div>
+        </div>
+      );
+    }
+    const r = await render(<TestComponent />);
+    expect(r.firstName()).toHaveTextContent("ab");
+    click(r.change);
+    expect(r.firstName()).toHaveTextContent("fred");
+  });
+
   it("uses default if init.input is undefined", async () => {
     // Given a component
     function TestComponent() {

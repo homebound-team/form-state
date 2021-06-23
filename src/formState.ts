@@ -85,7 +85,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
   }, [
     config,
     // If they're using init.input, useMemo on it, otherwise let the identity of init be unstable
-    ...(init && "input" in init && "map" in init ? [init.input] : []),
+    ...(init && "input" in init && "map" in init ? (Array.isArray(init.input) ? init.input : [init.input]) : []),
   ]);
 
   // Use useEffect so that we don't touch the form.init proxy during a render
