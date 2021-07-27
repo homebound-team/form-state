@@ -186,6 +186,7 @@ export interface FieldState<T, V> {
   readonly required: boolean;
   readonly dirty: boolean;
   readonly valid: boolean;
+  readonly isNewEntity: boolean;
   rules: Rule<T, V>[];
   readonly errors: string[];
   /** Returns a subset of V with only the changed values. Currently not observable. */
@@ -305,11 +306,12 @@ export function createObjectState<T>(
   opts: { onBlur?: () => void } = {},
 ): ObjectState<T> {
   const noop = () => {};
-  return newObjectState(config, instance, undefined, opts.onBlur || noop);
+  return newObjectState(config, undefined, instance, undefined, opts.onBlur || noop);
 }
 
 function newObjectState<T, P = any>(
   config: ObjectConfig<T>,
+  parentState: (() => ObjectState<P>) | undefined,
   instance: T,
   key: keyof T | undefined,
   onBlur: () => void,
@@ -348,7 +350,7 @@ function newObjectState<T, P = any>(
       if (!instance[key]) {
         instance[key] = {} as any;
       }
-      field = newObjectState(config.config, instance[key] as any, key, onBlur) as any;
+      field = newObjectState(config.config, getObjectState, instance[key] as any, key, onBlur) as any;
     } else {
       throw new Error("Unsupported");
     }
@@ -415,6 +417,14 @@ function newObjectState<T, P = any>(
 
     get dirty(): boolean {
       return getFields(this).some((f) => f.dirty);
+    },
+
+    get isNewEntity(): boolean {
+      const idField = getFields(this).find((f) => (f as any)._isIdKey);
+      if (!idField && parentState) {
+        return parentState().isNewEntity;
+      }
+      return !idField || idField.value === null || idField.value === undefined;
     },
 
     canSave(): boolean {
@@ -580,6 +590,10 @@ function newValueFieldState<T, K extends keyof T>(
       return this.rules.some((rule) => rule === required);
     },
 
+    get isNewEntity(): boolean {
+      return parentState().isNewEntity;
+    },
+
     focus() {
       this._focused = true;
     },
@@ -696,6 +710,10 @@ function newListFieldState<T, K extends keyof T, U>(
       return this.rules.some((rule) => rule === required);
     },
 
+    get isNewEntity(): boolean {
+      return parentState().isNewEntity;
+    },
+
     // private
     hasNewItems(): boolean {
       const currentList = this.value;
@@ -714,7 +732,7 @@ function newListFieldState<T, K extends keyof T, U>(
         // Because we're reading from this.value, child will be the proxy version
         let childState = rowMap.get(child);
         if (!childState) {
-          childState = newObjectState<U>(config, child, undefined, onBlur);
+          childState = newObjectState<U>(config, parentState, child, undefined, onBlur);
           rowMap.set(child, childState);
         }
         return childState;
