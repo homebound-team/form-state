@@ -1239,6 +1239,51 @@ describe("formState", () => {
     const r = await render(<TestComponent />);
     expect(r.baseElement.textContent).toEqual("");
   });
+
+  it("provides isNewEntity", () => {
+    // Given an author without an id
+    const formState = createObjectState(authorWithAddressConfig, {
+      firstName: "f",
+      address: { city: "c1", street: "s1" },
+    });
+    // Then their fields know the entity is new
+    expect(formState.firstName.isNewEntity).toBeTruthy();
+    expect(formState.address.city.isNewEntity).toBeTruthy();
+    // When we have an id
+    formState.id.set("1");
+    // Then their fields know the entity is not new
+    expect(formState.firstName.isNewEntity).toBeFalsy();
+    expect(formState.address.city.isNewEntity).toBeFalsy();
+  });
+
+  it("provides isNewEntity for lists", () => {
+    // Given an author & books without an id
+    const formState = createObjectState(authorWithBooksConfig, {
+      books: [{ title: "t1" }, { title: "t2" }],
+    });
+    // Then both books know they are new
+    expect(formState.books.rows[0].title.isNewEntity).toBeTruthy();
+    expect(formState.books.rows[1].title.isNewEntity).toBeTruthy();
+    expect(formState.books.rows[0].isNewEntity).toBeTruthy();
+    expect(formState.books.rows[1].isNewEntity).toBeTruthy();
+    expect(formState.books.isNewEntity).toBeTruthy();
+
+    // And when the author is not new, only it changes
+    formState.id.set("1");
+    expect(formState.books.rows[0].title.isNewEntity).toBeTruthy();
+    expect(formState.books.rows[1].title.isNewEntity).toBeTruthy();
+    expect(formState.books.rows[0].isNewEntity).toBeTruthy();
+    expect(formState.books.rows[1].isNewEntity).toBeTruthy();
+    expect(formState.books.isNewEntity).toBeFalsy();
+
+    // And when the 1st book is not new, only it changes
+    formState.books.rows[0].id.set("2");
+    expect(formState.books.rows[0].title.isNewEntity).toBeFalsy();
+    expect(formState.books.rows[1].title.isNewEntity).toBeTruthy();
+    expect(formState.books.rows[0].isNewEntity).toBeFalsy();
+    expect(formState.books.rows[1].isNewEntity).toBeTruthy();
+    expect(formState.books.isNewEntity).toBeFalsy();
+  });
 });
 
 class ObservableObject {
