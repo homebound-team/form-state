@@ -415,6 +415,10 @@ function newObjectState<T, P = any>(
       return getFields(this).every((f) => f.valid);
     },
 
+    get errors(): string[] {
+      return getFields(this).flatMap((f) => f.errors.map((e) => `${f.key}: ${e}`));
+    },
+
     get dirty(): boolean {
       return getFields(this).some((f) => f.dirty);
     },

@@ -42,6 +42,8 @@ describe("formState", () => {
     a.title.value = null;
     expect(a.title.valid).toBeFalsy();
     expect(numErrors).toEqual(1);
+    expect(a.title.errors).toEqual(["Required"]);
+    expect(a.errors).toEqual(["title: Required"]);
   });
 
   it("can tell what is required", () => {
@@ -179,8 +181,12 @@ describe("formState", () => {
     // Then it's title is invalid
     expect(a1.books.rows.length).toEqual(1);
     expect(a1.books.rows[0].title.valid).toBeFalsy();
+    expect(a1.books.rows[0].title.errors).toEqual(["Required"]);
     // And the books collection itself is invalid
     expect(a1.books.valid).toBeFalsy();
+    // But we don't currently show the error here b/c it's not an error on the collection itself;
+    // we could have like an `a1.books.allErrors` property instead.
+    expect(a1.books.errors).toEqual([]);
     // And the author itself is also invalid
     expect(a1.valid).toBeFalsy();
     expect(lastValid).toBeFalsy();

@@ -5,24 +5,24 @@ import { FormStateApp } from "src/FormStateApp";
 
 describe("FormStateApp", () => {
   it("save resets dirty reactively", async () => {
-    const { firstName, firstName_dirty, firstName_touched, save } = await render(<FormStateApp />);
-    expect(firstName_dirty()).toHaveTextContent("false");
+    const r = await render(<FormStateApp />);
+    expect(r.firstName_dirty()).toHaveTextContent("false");
 
-    type(firstName, "changed");
-    expect(firstName_dirty()).toHaveTextContent("true");
-    fireEvent.blur(firstName());
-    expect(firstName_touched()).toHaveTextContent("true");
+    type(r.firstName, "changed");
+    expect(r.firstName_dirty()).toHaveTextContent("true");
+    fireEvent.blur(r.firstName());
+    expect(r.firstName_touched()).toHaveTextContent("true");
 
-    click(save);
-    expect(firstName_dirty()).toHaveTextContent("false");
-    expect(firstName_touched()).toHaveTextContent("false");
+    click(r.save);
+    expect(r.firstName_dirty()).toHaveTextContent("false");
+    expect(r.firstName_touched()).toHaveTextContent("false");
   });
 
   it("originalValue is reactive", async () => {
-    const { firstName_original, set, save } = await render(<FormStateApp />);
-    expect(firstName_original()).toHaveTextContent("a1");
-    click(set);
-    click(save);
-    expect(firstName_original()).toHaveTextContent("a2");
+    const r = await render(<FormStateApp />);
+    expect(r.firstName_original()).toHaveTextContent("a1");
+    click(r.set);
+    click(r.save);
+    expect(r.firstName_original()).toHaveTextContent("a2");
   });
 });
