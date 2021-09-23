@@ -439,7 +439,7 @@ function newObjectState<T, P = any>(
     // Accepts new values in bulk, i.e. when setting the form initial state from the backend.
     set(value: T) {
       if (this.readOnly) {
-        throw new Error("Currently readOnly");
+        throw new Error(`${key || "formState"} is currently readOnly`);
       }
       getFields(this).forEach((field) => {
         if (field.key in value && (!field.dirty || !(field as any)._focused)) {
@@ -616,9 +616,9 @@ function newValueFieldState<T, K extends keyof T>(
       onBlur();
     },
 
-    set(value: V | null | undefined) {
-      if (this.readOnly) {
-        throw new Error("Currently readOnly");
+    set(value: V | null | undefined, opts: { resetting?: boolean } = {}) {
+      if (this.readOnly && !opts.resetting) {
+        throw new Error(`${key} is currently readOnly`);
       }
 
       // If the user has deleted/emptied a value that was originally set, keep it as `null`
@@ -634,11 +634,8 @@ function newValueFieldState<T, K extends keyof T>(
     },
 
     reset() {
-      // We check !this.readOnly b/c set will blow up, but maybe we should pass
-      // an internal override to allow it anyway? Currently this is failing when
-      // using a `isReadOnlyKey` has made an entity read-only.
-      if (!computed && !this.readOnly) {
-        this.set(this.originalValue);
+      if (!computed) {
+        this.set(this.originalValue, { resetting: true });
       }
       this.touched = false;
     },
@@ -790,9 +787,9 @@ function newListFieldState<T, K extends keyof T, U>(
       onBlur();
     },
 
-    set(values: U[]) {
-      if (this.readOnly) {
-        throw new Error("Currently readOnly");
+    set(values: U[], opts: { resetting?: boolean } = {}) {
+      if (this.readOnly && !opts.resetting) {
+        throw new Error(`${key} is currently readOnly`);
       }
       // We should be passed values that are non-proxies.
       parentInstance[key] = (values.map((value) => {
@@ -831,7 +828,7 @@ function newListFieldState<T, K extends keyof T, U>(
 
     reset() {
       if (originalCopy) {
-        this.set(originalCopy);
+        this.set(originalCopy, { resetting: true });
         this.rows.forEach((r) => r.reset());
       }
     },

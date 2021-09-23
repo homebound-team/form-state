@@ -471,6 +471,44 @@ describe("formState", () => {
     expect(a1.touched).toBeFalsy();
   });
 
+  it("resets values even if read only", () => {
+    // Given a form state
+    const a1 = createAuthorInputState({
+      firstName: "a1",
+      lastName: "aL1",
+      books: [
+        { title: "b1", classification: dd100 },
+        { title: "b2", classification: dd100 },
+      ],
+    });
+    // And some values have been changed
+    expect(a1.dirty).toBeFalsy();
+    a1.firstName.set("a2");
+    a1.firstName.touched = true;
+    a1.lastName.set("aL2");
+    a1.books.rows[0].set({ title: "b2" });
+    a1.books.rows[1].set({ title: "bb2" });
+    a1.books.add({ title: "b3" });
+    expect(a1.books.touched).toEqual(true);
+    expect(a1.dirty).toBeTruthy();
+    // And the "readOnly=true" operation has "beat" the reset operation
+    a1.readOnly = true;
+    // When we reset
+    a1.reset();
+    // Then it still works
+    expect(a1.firstName.value).toBe("a1");
+    expect(a1.firstName.touched).toBeFalsy();
+    expect(a1.lastName.value).toBe("aL1");
+    expect(a1.books.rows.length).toBe(2);
+    expect(a1.books.touched).toBe(false);
+    expect(a1.books.rows[0].title.value).toBe("b1");
+    expect(a1.books.rows[0].title.dirty).toBe(false);
+    expect(a1.books.rows[0].title.touched).toBe(false);
+    expect(a1.books.rows[1].title.value).toBe("b2");
+    expect(a1.dirty).toBeFalsy();
+    expect(a1.touched).toBeFalsy();
+  });
+
   it("saves values into _originalState", () => {
     const a1 = createAuthorInputState({
       firstName: "a1",
@@ -578,7 +616,7 @@ describe("formState", () => {
     a1.readOnly = true;
     fields.forEach((f) => expect(f.readOnly).toBeTruthy());
     fields.forEach((f) => {
-      expect(() => f.set(null!)).toThrow("Currently readOnly");
+      expect(() => f.set(null!)).toThrow("is currently readOnly");
     });
   });
 
