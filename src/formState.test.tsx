@@ -1,7 +1,7 @@
 import { click, render } from "@homebound/rtl-utils";
 import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
 import { useState } from "react";
-import { AuthorAddress, AuthorInput, BookInput, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
+import { AuthorAddress, AuthorInput, BookInput, Color, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
 import {
   createObjectState,
   FieldState,
@@ -377,7 +377,7 @@ describe("formState", () => {
   it("knows list of primitives are dirty", () => {
     const a1 = createObjectState<AuthorInput>({ favoriteColors: { type: "value" } }, {});
     expect(a1.favoriteColors.dirty).toBeFalsy();
-    a1.favoriteColors.set(["blue"]);
+    a1.favoriteColors.set([Color.Blue]);
     expect(a1.dirty).toBeTruthy();
     a1.favoriteColors.set(undefined!);
     expect(a1.dirty).toBeFalsy();
@@ -389,7 +389,7 @@ describe("formState", () => {
   it("knows list of primitives are dirty with initialized as empty list", () => {
     const a1 = createObjectState<AuthorInput>({ favoriteColors: { type: "value" } }, { favoriteColors: [] });
     expect(a1.favoriteColors.dirty).toBeFalsy();
-    a1.favoriteColors.set(["blue"]);
+    a1.favoriteColors.set([Color.Blue]);
     expect(a1.dirty).toBeTruthy();
     a1.favoriteColors.set([]);
     expect(a1.dirty).toBeFalsy();

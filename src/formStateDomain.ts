@@ -7,6 +7,12 @@ export const jan2 = new Date(2020, 0, 2);
 export const dd100: DeweyDecimalClassification = { number: "100", category: "Philosophy" };
 export const dd200: DeweyDecimalClassification = { number: "200", category: "Religion" };
 
+export enum Color {
+  Red = "RED",
+  Blue = "BLUE",
+  Green = "GREEN",
+}
+
 export interface AuthorInput {
   id?: string | null;
   firstName?: string | null;
@@ -14,7 +20,7 @@ export interface AuthorInput {
   birthday?: Date | null;
   books?: BookInput[] | null;
   address?: AuthorAddress | null;
-  favoriteColors?: string[] | null;
+  favoriteColors?: Color[] | null;
 }
 
 export interface AuthorAddress {

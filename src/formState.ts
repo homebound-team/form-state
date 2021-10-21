@@ -139,7 +139,7 @@ export type Builtin = Date | Function | Uint8Array | string | number | boolean;
 /** For a given input type `T`, decorate each field into the "field state" type that holds our form-relevant state, i.e. valid/touched/etc. */
 type FieldStates<T> = {
   [K in keyof T]-?: T[K] extends Array<infer U> | null | undefined
-    ? U extends Builtin
+    ? [U] extends [Builtin]
       ? FieldState<T, T[K]>
       : ListFieldState<T, U>
     : T[K] extends Builtin | null | undefined
