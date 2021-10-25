@@ -1233,11 +1233,17 @@ describe("formState", () => {
           ifUndefined: { firstName: "default" },
         },
       });
-      return <div>{form.firstName.value}</div>;
+      return (
+        <div>
+          <div data-testid="firstName">{form.firstName.value}</div>
+          <div data-testid="changedValue">{JSON.stringify(form.changedValue)}</div>
+        </div>
+      );
     }
     const r = await render(<TestComponent />);
     // Then we use the ifUndefined value
-    expect(r.baseElement.textContent).toEqual("default");
+    expect(r.firstName.textContent).toEqual("default");
+    expect(r.changedValue.textContent).toEqual(JSON.stringify({ firstName: "default" }));
   });
 
   it("uses init if set as a value", async () => {

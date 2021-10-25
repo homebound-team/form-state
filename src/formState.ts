@@ -462,7 +462,8 @@ function newObjectState<T, P = any>(
     get changedValue() {
       const result: any = {};
       getFields(this).forEach((f) => {
-        if (f.dirty) {
+        // If the called used useFormState.ifUndefined, the key may not look dirty even though we're new
+        if (f.dirty || this.isNewEntity) {
           result[f.key] = f.changedValue;
         }
       });
