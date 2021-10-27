@@ -1219,8 +1219,11 @@ describe("formState", () => {
   it("uses custom init.ifUndefined if init.input is undefined", async () => {
     // Given a component
     function TestComponent() {
-      type FormValue = Pick<AuthorInput, "firstName">;
-      const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+      type FormValue = Pick<AuthorInput, "id" | "firstName">;
+      const config: ObjectConfig<FormValue> = {
+        id: { type: "value" },
+        firstName: { type: "value" },
+      };
       // And we have query data that may or may not be defined (but is actually undefined)
       const data: { firstName: string | undefined | null } | undefined =
         Math.random() >= 0 ? undefined : { firstName: "bob" };
@@ -1304,6 +1307,20 @@ describe("formState", () => {
     // Then their fields know the entity is not new
     expect(formState.firstName.isNewEntity).toBeFalsy();
     expect(formState.address.city.isNewEntity).toBeFalsy();
+  });
+
+  it("isNewEntity is false if there is no id field", () => {
+    // Given an author without an id field defined
+    const formState = createObjectState<AuthorInput>(
+      {
+        firstName: { type: "value" },
+        address: { type: "object", config: { street: { type: "value" } } },
+      },
+      {},
+    );
+    // Then their fields don't think the entity is new
+    expect(formState.firstName.isNewEntity).toBeFalsy();
+    expect(formState.address.street.isNewEntity).toBeFalsy();
   });
 
   it("provides isNewEntity for lists", () => {

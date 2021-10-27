@@ -425,10 +425,12 @@ function newObjectState<T, P = any>(
 
     get isNewEntity(): boolean {
       const idField = getFields(this).find((f) => (f as any)._isIdKey);
+      // If we're a line item w/o an immediate id field, look in our parent
       if (!idField && parentState) {
         return parentState().isNewEntity;
       }
-      return !idField || idField.value === null || idField.value === undefined;
+      // If there is no id field, assume we're not new
+      return idField !== undefined && (idField.value === null || idField.value === undefined);
     },
 
     canSave(): boolean {
