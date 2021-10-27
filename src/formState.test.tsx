@@ -1306,6 +1306,20 @@ describe("formState", () => {
     expect(formState.address.city.isNewEntity).toBeFalsy();
   });
 
+  it("isNewEntity is false if there is no id field", () => {
+    // Given an author without an id field defined
+    const formState = createObjectState<AuthorInput>(
+      {
+        firstName: { type: "value" },
+        address: { type: "object", config: { street: { type: "value" } } },
+      },
+      {},
+    );
+    // Then their fields don't think the entity is new
+    expect(formState.firstName.isNewEntity).toBeFalsy();
+    expect(formState.address.street.isNewEntity).toBeFalsy();
+  });
+
   it("provides isNewEntity for lists", () => {
     // Given an author & books without an id
     const formState = createObjectState(authorWithBooksConfig, {
