@@ -1219,8 +1219,11 @@ describe("formState", () => {
   it("uses custom init.ifUndefined if init.input is undefined", async () => {
     // Given a component
     function TestComponent() {
-      type FormValue = Pick<AuthorInput, "firstName">;
-      const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+      type FormValue = Pick<AuthorInput, "id" | "firstName">;
+      const config: ObjectConfig<FormValue> = {
+        id: { type: "value" },
+        firstName: { type: "value" },
+      };
       // And we have query data that may or may not be defined (but is actually undefined)
       const data: { firstName: string | undefined | null } | undefined =
         Math.random() >= 0 ? undefined : { firstName: "bob" };
