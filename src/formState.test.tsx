@@ -972,6 +972,30 @@ describe("formState", () => {
     });
   });
 
+  it("changedValue skips empty nested fields", () => {
+    // Given a new author with an address object
+    const formState = createObjectState(authorWithAddressConfig, {
+      firstName: "f",
+      // And nothing is in the address
+      address: {},
+    });
+    // Then we don't include an empty address in the output,
+    // because this might trigger creating a throw-away entity
+    expect(formState.changedValue).toEqual({ firstName: "f" });
+  });
+
+  it("changedValue skips effectively empty nested fields", () => {
+    // Given a new author with an address object
+    const formState = createObjectState(authorWithAddressConfig, {
+      firstName: "f",
+      // And only undefined keys are in the address
+      address: { city: undefined },
+    });
+    // Then we don't include an empty address in the output,
+    // because this might trigger creating a throw-away entity
+    expect(formState.changedValue).toEqual({ firstName: "f" });
+  });
+
   it("can return only changed list fields", () => {
     // Given an author with some books
     const formState = createObjectState(authorWithBooksConfig, {
