@@ -464,14 +464,22 @@ function newObjectState<T, P = any>(
     get changedValue() {
       const result: any = {};
       getFields(this).forEach((f) => {
-        // If the called used useFormState.ifUndefined, the key may not look dirty even though we're new
-        if (f.dirty || this.isNewEntity) {
+        if (
+          f.dirty ||
+          // If the caller used useFormState.ifUndefined to provide some default values, then those keys may not
+          // look dirty, but if we're new we should include them anyway.
+          (this.isNewEntity &&
+            // Unless they're undefined anyway
+            f.value !== undefined &&
+            // And unless they're empty sub-objects
+            !(f.value instanceof Object && Object.entries(f.value).length === 0))
+        ) {
           result[f.key] = f.changedValue;
         }
       });
       // Ensure we always have the id for updates to work
       const idField = getFields(this).find((f) => (f as any)._isIdKey);
-      if (idField) {
+      if (idField && idField.value !== undefined) {
         result[idField.key] = idField.value;
       }
       return result;
