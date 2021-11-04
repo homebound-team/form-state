@@ -472,7 +472,7 @@ function newObjectState<T, P = any>(
             // Unless they're undefined anyway
             f.value !== undefined &&
             // And unless they're empty sub-objects
-            !(f.value instanceof Object && Object.entries(f.value).length === 0))
+            !(f.value instanceof Object && Object.entries(f.changedValue).length === 0))
         ) {
           result[f.key] = f.changedValue;
         }
