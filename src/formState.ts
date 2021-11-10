@@ -1,7 +1,7 @@
 import equal from "fast-deep-equal";
 import isPlainObject from "is-plain-object";
 import { action, computed, isObservable, makeAutoObservable, observable, reaction, toJS } from "mobx";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { assertNever, fail } from "src/utils";
 
 export type UseFormStateOpts<T, I> = {
@@ -51,39 +51,58 @@ export type UseFormStateOpts<T, I> = {
   autoSave?: (state: ObjectState<T>) => void;
 };
 
+function initValue<T>(config: ObjectConfig<T>, init: any): T {
+  const initValue =
+    init && "input" in init && "map" in init
+      ? init.input
+        ? init.map(init.input as any)
+        : init.ifUndefined || {}
+      : init || {};
+  return pickFields(config, initValue) as T;
+}
+
 /**
  * Creates a formState instance for editing in a form.
  */
 export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T> {
   const { config, init, addRules, readOnly = false, autoSave } = opts;
-  const form = useMemo(() => {
-    // We purposefully use a non-memo'd initFn for better developer UX, i.e. the caller
-    // of `useFormState` doesn't have to `useCallback` their `initFn` just to pass it to us.
-    const initValue =
-      init && "input" in init && "map" in init
-        ? init.input
-          ? init.map(init.input as any)
-          : init.ifUndefined || {}
-        : init || {};
-    const instance = pickFields(config, initValue) as T;
-    const form = createObjectState(config, instance, {
-      onBlur: () => {
+
+  // Use a ref so our memo'ized `onBlur` always see the latest value
+  const autoSaveRef = useRef<((state: ObjectState<T>) => void) | undefined>(autoSave);
+  autoSaveRef.current = autoSave;
+
+  const firstRunRef = useRef<boolean>(true);
+
+  const form = useMemo(
+    () => {
+      function onBlur() {
         // Don't use canSave() because we don't want to set touched for all of the field
-        if (autoSave && form.dirty && form.valid) {
-          autoSave(form);
+        if (autoSaveRef.current && form.dirty && form.valid) {
+          autoSaveRef.current(form);
         }
-      },
-    });
-    form.readOnly = readOnly;
-
-    // The identity of `addRules` is not stable, but assume that it is for better UX.
+      }
+      const form = createObjectState(config, initValue(config, init), { onBlur });
+      form.readOnly = readOnly;
+      // The identity of `addRules` is not stable, but assume that it is for better UX.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      (addRules || (() => {}))(form);
+      return form;
+    },
+    // For this useMemo, we never re-run so that we can have a stable `form` identity
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    (addRules || (() => {}))(form);
+    [],
+  );
 
-    return form;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // For this useMemo, we rerun any time input changes
+  useMemo(() => {
+    // Ignore the 1st run b/c our 1st useMemo already
+    if (firstRunRef.current) {
+      firstRunRef.current = false;
+      return;
+    }
+    // any because `{ refresh: true }` is private
+    (form as any).set(initValue(config, init), { refresh: true });
   }, [
-    config,
     // If they're using init.input, useMemo on it, otherwise let the identity of init be unstable
     ...(init && "input" in init && "map" in init ? (Array.isArray(init.input) ? init.input : [init.input]) : []),
   ]);
@@ -439,13 +458,14 @@ function newObjectState<T, P = any>(
     },
 
     // Accepts new values in bulk, i.e. when setting the form initial state from the backend.
-    set(value: T) {
+    set(value: T, opts: { resetting?: boolean } = {}) {
       if (this.readOnly) {
         throw new Error(`${key || "formState"} is currently readOnly`);
       }
       getFields(this).forEach((field) => {
         if (field.key in value && (!field.dirty || !(field as any)._focused)) {
-          field.set((value as any)[field.key]);
+          // as any because opts is private
+          (field as any).set((value as any)[field.key], opts);
         }
       });
     },
@@ -487,6 +507,15 @@ function newObjectState<T, P = any>(
 
     get originalValue(): T | undefined {
       return instance;
+    },
+
+    // An internal helper method to see if `other` is for "the same entity" as our current row
+    isSameEntity(other: T): boolean {
+      const idField = getFields(this).find((f) => (f as any)._isIdKey);
+      if (!idField) {
+        return false;
+      }
+      return this[idField.key].value === (other as any)[idField.key];
     },
   };
 
@@ -627,9 +656,14 @@ function newValueFieldState<T, K extends keyof T>(
       onBlur();
     },
 
-    set(value: V | null | undefined, opts: { resetting?: boolean } = {}) {
+    set(value: V | null | undefined, opts: { resetting?: boolean; refresh?: true } = {}) {
       if (this.readOnly && !opts.resetting) {
         throw new Error(`${key} is currently readOnly`);
+      }
+
+      if (opts.refresh && this.dirty) {
+        // Ignore refreshed values if we're already dirty
+        return;
       }
 
       // If the user has deleted/emptied a value that was originally set, keep it as `null`
@@ -798,7 +832,7 @@ function newListFieldState<T, K extends keyof T, U>(
       onBlur();
     },
 
-    set(values: U[], opts: { resetting?: boolean } = {}) {
+    set(values: U[], opts: { resetting?: boolean; refresh?: boolean } = {}) {
       if (this.readOnly && !opts.resetting) {
         throw new Error(`${key} is currently readOnly`);
       }
@@ -806,6 +840,16 @@ function newListFieldState<T, K extends keyof T, U>(
       parentInstance[key] = (values.map((value) => {
         let childState = rowMap.get(value);
         if (!childState) {
+          // Look for an existing child (requires having an id key configured)
+          for (const [, otherState] of rowMap.entries()) {
+            if ((otherState as any).isSameEntity(value)) {
+              // `as any` so that we can pass along opts
+              (otherState as any).set(value, opts);
+              rowMap.set(value, otherState);
+              return otherState.value;
+            }
+          }
+          // If we didn't have an existing child, just make a new object state
           childState = createObjectState(config, value);
           rowMap.set(value, childState);
         }

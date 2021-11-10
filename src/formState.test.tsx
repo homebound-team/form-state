@@ -1,5 +1,6 @@
 import { click, render } from "@homebound/rtl-utils";
 import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
+import { Observer } from "mobx-react";
 import { useState } from "react";
 import { AuthorAddress, AuthorInput, BookInput, Color, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
 import {
@@ -1375,6 +1376,88 @@ describe("formState", () => {
     expect(formState.books.rows[1].isNewEntity).toBeTruthy();
     expect(formState.books.isNewEntity).toBeFalsy();
   });
+
+  it("keeps local changed values when a query refreshes", async () => {
+    // Given a component
+    function TestComponent() {
+      type FormValue = AuthorInput;
+      const config: ObjectConfig<FormValue> = authorWithAddressAndBooksConfig;
+      // And we have two sets of data
+      const data1 = {
+        firstName: "f1",
+        lastName: "l1",
+        address: { street: "s1", city: "c1" },
+        books: [
+          { id: "b:1", title: "a1" },
+          { id: "b:2", title: "b1" },
+        ],
+      };
+      const data2 = {
+        firstName: "f2",
+        lastName: "l2",
+        address: { street: "s2", city: "c2" },
+        books: [
+          { id: "b:1", title: "a2" },
+          { id: "b:2", title: "b2" },
+          { id: "b:3", title: "b3" },
+        ],
+      };
+      // And we start out with data1
+      const [data, setData] = useState<FormValue>(data1);
+      const form = useFormState({ config, init: { input: data, map: (d) => d } });
+      function makeLocalChanges() {
+        form.firstName.value = "local";
+        form.address.street.value = "local";
+        form.books.rows[0].title.value = "local";
+      }
+      function refreshData() {
+        setData(data2);
+      }
+      return (
+        <Observer>
+          {() => (
+            <div>
+              <div data-testid="firstName">{form.firstName.value}</div>
+              <div data-testid="lastName">{form.lastName.value}</div>
+              <div data-testid="street">{form.address.street.value}</div>
+              <div data-testid="city">{form.address.city.value}</div>
+              <div data-testid="title1">{form.books.rows[0].title.value}</div>
+              <div data-testid="title2">{form.books.rows[1].title.value}</div>
+              <div data-testid="booksLength">{form.books.rows.length}</div>
+              <button data-testid="makeLocalChanges" onClick={makeLocalChanges} />
+              <button data-testid="refreshData" onClick={refreshData} />
+            </div>
+          )}
+        </Observer>
+      );
+    }
+
+    // And we start out with the initial query data
+    const r = await render(<TestComponent />);
+    expect(r.firstName().textContent).toEqual("f1");
+    expect(r.street().textContent).toEqual("s1");
+    expect(r.title1().textContent).toEqual("a1");
+
+    // When we make some local changes
+    click(r.makeLocalChanges);
+    // Then we see them
+    expect(r.firstName().textContent).toEqual("local");
+    expect(r.street().textContent).toEqual("local");
+    expect(r.title1().textContent).toEqual("local");
+
+    // And when the new query is ran i.e. due to a cache refresh
+    click(r.refreshData);
+
+    // Then we kept our local changes
+    expect(r.firstName().textContent).toEqual("local");
+    expect(r.street().textContent).toEqual("local");
+    expect(r.title1().textContent).toEqual("local");
+    // But we also see the new data for fields we have not changed
+    expect(r.lastName().textContent).toEqual("l2");
+    expect(r.city().textContent).toEqual("c2");
+    expect(r.title2().textContent).toEqual("b2");
+    expect(r.booksLength().textContent).toEqual("3");
+  });
 });
 
 class ObservableObject {
@@ -1427,6 +1510,27 @@ const authorWithAddressConfig: ObjectConfig<AuthorInput> = {
     config: {
       street: { type: "value", rules: [required] },
       city: { type: "value" },
+    },
+  },
+};
+
+const authorWithAddressAndBooksConfig: ObjectConfig<AuthorInput> = {
+  id: { type: "value" },
+  firstName: { type: "value" },
+  lastName: { type: "value" },
+  address: {
+    type: "object",
+    config: {
+      street: { type: "value", rules: [required] },
+      city: { type: "value" },
+    },
+  },
+  books: {
+    type: "list",
+    config: {
+      id: { type: "value" },
+      title: { type: "value", rules: [required] },
+      classification: { type: "value" },
     },
   },
 };
