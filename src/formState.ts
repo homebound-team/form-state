@@ -51,16 +51,6 @@ export type UseFormStateOpts<T, I> = {
   autoSave?: (state: ObjectState<T>) => void;
 };
 
-function initValue<T>(config: ObjectConfig<T>, init: any): T {
-  const initValue =
-    init && "input" in init && "map" in init
-      ? init.input
-        ? init.map(init.input as any)
-        : init.ifUndefined || {}
-      : init || {};
-  return pickFields(config, initValue) as T;
-}
-
 /**
  * Creates a formState instance for editing in a form.
  */
@@ -86,21 +76,22 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
       // The identity of `addRules` is not stable, but assume that it is for better UX.
       // eslint-disable-next-line react-hooks/exhaustive-deps
       (addRules || (() => {}))(form);
+      firstRunRef.current = true;
       return form;
     },
-    // For this useMemo, we never re-run so that we can have a stable `form` identity
+    // For this useMemo, we never re-run so that we can have a stable `form` identity across query refreshes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
-  // For this useMemo, we rerun any time input changes
+  // For this useMemo, we re-run any time input changes
   useMemo(() => {
-    // Ignore the 1st run b/c our 1st useMemo already
+    // Ignore the 1st run b/c our 1st useMemo already initialized `form` with the current `init` value
     if (firstRunRef.current) {
       firstRunRef.current = false;
       return;
     }
-    // any because `{ refresh: true }` is private
+    // Use any because `{ refresh: true }` is private
     (form as any).set(initValue(config, init), { refresh: true });
   }, [
     // If they're using init.input, useMemo on it, otherwise let the identity of init be unstable
@@ -1003,3 +994,14 @@ export type DeepRequired<T> = T extends Primitive
         ? ReadonlyArray<DeepRequired<U2>>
         : DeepRequired<T[P]>;
     };
+
+/** Introspects the `init` prop to see if has a `map` function/etc. and returns the form value. */
+function initValue<T>(config: ObjectConfig<T>, init: any): T {
+  const initValue =
+    init && "input" in init && "map" in init
+      ? init.input
+        ? init.map(init.input as any)
+        : init.ifUndefined || {}
+      : init || {};
+  return pickFields(config, initValue) as T;
+}
