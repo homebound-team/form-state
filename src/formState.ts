@@ -91,8 +91,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
       firstRunRef.current = false;
       return;
     }
-    // Use any because `{ refreshing: true }` is private
-    (form as any).set(initValue(config, init), { refreshing: true });
+    (form as ObjectStateInternal<any>).set(initValue(config, init), { refreshing: true });
   }, [
     form,
     // If they're using init.input, useMemo on it, otherwise let the identity of init be unstable
