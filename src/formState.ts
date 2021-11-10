@@ -79,12 +79,12 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
       firstRunRef.current = true;
       return form;
     },
-    // For this useMemo, we never re-run so that we can have a stable `form` identity across query refreshes.
+    // For this useMemo, we (almost) never re-run so that we can have a stable `form` identity across query refreshes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [config],
   );
 
-  // For this useMemo, we re-run any time input changes
+  // For this useMemo, we re-run any time input changes (could be a useEffect, but running immediately seems better)
   useMemo(() => {
     // Ignore the 1st run b/c our 1st useMemo already initialized `form` with the current `init` value
     if (firstRunRef.current) {
@@ -94,6 +94,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
     // Use any because `{ refresh: true }` is private
     (form as any).set(initValue(config, init), { refresh: true });
   }, [
+    form,
     // If they're using init.input, useMemo on it, otherwise let the identity of init be unstable
     ...(init && "input" in init && "map" in init ? (Array.isArray(init.input) ? init.input : [init.input]) : []),
   ]);
