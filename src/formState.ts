@@ -91,8 +91,8 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
       firstRunRef.current = false;
       return;
     }
-    // Use any because `{ refresh: true }` is private
-    (form as any).set(initValue(config, init), { refresh: true });
+    // Use any because `{ refreshing: true }` is private
+    (form as any).set(initValue(config, init), { refreshing: true });
   }, [
     form,
     // If they're using init.input, useMemo on it, otherwise let the identity of init be unstable
@@ -450,7 +450,7 @@ function newObjectState<T, P = any>(
     },
 
     // Accepts new values in bulk, i.e. when setting the form initial state from the backend.
-    set(value: T, opts: { resetting?: boolean } = {}) {
+    set(value: T, opts: { refreshing?: boolean } = {}) {
       if (this.readOnly) {
         throw new Error(`${key || "formState"} is currently readOnly`);
       }
@@ -648,12 +648,12 @@ function newValueFieldState<T, K extends keyof T>(
       onBlur();
     },
 
-    set(value: V | null | undefined, opts: { resetting?: boolean; refresh?: true } = {}) {
+    set(value: V | null | undefined, opts: { resetting?: boolean; refreshing?: true } = {}) {
       if (this.readOnly && !opts.resetting) {
         throw new Error(`${key} is currently readOnly`);
       }
 
-      if (opts.refresh && this.dirty) {
+      if (opts.refreshing && this.dirty) {
         // Ignore refreshed values if we're already dirty
         return;
       }
@@ -824,7 +824,7 @@ function newListFieldState<T, K extends keyof T, U>(
       onBlur();
     },
 
-    set(values: U[], opts: { resetting?: boolean; refresh?: boolean } = {}) {
+    set(values: U[], opts: { resetting?: boolean; refreshing?: boolean } = {}) {
       if (this.readOnly && !opts.resetting) {
         throw new Error(`${key} is currently readOnly`);
       }
