@@ -219,6 +219,9 @@ interface SetOpts {
 
 interface FieldStateInternal<T, V> extends FieldState<T, V> {
   set(value: V, opts?: SetOpts): void;
+  _isIdKey: boolean;
+  _isDeleteKey: boolean;
+  _isReadOnlyKey: boolean;
 }
 
 type ObjectStateInternal<T, P = any> = ObjectState<T, P> & {
@@ -386,7 +389,7 @@ function newObjectState<T, P = any>(
 
   const fieldNames = Object.keys(config);
   function getFields(proxyThis: any): FieldStateInternal<T, any>[] {
-    return fieldNames.map((name) => proxyThis[name]) as FieldState<T, any>[];
+    return fieldNames.map((name) => proxyThis[name]) as FieldStateInternal<T, any>[];
   }
 
   const obj = {
@@ -407,12 +410,12 @@ function newObjectState<T, P = any>(
     _readOnly: false,
 
     _considerDeleted(): boolean {
-      const deleteField = getFields(this).find((f) => (f as any)._isDeleteKey);
+      const deleteField = getFields(this).find((f) => f._isDeleteKey);
       return !!deleteField?.value;
     },
 
     _considerReadOnly(): boolean {
-      const readOnlyField = getFields(this).find((f) => (f as any)._isReadOnlyKey);
+      const readOnlyField = getFields(this).find((f) => f._isReadOnlyKey);
       return !!readOnlyField?.value;
     },
 
@@ -447,7 +450,7 @@ function newObjectState<T, P = any>(
     },
 
     get isNewEntity(): boolean {
-      const idField = getFields(this).find((f) => (f as any)._isIdKey);
+      const idField = getFields(this).find((f) => f._isIdKey);
       // If we're a line item w/o an immediate id field, look in our parent
       if (!idField && parentState) {
         return parentState().isNewEntity;
@@ -501,7 +504,7 @@ function newObjectState<T, P = any>(
         }
       });
       // Ensure we always have the id for updates to work
-      const idField = getFields(this).find((f) => (f as any)._isIdKey);
+      const idField = getFields(this).find((f) => f._isIdKey);
       if (idField && idField.value !== undefined) {
         result[idField.key] = idField.value;
       }
@@ -514,7 +517,7 @@ function newObjectState<T, P = any>(
 
     // An internal helper method to see if `other` is for "the same entity" as our current row
     isSameEntity(other: T): boolean {
-      const idField = getFields(this).find((f) => (f as any)._isIdKey);
+      const idField = getFields(this).find((f) => f._isIdKey);
       if (!idField) {
         return false;
       }
