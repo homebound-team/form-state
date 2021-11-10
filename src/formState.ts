@@ -213,6 +213,19 @@ export interface FieldState<T, V> {
   save(): void;
 }
 
+interface SetOpts {
+  resetting?: boolean;
+  refreshing?: boolean;
+}
+
+interface FieldStateInternal<T, V> extends FieldState<T, V> {
+  set(value: V, opts?: SetOpts): void;
+}
+
+type ObjectStateInternal<T, P = any> = ObjectState<T, P> & {
+  set(value: P, opts?: SetOpts): void;
+};
+
 /** Form state for list of children, i.e. `U` is a `Book` in a form with a `books: Book[]`. */
 export interface ListFieldState<T, U> extends Omit<FieldState<T, U[]>, "originalValue"> {
   readonly rows: ReadonlyArray<ObjectState<U>>;
@@ -373,7 +386,7 @@ function newObjectState<T, P = any>(
   const _tick = observable({ value: 1 });
 
   const fieldNames = Object.keys(config);
-  function getFields(proxyThis: any): FieldState<T, any>[] {
+  function getFields(proxyThis: any): FieldStateInternal<T, any>[] {
     return fieldNames.map((name) => proxyThis[name]) as FieldState<T, any>[];
   }
 
@@ -450,14 +463,13 @@ function newObjectState<T, P = any>(
     },
 
     // Accepts new values in bulk, i.e. when setting the form initial state from the backend.
-    set(value: T, opts: { refreshing?: boolean } = {}) {
+    set(value: T, opts: SetOpts = {}) {
       if (this.readOnly) {
         throw new Error(`${key || "formState"} is currently readOnly`);
       }
       getFields(this).forEach((field) => {
         if (field.key in value && (!field.dirty || !(field as any)._focused)) {
-          // as any because opts is private
-          (field as any).set((value as any)[field.key], opts);
+          field.set((value as any)[field.key], opts);
         }
       });
     },
@@ -710,7 +722,7 @@ function newListFieldState<T, K extends keyof T, U>(
   onBlur: () => void,
 ): ListFieldState<T, U> {
   // Keep a map of "item in the parent list" -> "that item's ObjectState"
-  const rowMap = new Map<U, ObjectState<U>>();
+  const rowMap = new Map<U, ObjectStateInternal<U>>();
   const _tick = observable({ value: 1 });
 
   // this is for dirty checking, not object identity
@@ -824,7 +836,7 @@ function newListFieldState<T, K extends keyof T, U>(
       onBlur();
     },
 
-    set(values: U[], opts: { resetting?: boolean; refreshing?: boolean } = {}) {
+    set(values: U[], opts: SetOpts = {}) {
       if (this.readOnly && !opts.resetting) {
         throw new Error(`${key} is currently readOnly`);
       }
@@ -835,8 +847,7 @@ function newListFieldState<T, K extends keyof T, U>(
           // Look for an existing child (requires having an id key configured)
           for (const [, otherState] of rowMap.entries()) {
             if ((otherState as any).isSameEntity(value)) {
-              // `as any` so that we can pass along opts
-              (otherState as any).set(value, opts);
+              otherState.set(value, opts);
               rowMap.set(value, otherState);
               return otherState.value;
             }
