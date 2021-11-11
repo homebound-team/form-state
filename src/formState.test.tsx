@@ -1473,6 +1473,58 @@ describe("formState", () => {
       firstName: "local",
     });
   });
+
+  it("useFormState can accept new data while read only", async () => {
+    // Given a component
+    function TestComponent() {
+      type FormValue = AuthorInput;
+      const config: ObjectConfig<FormValue> = authorWithAddressAndBooksConfig;
+      // And we have two sets of data
+      const data1 = {
+        firstName: "f1",
+        address: { street: "s1" },
+        books: [{ title: "a1" }],
+      };
+      const data2 = {
+        firstName: "f2",
+        address: { street: "s2" },
+        books: [{ title: "a2" }],
+      };
+      // And we start out with data1
+      const [data, setData] = useState<FormValue>(data1);
+      const form = useFormState({
+        config,
+        init: { input: data, map: (d) => d },
+        // And the form is read only
+        readOnly: true,
+      });
+      return (
+        <Observer>
+          {() => (
+            <div>
+              <div data-testid="firstName">{form.firstName.value}</div>
+              <div data-testid="street">{form.address.street.value}</div>
+              <div data-testid="title1">{form.books.rows[0].title.value}</div>
+              <button data-testid="refreshData" onClick={() => setData(data2)} />
+            </div>
+          )}
+        </Observer>
+      );
+    }
+    // And we start out with the initial query data
+    const r = await render(<TestComponent />);
+    expect(r.firstName().textContent).toEqual("f1");
+    expect(r.street().textContent).toEqual("s1");
+    expect(r.title1().textContent).toEqual("a1");
+
+    // When the new query is ran i.e. due to a cache refresh
+    click(r.refreshData);
+
+    // Then we see the latest data
+    expect(r.firstName().textContent).toEqual("f2");
+    expect(r.street().textContent).toEqual("s2");
+    expect(r.title1().textContent).toEqual("a2");
+  });
 });
 
 class ObservableObject {

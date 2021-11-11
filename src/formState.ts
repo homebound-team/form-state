@@ -466,7 +466,7 @@ function newObjectState<T, P = any>(
 
     // Accepts new values in bulk, i.e. when setting the form initial state from the backend.
     set(value: T, opts: SetOpts = {}) {
-      if (this.readOnly) {
+      if (this.readOnly && !opts.resetting && !opts.refreshing) {
         throw new Error(`${key || "formState"} is currently readOnly`);
       }
       getFields(this).forEach((field) => {
@@ -663,7 +663,7 @@ function newValueFieldState<T, K extends keyof T>(
     },
 
     set(value: V | null | undefined, opts: { resetting?: boolean; refreshing?: true } = {}) {
-      if (this.readOnly && !opts.resetting) {
+      if (this.readOnly && !opts.resetting && !opts.refreshing) {
         throw new Error(`${key} is currently readOnly`);
       }
 
@@ -843,7 +843,7 @@ function newListFieldState<T, K extends keyof T, U>(
     },
 
     set(values: U[], opts: SetOpts = {}) {
-      if (this.readOnly && !opts.resetting) {
+      if (this.readOnly && !opts.resetting && !opts.refreshing) {
         throw new Error(`${key} is currently readOnly`);
       }
       // We should be passed values that are non-proxies.
