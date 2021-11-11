@@ -1,7 +1,7 @@
 import equal from "fast-deep-equal";
 import isPlainObject from "is-plain-object";
 import { action, computed, isObservable, makeAutoObservable, observable, reaction, toJS } from "mobx";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { assertNever, fail } from "src/utils";
 
 export type UseFormStateOpts<T, I> = {
@@ -62,6 +62,11 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
   autoSaveRef.current = autoSave;
 
   const firstRunRef = useRef<boolean>(true);
+  // This is a little weird, but we need to know ahead of time, before the form useMemo, if we're working with classes/mobx proxies
+  const [firstInitValue] = useState(() => initValue(config, init));
+  const isWrappingMobxProxy = !isPlainObject(firstInitValue);
+  // If they're using init.input, useMemo on it (and it might be an array), otherwise allow the identity of init be unstable
+  const dep = init && "input" in init && "map" in init ? (Array.isArray(init.input) ? init.input : [init.input]) : [];
 
   const form = useMemo(
     () => {
@@ -71,7 +76,8 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
           autoSaveRef.current(form);
         }
       }
-      const form = createObjectState(config, initValue(config, init), { onBlur });
+      const value = firstRunRef.current ? firstInitValue : initValue(config, init);
+      const form = createObjectState(config, value, { onBlur });
       form.readOnly = readOnly;
       // The identity of `addRules` is not stable, but assume that it is for better UX.
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,22 +87,20 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
     },
     // For this useMemo, we (almost) never re-run so that we can have a stable `form` identity across query refreshes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [config],
+    [config, ...(isWrappingMobxProxy ? dep : [])],
   );
 
   // For this useMemo, we re-run any time input changes (could be a useEffect, but running immediately seems better)
   useMemo(() => {
-    // Ignore the 1st run b/c our 1st useMemo already initialized `form` with the current `init` value
-    if (firstRunRef.current) {
+    // Ignore the 1st run b/c our 1st useMemo already initialized `form` with the current `init` value.
+    // Also for mobx proxies, we recreate a new form-state every time init changes, so that our
+    // fields fundamentally pointing to the right proxy. So just defer to the ^ useMemo.
+    if (firstRunRef.current || isWrappingMobxProxy) {
       firstRunRef.current = false;
       return;
     }
     (form as ObjectStateInternal<any>).set(initValue(config, init), { refreshing: true });
-  }, [
-    form,
-    // If they're using init.input, useMemo on it, otherwise let the identity of init be unstable
-    ...(init && "input" in init && "map" in init ? (Array.isArray(init.input) ? init.input : [init.input]) : []),
-  ]);
+  }, [form, ...dep]);
 
   // Use useEffect so that we don't touch the form.init proxy during a render
   useEffect(() => {
@@ -222,6 +226,7 @@ interface FieldStateInternal<T, V> extends FieldState<T, V> {
   _isIdKey: boolean;
   _isDeleteKey: boolean;
   _isReadOnlyKey: boolean;
+  _focused: boolean;
 }
 
 type ObjectStateInternal<T, P = any> = ObjectState<T, P> & {
@@ -470,7 +475,7 @@ function newObjectState<T, P = any>(
         throw new Error(`${key || "formState"} is currently readOnly`);
       }
       getFields(this).forEach((field) => {
-        if (field.key in value && (!field.dirty || !(field as any)._focused)) {
+        if (field.key in value && (!field.dirty || !field._focused)) {
           field.set((value as any)[field.key], opts);
         }
       });
@@ -669,6 +674,9 @@ function newValueFieldState<T, K extends keyof T>(
 
       if (opts.refreshing && this.dirty) {
         // Ignore refreshed values if we're already dirty
+        return;
+      } else if (computed && (opts.resetting || opts.refreshing)) {
+        // Computeds can't be either reset or refreshed
         return;
       }
 
