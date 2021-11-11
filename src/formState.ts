@@ -1,7 +1,7 @@
 import equal from "fast-deep-equal";
 import isPlainObject from "is-plain-object";
 import { action, computed, isObservable, makeAutoObservable, observable, reaction, toJS } from "mobx";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { assertNever, fail } from "src/utils";
 
 export type UseFormStateOpts<T, I> = {
@@ -56,34 +56,44 @@ export type UseFormStateOpts<T, I> = {
  */
 export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T> {
   const { config, init, addRules, readOnly = false, autoSave } = opts;
-  const form = useMemo(() => {
-    // We purposefully use a non-memo'd initFn for better developer UX, i.e. the caller
-    // of `useFormState` doesn't have to `useCallback` their `initFn` just to pass it to us.
-    const initValue =
-      init && "input" in init && "map" in init
-        ? init.input
-          ? init.map(init.input as any)
-          : init.ifUndefined || {}
-        : init || {};
-    const instance = pickFields(config, initValue) as T;
-    const form = createObjectState(config, instance, {
-      onBlur: () => {
+
+  // Use a ref so our memo'ized `onBlur` always see the latest value
+  const autoSaveRef = useRef<((state: ObjectState<T>) => void) | undefined>(autoSave);
+  autoSaveRef.current = autoSave;
+
+  const firstRunRef = useRef<boolean>(true);
+
+  const form = useMemo(
+    () => {
+      function onBlur() {
         // Don't use canSave() because we don't want to set touched for all of the field
-        if (autoSave && form.dirty && form.valid) {
-          autoSave(form);
+        if (autoSaveRef.current && form.dirty && form.valid) {
+          autoSaveRef.current(form);
         }
-      },
-    });
-    form.readOnly = readOnly;
-
-    // The identity of `addRules` is not stable, but assume that it is for better UX.
+      }
+      const form = createObjectState(config, initValue(config, init), { onBlur });
+      form.readOnly = readOnly;
+      // The identity of `addRules` is not stable, but assume that it is for better UX.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      (addRules || (() => {}))(form);
+      firstRunRef.current = true;
+      return form;
+    },
+    // For this useMemo, we (almost) never re-run so that we can have a stable `form` identity across query refreshes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    (addRules || (() => {}))(form);
+    [config],
+  );
 
-    return form;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // For this useMemo, we re-run any time input changes (could be a useEffect, but running immediately seems better)
+  useMemo(() => {
+    // Ignore the 1st run b/c our 1st useMemo already initialized `form` with the current `init` value
+    if (firstRunRef.current) {
+      firstRunRef.current = false;
+      return;
+    }
+    (form as ObjectStateInternal<any>).set(initValue(config, init), { refreshing: true });
   }, [
-    config,
+    form,
     // If they're using init.input, useMemo on it, otherwise let the identity of init be unstable
     ...(init && "input" in init && "map" in init ? (Array.isArray(init.input) ? init.input : [init.input]) : []),
   ]);
@@ -201,6 +211,22 @@ export interface FieldState<T, V> {
   /** Accepts the current changed value (if any) as the original and resets dirty/touched. */
   save(): void;
 }
+
+interface SetOpts {
+  resetting?: boolean;
+  refreshing?: boolean;
+}
+
+interface FieldStateInternal<T, V> extends FieldState<T, V> {
+  set(value: V, opts?: SetOpts): void;
+  _isIdKey: boolean;
+  _isDeleteKey: boolean;
+  _isReadOnlyKey: boolean;
+}
+
+type ObjectStateInternal<T, P = any> = ObjectState<T, P> & {
+  set(value: P, opts?: SetOpts): void;
+};
 
 /** Form state for list of children, i.e. `U` is a `Book` in a form with a `books: Book[]`. */
 export interface ListFieldState<T, U> extends Omit<FieldState<T, U[]>, "originalValue"> {
@@ -362,8 +388,8 @@ function newObjectState<T, P = any>(
   const _tick = observable({ value: 1 });
 
   const fieldNames = Object.keys(config);
-  function getFields(proxyThis: any): FieldState<T, any>[] {
-    return fieldNames.map((name) => proxyThis[name]) as FieldState<T, any>[];
+  function getFields(proxyThis: any): FieldStateInternal<T, any>[] {
+    return fieldNames.map((name) => proxyThis[name]) as FieldStateInternal<T, any>[];
   }
 
   const obj = {
@@ -384,12 +410,12 @@ function newObjectState<T, P = any>(
     _readOnly: false,
 
     _considerDeleted(): boolean {
-      const deleteField = getFields(this).find((f) => (f as any)._isDeleteKey);
+      const deleteField = getFields(this).find((f) => f._isDeleteKey);
       return !!deleteField?.value;
     },
 
     _considerReadOnly(): boolean {
-      const readOnlyField = getFields(this).find((f) => (f as any)._isReadOnlyKey);
+      const readOnlyField = getFields(this).find((f) => f._isReadOnlyKey);
       return !!readOnlyField?.value;
     },
 
@@ -424,7 +450,7 @@ function newObjectState<T, P = any>(
     },
 
     get isNewEntity(): boolean {
-      const idField = getFields(this).find((f) => (f as any)._isIdKey);
+      const idField = getFields(this).find((f) => f._isIdKey);
       // If we're a line item w/o an immediate id field, look in our parent
       if (!idField && parentState) {
         return parentState().isNewEntity;
@@ -439,13 +465,13 @@ function newObjectState<T, P = any>(
     },
 
     // Accepts new values in bulk, i.e. when setting the form initial state from the backend.
-    set(value: T) {
+    set(value: T, opts: SetOpts = {}) {
       if (this.readOnly) {
         throw new Error(`${key || "formState"} is currently readOnly`);
       }
       getFields(this).forEach((field) => {
         if (field.key in value && (!field.dirty || !(field as any)._focused)) {
-          field.set((value as any)[field.key]);
+          field.set((value as any)[field.key], opts);
         }
       });
     },
@@ -478,7 +504,7 @@ function newObjectState<T, P = any>(
         }
       });
       // Ensure we always have the id for updates to work
-      const idField = getFields(this).find((f) => (f as any)._isIdKey);
+      const idField = getFields(this).find((f) => f._isIdKey);
       if (idField && idField.value !== undefined) {
         result[idField.key] = idField.value;
       }
@@ -487,6 +513,15 @@ function newObjectState<T, P = any>(
 
     get originalValue(): T | undefined {
       return instance;
+    },
+
+    // An internal helper method to see if `other` is for "the same entity" as our current row
+    isSameEntity(other: T): boolean {
+      const idField = getFields(this).find((f) => f._isIdKey);
+      if (!idField) {
+        return false;
+      }
+      return this[idField.key].value === (other as any)[idField.key];
     },
   };
 
@@ -627,9 +662,14 @@ function newValueFieldState<T, K extends keyof T>(
       onBlur();
     },
 
-    set(value: V | null | undefined, opts: { resetting?: boolean } = {}) {
+    set(value: V | null | undefined, opts: { resetting?: boolean; refreshing?: true } = {}) {
       if (this.readOnly && !opts.resetting) {
         throw new Error(`${key} is currently readOnly`);
+      }
+
+      if (opts.refreshing && this.dirty) {
+        // Ignore refreshed values if we're already dirty
+        return;
       }
 
       // If the user has deleted/emptied a value that was originally set, keep it as `null`
@@ -642,6 +682,10 @@ function newValueFieldState<T, K extends keyof T>(
       // Set the value on our parent object
       parentInstance[key] = newValue!;
       _tick.value++;
+
+      if (opts.refreshing) {
+        this.originalValue = newValue;
+      }
     },
 
     reset() {
@@ -684,7 +728,7 @@ function newListFieldState<T, K extends keyof T, U>(
   onBlur: () => void,
 ): ListFieldState<T, U> {
   // Keep a map of "item in the parent list" -> "that item's ObjectState"
-  const rowMap = new Map<U, ObjectState<U>>();
+  const rowMap = new Map<U, ObjectStateInternal<U>>();
   const _tick = observable({ value: 1 });
 
   // this is for dirty checking, not object identity
@@ -798,7 +842,7 @@ function newListFieldState<T, K extends keyof T, U>(
       onBlur();
     },
 
-    set(values: U[], opts: { resetting?: boolean } = {}) {
+    set(values: U[], opts: SetOpts = {}) {
       if (this.readOnly && !opts.resetting) {
         throw new Error(`${key} is currently readOnly`);
       }
@@ -806,6 +850,15 @@ function newListFieldState<T, K extends keyof T, U>(
       parentInstance[key] = (values.map((value) => {
         let childState = rowMap.get(value);
         if (!childState) {
+          // Look for an existing child (requires having an id key configured)
+          for (const [, otherState] of rowMap.entries()) {
+            if ((otherState as any).isSameEntity(value)) {
+              otherState.set(value, opts);
+              rowMap.set(value, otherState);
+              return otherState.value;
+            }
+          }
+          // If we didn't have an existing child, just make a new object state
           childState = createObjectState(config, value);
           rowMap.set(value, childState);
         }
@@ -959,3 +1012,14 @@ export type DeepRequired<T> = T extends Primitive
         ? ReadonlyArray<DeepRequired<U2>>
         : DeepRequired<T[P]>;
     };
+
+/** Introspects the `init` prop to see if has a `map` function/etc. and returns the form value. */
+function initValue<T>(config: ObjectConfig<T>, init: any): T {
+  const initValue =
+    init && "input" in init && "map" in init
+      ? init.input
+        ? init.map(init.input as any)
+        : init.ifUndefined || {}
+      : init || {};
+  return pickFields(config, initValue) as T;
+}
