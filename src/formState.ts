@@ -682,6 +682,10 @@ function newValueFieldState<T, K extends keyof T>(
       // Set the value on our parent object
       parentInstance[key] = newValue!;
       _tick.value++;
+
+      if (opts.refreshing) {
+        this.originalValue = newValue;
+      }
     },
 
     reset() {

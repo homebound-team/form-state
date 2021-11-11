@@ -1384,18 +1384,20 @@ describe("formState", () => {
       const config: ObjectConfig<FormValue> = authorWithAddressAndBooksConfig;
       // And we have two sets of data
       const data1 = {
+        id: "a:1",
         firstName: "f1",
         lastName: "l1",
-        address: { street: "s1", city: "c1" },
+        address: { id: "address:1", street: "s1", city: "c1" },
         books: [
           { id: "b:1", title: "a1" },
           { id: "b:2", title: "b1" },
         ],
       };
       const data2 = {
+        id: "a:1",
         firstName: "f2",
         lastName: "l2",
-        address: { street: "s2", city: "c2" },
+        address: { id: "address:1", street: "s2", city: "c2" },
         books: [
           { id: "b:1", title: "a2" },
           { id: "b:2", title: "b2" },
@@ -1426,6 +1428,7 @@ describe("formState", () => {
               <div data-testid="booksLength">{form.books.rows.length}</div>
               <button data-testid="makeLocalChanges" onClick={makeLocalChanges} />
               <button data-testid="refreshData" onClick={refreshData} />
+              <div data-testid="changedValue">{JSON.stringify(form.changedValue)}</div>
             </div>
           )}
         </Observer>
@@ -1444,6 +1447,12 @@ describe("formState", () => {
     expect(r.firstName().textContent).toEqual("local");
     expect(r.street().textContent).toEqual("local");
     expect(r.title1().textContent).toEqual("local");
+    expect(JSON.parse(r.changedValue().textContent)).toEqual({
+      id: "a:1",
+      address: { id: "address:1", street: "local" },
+      books: [{ id: "b:1", title: "local" }, { id: "b:2" }],
+      firstName: "local",
+    });
 
     // And when the new query is ran i.e. due to a cache refresh
     click(r.refreshData);
@@ -1457,6 +1466,12 @@ describe("formState", () => {
     expect(r.city().textContent).toEqual("c2");
     expect(r.title2().textContent).toEqual("b2");
     expect(r.booksLength().textContent).toEqual("3");
+    expect(JSON.parse(r.changedValue().textContent)).toEqual({
+      id: "a:1",
+      address: { id: "address:1", street: "local" },
+      books: [{ id: "b:1", title: "local" }, { id: "b:2" }, { id: "b:3" }],
+      firstName: "local",
+    });
   });
 });
 
@@ -1521,6 +1536,7 @@ const authorWithAddressAndBooksConfig: ObjectConfig<AuthorInput> = {
   address: {
     type: "object",
     config: {
+      id: { type: "value" },
       street: { type: "value", rules: [required] },
       city: { type: "value" },
     },
