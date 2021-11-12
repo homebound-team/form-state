@@ -1,7 +1,7 @@
 import { click, render } from "@homebound/rtl-utils";
 import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
 import { Observer } from "mobx-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AuthorAddress, AuthorInput, BookInput, Color, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
 import {
   createObjectState,
@@ -1524,6 +1524,53 @@ describe("formState", () => {
     expect(r.firstName().textContent).toEqual("f2");
     expect(r.street().textContent).toEqual("s2");
     expect(r.title1().textContent).toEqual("a2");
+  });
+
+  it("useFormState can accept new data with computed fields", async () => {
+    // Given a component
+    function TestComponent() {
+      // And it's using a class/mobx proxy as the basis for the data
+      class AuthorRow {
+        constructor(public firstName: string, public lastName: string) {}
+        get fullName() {
+          return this.firstName + " " + this.lastName;
+        }
+      }
+      // And we have two sets of data
+      const data1 = { firstName: "f1", lastName: "l1" };
+      const data2 = { firstName: "f2", lastName: "l2" };
+      // And we start out with data1
+      const [data, setData] = useState<typeof data1>(data1);
+      const author = useMemo(() => new AuthorRow(data.firstName, data.lastName), [data]);
+      const config: ObjectConfig<AuthorRow> = useMemo(
+        () => ({
+          firstName: { type: "value" },
+          lastName: { type: "value" },
+          fullName: { type: "value", computed: true },
+        }),
+        [],
+      );
+      const form = useFormState({ config, init: { input: author, map: (a) => a } });
+      return (
+        <Observer>
+          {() => (
+            <div>
+              <div data-testid="firstName">{form.firstName.value}</div>
+              <div data-testid="fullName">{form.fullName.value}</div>
+              <button data-testid="refreshData" onClick={() => setData(data2)} />
+            </div>
+          )}
+        </Observer>
+      );
+    }
+    // And we start out with the initial query data
+    const r = await render(<TestComponent />);
+    expect(r.firstName().textContent).toEqual("f1");
+    expect(r.fullName().textContent).toEqual("f1 l1");
+    // When the new query is ran i.e. due to a cache refresh
+    click(r.refreshData);
+    expect(r.firstName().textContent).toEqual("f2");
+    expect(r.fullName().textContent).toEqual("f2 l2");
   });
 });
 
