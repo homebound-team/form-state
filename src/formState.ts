@@ -90,8 +90,9 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
     [config, ...(isWrappingMobxProxy ? dep : [])],
   );
 
-  // For this useMemo, we re-run any time input changes (could be a useEffect, but running immediately seems better)
-  useMemo(() => {
+  // We use useEffect so that any mutations to the proxies, which will call `setState`s on any observers to
+  // queue their components' render), don't happen during our render, per https://fb.me/setstate-in-render.
+  useEffect(() => {
     // Ignore the 1st run b/c our 1st useMemo already initialized `form` with the current `init` value.
     // Also for mobx proxies, we recreate a new form-state every time init changes, so that our
     // fields fundamentally pointing to the right proxy. So just defer to the ^ useMemo.
