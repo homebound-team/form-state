@@ -867,6 +867,7 @@ function newListFieldState<T, K extends keyof T, U>(
               return otherState.value;
             }
           }
+
           // If we didn't have an existing child, just make a new object state
           childState = createObjectState(config, value, { onBlur });
           rowMap.set(value, childState);
