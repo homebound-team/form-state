@@ -1599,8 +1599,9 @@ describe("formState", () => {
 
     // Given a formState with `onBlur` set
     const r = await render(<TestComponent />);
-    // When the field is blurred
+    // When the data/child is now available
     click(r.refreshData);
+    // And the field is blurred
     click(r.blur);
     // Then expect onBlur to triggered
     expect(onBlur).toBeCalledTimes(1);
