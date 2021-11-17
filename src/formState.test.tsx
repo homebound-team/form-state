@@ -1572,6 +1572,40 @@ describe("formState", () => {
     expect(r.firstName().textContent).toEqual("f2");
     expect(r.fullName().textContent).toEqual("f2 l2");
   });
+
+  it("can trigger onBlur for fields in list that were initially undefined", async () => {
+    const onBlur = jest.fn();
+    // Given a component
+    function TestComponent() {
+      // When the data is initially undefined
+      const [data, setData] = useState<AuthorInput>();
+      const data2 = { books: [{ title: "Title 1" }] };
+      const form = useFormState({
+        config: authorWithBooksConfig,
+        init: { input: data, map: (d) => d, ifUndefined: { books: [] } },
+        autoSave: () => onBlur(),
+      });
+      return (
+        <Observer>
+          {() => (
+            <div>
+              <button data-testid="refreshData" onClick={() => setData(data2)} />
+              <button data-testid="blur" onClick={() => form.books.rows[0].title.blur()} />
+            </div>
+          )}
+        </Observer>
+      );
+    }
+
+    // Given a formState with `onBlur` set
+    const r = await render(<TestComponent />);
+    // When the data/child is now available
+    click(r.refreshData);
+    // And the field is blurred
+    click(r.blur);
+    // Then expect onBlur to triggered
+    expect(onBlur).toBeCalledTimes(1);
+  });
 });
 
 class ObservableObject {

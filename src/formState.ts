@@ -867,8 +867,9 @@ function newListFieldState<T, K extends keyof T, U>(
               return otherState.value;
             }
           }
+
           // If we didn't have an existing child, just make a new object state
-          childState = createObjectState(config, value);
+          childState = createObjectState(config, value, { onBlur });
           rowMap.set(value, childState);
         }
         // Return the already-observable'd value so that our `parent.value[key] = values` doesn't re-proxy things
