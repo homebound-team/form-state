@@ -1590,7 +1590,9 @@ describe("formState", () => {
           {() => (
             <div>
               <button data-testid="refreshData" onClick={() => setData(data2)} />
+              <button data-testid="add" onClick={() => form.books.add({ title: "New Book" })} />
               <button data-testid="blur" onClick={() => form.books.rows[0].title.blur()} />
+              <button data-testid="blurNew" onClick={() => form.books.rows[1].title.blur()} />
             </div>
           )}
         </Observer>
@@ -1605,6 +1607,13 @@ describe("formState", () => {
     click(r.blur);
     // Then expect onBlur to triggered
     expect(onBlur).toBeCalledTimes(1);
+
+    // And when adding a new book
+    click(r.add);
+    // And the new book is blurred
+    click(r.blurNew);
+    // Then expect onBlur to be triggered again
+    expect(onBlur).toBeCalledTimes(2);
   });
 });
 
