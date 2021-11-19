@@ -880,7 +880,7 @@ function newListFieldState<T, K extends keyof T, U>(
 
     add(value: U, spliceIndex?: number): void {
       // This is called by the user, so value should be a non-proxy value we should keep
-      const childState = createObjectState(config, value);
+      const childState = createObjectState(config, value, { onBlur });
       rowMap.set(value, childState);
       this.ensureSet();
       this.value.splice(typeof spliceIndex === "number" ? spliceIndex : this.value.length, 0, childState.value);
