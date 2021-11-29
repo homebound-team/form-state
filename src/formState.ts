@@ -885,6 +885,7 @@ function newListFieldState<T, K extends keyof T, U>(
       this.ensureSet();
       this.value.splice(typeof spliceIndex === "number" ? spliceIndex : this.value.length, 0, childState.value);
       _tick.value++;
+      onBlur();
     },
 
     remove(indexOrValue: number | U): void {
@@ -898,6 +899,7 @@ function newListFieldState<T, K extends keyof T, U>(
         }
       }
       _tick.value++;
+      onBlur();
     },
 
     reset() {

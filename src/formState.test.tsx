@@ -375,6 +375,17 @@ describe("formState", () => {
     expect(a1.dirty).toBeFalsy();
   });
 
+  it("it calls onBlur when adding or removing to a list", () => {
+    const onBlur = jest.fn();
+    const a1 = createAuthorInputState({ books: [] }, onBlur);
+    expect(a1.books.dirty).toBeFalsy();
+    a1.books.add({ title: "t2" });
+    expect(a1.books.dirty).toBeTruthy();
+    a1.books.remove(0);
+    expect(a1.dirty).toBeFalsy();
+    expect(onBlur).toBeCalledTimes(2);
+  });
+
   it("knows list of primitives are dirty", () => {
     const a1 = createObjectState<AuthorInput>({ favoriteColors: { type: "value" } }, {});
     expect(a1.favoriteColors.dirty).toBeFalsy();
@@ -1613,7 +1624,7 @@ describe("formState", () => {
     // And the new book is blurred
     click(r.blurNew);
     // Then expect onBlur to be triggered again
-    expect(onBlur).toBeCalledTimes(2);
+    expect(onBlur).toBeCalledTimes(3);
   });
 });
 
@@ -1654,8 +1665,8 @@ const authorWithBooksConfig: ObjectConfig<AuthorInput> = {
   },
 };
 
-function createAuthorInputState(input: AuthorInput) {
-  return createObjectState<AuthorInput>(authorWithBooksConfig, input);
+function createAuthorInputState(input: AuthorInput, onBlur?: () => void) {
+  return createObjectState<AuthorInput>(authorWithBooksConfig, input, { onBlur });
 }
 
 const authorWithAddressConfig: ObjectConfig<AuthorInput> = {
