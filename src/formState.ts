@@ -673,7 +673,7 @@ function newValueFieldState<T, K extends keyof T>(
         throw new Error(`${key} is currently readOnly`);
       }
 
-      if (opts.refreshing && this.dirty) {
+      if (opts.refreshing && this.dirty && value !== this.value) {
         // Ignore refreshed values if we're already dirty
         return;
       } else if (computed && (opts.resetting || opts.refreshing)) {
@@ -781,9 +781,18 @@ function newListFieldState<T, K extends keyof T, U>(
 
     // private
     hasNewItems(): boolean {
-      const currentList = this.value;
-      const a = (currentList || []).every((e: any) => (originalCopy || []).includes(e));
-      const b = (originalCopy || []).every((e: any) => (currentList || []).includes(e));
+      const [current, original] = [this.value || [], originalCopy || []];
+      // Instead of relying on just object identities, we look up each child's state
+      // in rowMap, because we already dedup/check object identity (i.e. look for id fields)
+      // when create object states.
+      const a = current.every((e: any) => {
+        const state = rowMap.get(e);
+        return original.some((e) => rowMap.get(e) === state);
+      });
+      const b = original.every((e: any) => {
+        const state = rowMap.get(e);
+        return current.some((e) => rowMap.get(e) === state);
+      });
       const isSame = a && b;
       return !isSame;
     },
@@ -875,6 +884,10 @@ function newListFieldState<T, K extends keyof T, U>(
         // Return the already-observable'd value so that our `parent.value[key] = values` doesn't re-proxy things
         return childState.value;
       }) as any) as T[K];
+      // Reset originalCopy so that our dirty checks have the right # of rows.
+      if (opts.refreshing) {
+        originalCopy = [...((parentInstance[key] as any) || [])];
+      }
       _tick.value++;
     },
 
