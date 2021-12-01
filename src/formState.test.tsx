@@ -1415,6 +1415,18 @@ describe("formState", () => {
           { id: "b:3", title: "b3" },
         ],
       };
+      // Eventually our local values are saved
+      const data3 = {
+        id: "a:1",
+        firstName: "local",
+        lastName: "l2",
+        address: { id: "address:1", street: "local", city: "c2" },
+        books: [
+          { id: "b:1", title: "local" },
+          { id: "b:2", title: "b2" },
+          { id: "b:3", title: "b3" },
+        ],
+      };
       // And we start out with data1
       const [data, setData] = useState<FormValue>(data1);
       const form = useFormState({ config, init: { input: data, map: (d) => d } });
@@ -1422,9 +1434,6 @@ describe("formState", () => {
         form.firstName.value = "local";
         form.address.street.value = "local";
         form.books.rows[0].title.value = "local";
-      }
-      function refreshData() {
-        setData(data2);
       }
       return (
         <Observer>
@@ -1438,7 +1447,8 @@ describe("formState", () => {
               <div data-testid="title2">{form.books.rows[1].title.value}</div>
               <div data-testid="booksLength">{form.books.rows.length}</div>
               <button data-testid="makeLocalChanges" onClick={makeLocalChanges} />
-              <button data-testid="refreshData" onClick={refreshData} />
+              <button data-testid="refreshData" onClick={() => setData(data2)} />
+              <button data-testid="saveData" onClick={() => setData(data3)} />
               <div data-testid="changedValue">{JSON.stringify(form.changedValue)}</div>
             </div>
           )}
@@ -1482,6 +1492,13 @@ describe("formState", () => {
       address: { id: "address:1", street: "local" },
       books: [{ id: "b:1", title: "local" }, { id: "b:2" }, { id: "b:3" }],
       firstName: "local",
+    });
+
+    // And then when our mutation results come back
+    click(r.saveData);
+    // Then changedValue doesn't show our local changes anymore
+    expect(JSON.parse(r.changedValue().textContent)).toEqual({
+      id: "a:1",
     });
   });
 
@@ -1584,8 +1601,8 @@ describe("formState", () => {
     expect(r.fullName().textContent).toEqual("f2 l2");
   });
 
-  it("can trigger onBlur for fields in list that were initially undefined", async () => {
-    const onBlur = jest.fn();
+  it("can trigger auto save for fields in list that were initially undefined", async () => {
+    const autoSave = jest.fn();
     // Given a component
     function TestComponent() {
       // When the data is initially undefined
@@ -1594,7 +1611,7 @@ describe("formState", () => {
       const form = useFormState({
         config: authorWithBooksConfig,
         init: { input: data, map: (d) => d, ifUndefined: { books: [] } },
-        autoSave: () => onBlur(),
+        autoSave,
       });
       return (
         <Observer>
@@ -1602,8 +1619,8 @@ describe("formState", () => {
             <div>
               <button data-testid="refreshData" onClick={() => setData(data2)} />
               <button data-testid="add" onClick={() => form.books.add({ title: "New Book" })} />
-              <button data-testid="blur" onClick={() => form.books.rows[0].title.blur()} />
-              <button data-testid="blurNew" onClick={() => form.books.rows[1].title.blur()} />
+              <button data-testid="blurBookOne" onClick={() => form.books.rows[0].title.blur()} />
+              <button data-testid="blurBookTwo" onClick={() => form.books.rows[1].title.blur()} />
             </div>
           )}
         </Observer>
@@ -1615,16 +1632,19 @@ describe("formState", () => {
     // When the data/child is now available
     click(r.refreshData);
     // And the field is blurred
-    click(r.blur);
-    // Then expect onBlur to triggered
-    expect(onBlur).toBeCalledTimes(1);
+    click(r.blurBookOne);
+    // Then we don't auto-save because nothing has changed
+    expect(autoSave).toBeCalledTimes(0);
 
     // And when adding a new book
     click(r.add);
+    // We autoSave the new row right away (because we don't have any validation rules
+    // that say the new row can't be empty)
+    expect(autoSave).toBeCalledTimes(1);
     // And the new book is blurred
-    click(r.blurNew);
-    // Then expect onBlur to be triggered again
-    expect(onBlur).toBeCalledTimes(3);
+    click(r.blurBookTwo);
+    // Then we auto save again
+    expect(autoSave).toBeCalledTimes(2);
   });
 });
 
