@@ -1087,7 +1087,7 @@ describe("formState", () => {
     // And they have wip edits
     formState.firstName.set("ff");
     // When a mutation result sets both firstName and lastName
-    formState.set({ firstName: "f2", lastName: "l2" });
+    (formState as any).set({ firstName: "f2", lastName: "l2" }, { refreshing: true });
     // Then we don't overwrite the user's WIP work
     expect(formState.firstName.value).toEqual("ff");
     expect(formState.lastName.value).toEqual("l2");
@@ -1101,7 +1101,7 @@ describe("formState", () => {
     // Given first name is focused, but has not changed
     formState.firstName.focus();
     // When a mutation result sets both firstName and lastName
-    formState.set({ firstName: "f2", lastName: "l2" });
+    (formState as any).set({ firstName: "f2", lastName: "l2" }, { refreshing: true });
     // Then we do update the value
     expect(formState.firstName.value).toEqual("f2");
   });
