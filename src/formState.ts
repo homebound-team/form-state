@@ -476,7 +476,7 @@ function newObjectState<T, P = any>(
         throw new Error(`${key || "formState"} is currently readOnly`);
       }
       getFields(this).forEach((field) => {
-        if (field.key in value && (!field.dirty || !field._focused)) {
+        if (field.key in value) {
           field.set((value as any)[field.key], opts);
         }
       });
@@ -673,8 +673,10 @@ function newValueFieldState<T, K extends keyof T>(
         throw new Error(`${key} is currently readOnly`);
       }
 
-      if (opts.refreshing && this.dirty && value !== this.value) {
-        // Ignore refreshed values if we're already dirty
+      if (opts.refreshing && this.dirty && this.value !== value) {
+        // Ignore incoming values if we have changes (this.dirty) unless our latest change (this.value)
+        // matches the incoming value (value), b/c if it does we should accept it and reset originalValue
+        // so that we're not longer dirty.
         return;
       } else if (computed && (opts.resetting || opts.refreshing)) {
         // Computeds can't be either reset or refreshed
