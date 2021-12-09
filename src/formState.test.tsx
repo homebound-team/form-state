@@ -375,7 +375,7 @@ describe("formState", () => {
     expect(a1.dirty).toBeFalsy();
   });
 
-  it("it calls onBlur when adding or removing to a list", () => {
+  it("calls onBlur when adding or removing to a list", () => {
     const onBlur = jest.fn();
     const a1 = createAuthorInputState({ books: [] }, onBlur);
     expect(a1.books.dirty).toBeFalsy();
@@ -384,6 +384,28 @@ describe("formState", () => {
     a1.books.remove(0);
     expect(a1.dirty).toBeFalsy();
     expect(onBlur).toBeCalledTimes(2);
+  });
+
+  it("calls onBlur when programmatically setting a value", () => {
+    const onBlur = jest.fn();
+    // Given an author listening for blur
+    const a1 = createAuthorInputState({ books: [{}] }, onBlur);
+    // When we programmatically set a field that isn't focused
+    a1.firstName.value = "first";
+    // Then we call onBlur
+    expect(onBlur).toBeCalledTimes(1);
+  });
+
+  it("defers calling onBlur when setting a bound value", () => {
+    const onBlur = jest.fn();
+    // Given an author listening for blur
+    const a1 = createAuthorInputState({ books: [{}] }, onBlur);
+    // And the field is focused
+    a1.firstName.focus();
+    // When we we set the field
+    a1.firstName.value = "first";
+    // Then we don't call onBlur
+    expect(onBlur).toBeCalledTimes(0);
   });
 
   it("knows list of primitives are dirty", () => {
@@ -1109,6 +1131,7 @@ describe("formState", () => {
   it("trims string values on blur", () => {
     const formState = createObjectState(authorWithBooksConfig, { firstName: "f", lastName: "l" });
     // Given the user is typing with spaces
+    formState.firstName.focus();
     formState.firstName.set("f ");
     // And we initially keep the space
     expect(formState.firstName.value).toEqual("f ");
@@ -1121,6 +1144,7 @@ describe("formState", () => {
   it("trims empty values to undefined on blur", () => {
     const formState = createObjectState(authorWithBooksConfig, { firstName: "f", lastName: "l" });
     // Given the user is typing with only spaces
+    formState.firstName.focus();
     formState.firstName.set(" ");
     // And we initially keep the space
     expect(formState.firstName.value).toEqual(" ");

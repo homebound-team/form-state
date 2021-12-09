@@ -656,11 +656,8 @@ function newValueFieldState<T, K extends keyof T>(
 
     blur() {
       // Now that the user is done editing the field, we sneak in some trim logic
-      if (typeof this.value === "string") {
-        this.set(this.value.trim() as any);
-        if (this.value === "") {
-          this.set(undefined);
-        }
+      if (this._focused) {
+        this.maybeTrim();
       }
       this._focused = false;
       // touched is readonly, but we're allowed to change it
@@ -697,6 +694,11 @@ function newValueFieldState<T, K extends keyof T>(
       if (opts.refreshing) {
         this.originalValue = newValue;
       }
+      // If we're being set programmatically, i.e. we don't currently have focus,
+      // call blur to trigger any auto-saves.
+      if (!this._focused) {
+        this.blur();
+      }
     },
 
     reset() {
@@ -723,6 +725,18 @@ function newValueFieldState<T, K extends keyof T>(
     set originalValue(v: V | null | undefined) {
       _originalValue = v;
       _originalValueTick.value++;
+    },
+
+    maybeTrim() {
+      if (typeof this.value === "string") {
+        let newValue: string | undefined = this.value.trim();
+        if (newValue === "") {
+          newValue = undefined;
+        }
+        if (newValue !== this.value) {
+          this.set(newValue as any);
+        }
+      }
     },
   };
 
