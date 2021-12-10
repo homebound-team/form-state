@@ -408,6 +408,10 @@ describe("formState", () => {
     a1.firstName.value = "first";
     // Then we call onBlur
     expect(onBlur).toBeCalledTimes(1);
+    // And when we set a nested value
+    a1.books.rows[0].title.value = "title";
+    // Then we called onBlur again
+    expect(onBlur).toBeCalledTimes(2);
   });
 
   it("defers calling onBlur when setting a bound value", () => {
@@ -417,6 +421,39 @@ describe("formState", () => {
     // And the field is focused
     a1.firstName.focus();
     // When we we set the field
+    a1.firstName.value = "first";
+    // Then we don't call onBlur
+    expect(onBlur).toBeCalledTimes(0);
+  });
+
+  it("skips onBlur when refreshing", () => {
+    const onBlur = jest.fn();
+    // Given an author listening for blur
+    const a1 = createAuthorInputState({ books: [{}] }, onBlur);
+    // When we programmatically set a field that isn't focused
+    (a1 as any).set({ firstName: "first" }, { refreshing: true });
+    // Then we don't call onBlur
+    expect(onBlur).toBeCalledTimes(0);
+  });
+
+  it("skips onBlur when resetting", () => {
+    const onBlur = jest.fn();
+    // Given an author listening for blur
+    const a1 = createAuthorInputState({ books: [{}] }, onBlur);
+    // And we called onBlur once
+    a1.set({ firstName: "first" });
+    expect(onBlur).toBeCalledTimes(1);
+    // When we reset
+    a1.reset();
+    // We don't call blur again
+    expect(onBlur).toBeCalledTimes(1);
+  });
+
+  it("skips onBlur when not dirty", () => {
+    const onBlur = jest.fn();
+    // Given an author listening for blur
+    const a1 = createAuthorInputState({ firstName: "first", books: [{}] }, onBlur);
+    // When we programmatically set a field to it's existing valued
     a1.firstName.value = "first";
     // Then we don't call onBlur
     expect(onBlur).toBeCalledTimes(0);

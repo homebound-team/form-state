@@ -696,7 +696,7 @@ function newValueFieldState<T, K extends keyof T>(
       }
       // If we're being set programmatically, i.e. we don't currently have focus,
       // call blur to trigger any auto-saves.
-      if (!this._focused) {
+      if (!this._focused && !opts.refreshing && !opts.resetting && this.dirty) {
         this.blur();
       }
     },
