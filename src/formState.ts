@@ -954,7 +954,10 @@ function newListFieldState<T, K extends keyof T, U>(
     },
   };
 
-  return list as any;
+  return makeAutoObservable(list, {
+    // See other makeAutoObservable comment
+    value: computed({ equals: () => false }),
+  }) as any;
 }
 
 function isNotUndefined<T>(value: T | undefined): value is T {

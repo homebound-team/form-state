@@ -146,6 +146,20 @@ describe("formState", () => {
     expect(ticks).toEqual(3);
   });
 
+  it("list value can observe changes", () => {
+    const b1: BookInput = { title: "t1" };
+    const a1: AuthorInput = { firstName: "a1", books: [b1] };
+    const state = createAuthorInputState(a1);
+    let books: any;
+    let ticks = 0;
+    autorun(() => {
+      books = state.books.value;
+      ticks++;
+    });
+    state.books.add({ title: "t2" }, 0);
+    expect(ticks).toEqual(2);
+  });
+
   it("maintains unknown fields", () => {
     // Given the form is not directly editing id fields
     const config: ObjectConfig<AuthorInput> = {
