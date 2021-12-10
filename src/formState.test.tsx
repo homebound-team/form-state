@@ -422,6 +422,39 @@ describe("formState", () => {
     expect(onBlur).toBeCalledTimes(0);
   });
 
+  it("skips onBlur when refreshing", () => {
+    const onBlur = jest.fn();
+    // Given an author listening for blur
+    const a1 = createAuthorInputState({ books: [{}] }, onBlur);
+    // When we programmatically set a field that isn't focused
+    (a1 as any).set({ firstName: "first" }, { refreshing: true });
+    // Then we don't call onBlur
+    expect(onBlur).toBeCalledTimes(0);
+  });
+
+  it("skips onBlur when resetting", () => {
+    const onBlur = jest.fn();
+    // Given an author listening for blur
+    const a1 = createAuthorInputState({ books: [{}] }, onBlur);
+    // And we called onBlur once
+    a1.set({ firstName: "first" });
+    expect(onBlur).toBeCalledTimes(1);
+    // When we reset
+    a1.reset();
+    // We don't call blur again
+    expect(onBlur).toBeCalledTimes(1);
+  });
+
+  it("skips onBlur when not dirty", () => {
+    const onBlur = jest.fn();
+    // Given an author listening for blur
+    const a1 = createAuthorInputState({ firstName: "first", books: [{}] }, onBlur);
+    // When we programmatically set a field to it's existing valued
+    a1.firstName.value = "first";
+    // Then we don't call onBlur
+    expect(onBlur).toBeCalledTimes(0);
+  });
+
   it("knows list of primitives are dirty", () => {
     const a1 = createObjectState<AuthorInput>({ favoriteColors: { type: "value" } }, {});
     expect(a1.favoriteColors.dirty).toBeFalsy();
