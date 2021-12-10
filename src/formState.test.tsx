@@ -408,6 +408,10 @@ describe("formState", () => {
     a1.firstName.value = "first";
     // Then we call onBlur
     expect(onBlur).toBeCalledTimes(1);
+    // And when we set a nested value
+    a1.books.rows[0].title.value = "title";
+    // Then we called onBlur again
+    expect(onBlur).toBeCalledTimes(2);
   });
 
   it("defers calling onBlur when setting a bound value", () => {
