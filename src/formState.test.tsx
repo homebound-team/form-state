@@ -400,13 +400,14 @@ describe("formState", () => {
     expect(onBlur).toBeCalledTimes(2);
   });
 
-  it("calls onBlur when programmatically setting a value", () => {
+  it("calls onBlur when programmatically setting a value, if set up on config", () => {
     const onBlur = jest.fn();
     // Given an author listening for blur
-    const a1 = createAuthorInputState({ books: [{}] }, onBlur);
-    // When we programmatically set a field that isn't focused
+    const a1 = createAuthorInputState({ books: [{}] }, onBlur, true);
+    // When we programmatically set a field that is configured
     a1.firstName.value = "first";
-    // Then we call onBlur
+    a1.lastName.value = "last";
+    // Then we call onBlur only for firstName
     expect(onBlur).toBeCalledTimes(1);
     // And when we set a nested value
     a1.books.rows[0].title.value = "title";
@@ -1760,8 +1761,8 @@ const authorWithBooksConfig: ObjectConfig<AuthorInput> = {
   },
 };
 
-function createAuthorInputState(input: AuthorInput, onBlur?: () => void) {
-  return createObjectState<AuthorInput>(authorWithBooksConfig, input, { onBlur });
+function createAuthorInputState(input: AuthorInput, onBlur?: () => void, blurOnSetFirstName?: boolean) {
+  return createObjectState<AuthorInput>({...authorWithBooksConfig, firstName: ({ ...(authorWithBooksConfig.firstName), blurOnSet: blurOnSetFirstName} as any) }, input, { onBlur });
 }
 
 const authorWithAddressConfig: ObjectConfig<AuthorInput> = {

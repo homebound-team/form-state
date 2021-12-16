@@ -147,6 +147,8 @@ export type ObjectState<T, P = any> =
 
       /** Returns whether the object can be saved, i.e. is valid, but also as a side-effect marks touched. */
       canSave(): boolean;
+
+      programmaticAutoSave: boolean;
     };
 
 export type Builtin = Date | Function | Uint8Array | string | number | boolean;
@@ -296,6 +298,8 @@ type ValueFieldConfig<T, V> = {
   computed?: boolean;
   /** Marks a field as being initiallyread-only, i.e. `field.readOnly = true/false` can change this default. */
   readOnly?: boolean;
+  /** Marks a field to be auto save when programmatic updates happens, if auto save enabled*/
+  blurOnSet?: boolean;
 };
 
 /** Field configuration for list values, i.e. `U` is `Book` in a form with `books: Book[]`. */
@@ -317,12 +321,16 @@ type ListFieldConfig<T, U> = {
    * default behavior.
    */
   update?: "exhaustive" | "incremental";
+  /** Marks a field to be auto save when programmatic updates happens, if auto save enabled*/
+  blurOnSet?: boolean;
 };
 
 type ObjectFieldConfig<U> = {
   type: "object";
   /** Config for the child's form state, i.e. each book. */
   config: ObjectConfig<U>;
+  /** Marks a field to be auto save when programmatic updates happens, if auto save enabled*/
+  blurOnSet?: boolean;
 };
 
 /**
@@ -335,10 +343,10 @@ type ObjectFieldConfig<U> = {
 export function createObjectState<T>(
   config: ObjectConfig<T>,
   instance: T,
-  opts: { onBlur?: () => void } = {},
+  opts: { blurOnSet?: boolean, onBlur?: () => void } = {},
 ): ObjectState<T> {
   const noop = () => {};
-  return newObjectState(config, undefined, instance, undefined, opts.onBlur || noop);
+  return newObjectState(config, undefined, instance, undefined, opts.blurOnSet || false,opts.onBlur || noop);
 }
 
 function newObjectState<T, P = any>(
@@ -346,6 +354,7 @@ function newObjectState<T, P = any>(
   parentState: (() => ObjectState<P>) | undefined,
   instance: T,
   key: keyof T | undefined,
+  blurOnSet: boolean,
   onBlur: () => void,
 ): ObjectState<T, P> {
   // This is what we return, but we only know it's value until we call `observable`, so
@@ -363,6 +372,7 @@ function newObjectState<T, P = any>(
     const key = _key as keyof T;
     const config = _config as ValueFieldConfig<T, any> | ObjectFieldConfig<any> | ListFieldConfig<T, any>;
     let field: FieldState<T, any> | ListFieldState<T, any> | ObjectState<T, P>;
+
     if (config.type === "value") {
       field = newValueFieldState(
         instance,
@@ -374,15 +384,16 @@ function newObjectState<T, P = any>(
         config.isReadOnlyKey || false,
         config.computed || false,
         config.readOnly || false,
+        config.blurOnSet || false,
         onBlur,
       );
     } else if (config.type === "list") {
-      field = newListFieldState(instance, getObjectState, key, config.rules || [], config, config.config, onBlur);
+      field = newListFieldState(instance, getObjectState, key, config.rules || [], config, config.config,config.blurOnSet || false, onBlur);
     } else if (config.type === "object") {
       if (!instance[key]) {
         instance[key] = {} as any;
       }
-      field = newObjectState(config.config, getObjectState, instance[key] as any, key, onBlur) as any;
+      field = newObjectState(config.config, getObjectState, instance[key] as any, key, config.blurOnSet || false, onBlur) as any;
     } else {
       throw new Error("Unsupported");
     }
@@ -558,6 +569,7 @@ function newValueFieldState<T, K extends keyof T>(
   isReadOnlyKey: boolean,
   computed: boolean,
   readOnly: boolean,
+  blurOnSet: boolean,
   onBlur: () => void,
 ): FieldState<T, T[K] | null | undefined> {
   type V = T[K];
@@ -694,9 +706,9 @@ function newValueFieldState<T, K extends keyof T>(
       if (opts.refreshing) {
         this.originalValue = newValue;
       }
-      // If we're being set programmatically, i.e. we don't currently have focus,
+      // If we're being set programmatically if config enabled
       // call blur to trigger any auto-saves.
-      if (!this._focused && !opts.refreshing && !opts.resetting && this.dirty) {
+      if (blurOnSet && !opts.refreshing && !opts.resetting && this.dirty) {
         this.blur();
       }
     },
@@ -750,6 +762,7 @@ function newListFieldState<T, K extends keyof T, U>(
   rules: Rule<T, readonly ObjectState<U>[]>[],
   listConfig: ListFieldConfig<T, U>,
   config: ObjectConfig<U>,
+  blurOnSet: boolean,
   onBlur: () => void,
 ): ListFieldState<T, U> {
   // Keep a map of "item in the parent list" -> "that item's ObjectState"
@@ -822,7 +835,7 @@ function newListFieldState<T, K extends keyof T, U>(
         // Because we're reading from this.value, child will be the proxy version
         let childState = rowMap.get(child);
         if (!childState) {
-          childState = newObjectState<U>(config, parentState, child, undefined, onBlur);
+          childState = newObjectState<U>(config, parentState, child, undefined, blurOnSet, onBlur);
           rowMap.set(child, childState);
         }
         return childState;
@@ -894,7 +907,7 @@ function newListFieldState<T, K extends keyof T, U>(
           }
 
           // If we didn't have an existing child, just make a new object state
-          childState = createObjectState(config, value, { onBlur });
+          childState = createObjectState(config, value, { blurOnSet, onBlur });
           rowMap.set(value, childState);
         }
         // Return the already-observable'd value so that our `parent.value[key] = values` doesn't re-proxy things
@@ -909,7 +922,7 @@ function newListFieldState<T, K extends keyof T, U>(
 
     add(value: U, spliceIndex?: number): void {
       // This is called by the user, so value should be a non-proxy value we should keep
-      const childState = createObjectState(config, value, { onBlur });
+      const childState = createObjectState(config, value, { blurOnSet, onBlur });
       rowMap.set(value, childState);
       this.ensureSet();
       this.value.splice(typeof spliceIndex === "number" ? spliceIndex : this.value.length, 0, childState.value);
