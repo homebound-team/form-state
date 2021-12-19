@@ -6,5 +6,5 @@ export {
   ObjectState,
   required,
   Rule,
-  useFormState,
 } from "src/formState";
+export { useFormState } from "src/useFormState";
