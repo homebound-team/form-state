@@ -58,6 +58,8 @@ export type UseFormStateOpts<T, I> = {
   autoSave?: (state: ObjectState<T>) => void;
 };
 
+let isAutoSaving = false;
+
 /**
  * Creates a formState instance for editing in a form.
  */
@@ -79,8 +81,13 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
     () => {
       function onBlur() {
         // Don't use canSave() because we don't want to set touched for all of the field
-        if (autoSaveRef.current && form.dirty && form.valid) {
-          autoSaveRef.current(form);
+        if (autoSaveRef.current && form.dirty && form.valid && !isAutoSaving) {
+          try {
+            isAutoSaving = true;
+            autoSaveRef.current(form);
+          } finally {
+            isAutoSaving = false;
+          }
         }
       }
       const value = firstRunRef.current ? firstInitValue : initValue(config, init);
