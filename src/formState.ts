@@ -581,6 +581,7 @@ function newValueFieldState<T, K extends keyof T>(
       const newValue = keepNull ? null : isEmpty(value) || coerceEmptyList ? undefined : value;
 
       // Set the value on our parent object
+      const changed = !areEqual(newValue, this.value);
       parentInstance[key] = newValue!;
       _tick.value++;
 
@@ -589,7 +590,7 @@ function newValueFieldState<T, K extends keyof T>(
       }
       // If we're being set programmatically, i.e. we don't currently have focus,
       // call blur to trigger any auto-saves.
-      if (!this._focused && !opts.refreshing && !opts.resetting && this.dirty) {
+      if (!this._focused && !opts.refreshing && !opts.resetting && this.dirty && changed) {
         this.blur();
       }
     },

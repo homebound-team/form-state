@@ -404,6 +404,35 @@ describe("useFormState", () => {
     expect(autoSave).toBeCalledTimes(2);
   });
 
+  it("does not infinite loop when calling set inside of auto-save", async () => {
+    // Given a component
+    let autoSaves = 0;
+    function TestComponent() {
+      type FormValue = AuthorInput;
+      const config: ObjectConfig<FormValue> = authorConfig;
+      const data = { firstName: "f1", lastName: "f1" };
+      const form = useFormState({
+        config,
+        init: data,
+        // And there is reactive business logic in the `autoSave` method
+        autoSave(state) {
+          state.lastName.set("l2");
+          autoSaves++;
+        },
+      });
+      return (
+        <div>
+          <button data-testid="setFirst" onClick={() => form.firstName.set("f2")} />
+        </div>
+      );
+    }
+    const r = await render(<TestComponent />);
+    // When we change firstName
+    click(r.setFirst);
+    // When autoSave didn't infinite loop
+    expect(autoSaves).toEqual(1);
+  });
+
   describe("pickFields", () => {
     it("can pick a value field", () => {
       const a = pickFields(
@@ -482,6 +511,12 @@ describe("useFormState", () => {
     });
   });
 });
+
+const authorConfig: ObjectConfig<AuthorInput> = {
+  id: { type: "value" },
+  firstName: { type: "value" },
+  lastName: { type: "value" },
+};
 
 const authorWithAddressConfig: ObjectConfig<AuthorInput> = {
   id: { type: "value" },
