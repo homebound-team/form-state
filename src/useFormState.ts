@@ -1,4 +1,4 @@
-import isPlainObject from "is-plain-object";
+import {isPlainObject} from "is-plain-object";
 import { isObservable } from "mobx";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {

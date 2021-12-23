@@ -1,5 +1,5 @@
 import equal from "fast-deep-equal";
-import isPlainObject from "is-plain-object";
+import {isPlainObject} from "is-plain-object";
 import { action, computed, isObservable, makeAutoObservable, observable, reaction, toJS } from "mobx";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { assertNever, fail } from "src/utils";
