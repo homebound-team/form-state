@@ -1,5 +1,5 @@
 import equal from "fast-deep-equal";
-import {isPlainObject} from "is-plain-object";
+import { isPlainObject } from "is-plain-object";
 import { action, computed, makeAutoObservable, observable, reaction, toJS } from "mobx";
 import { fail } from "src/utils";
 
@@ -889,7 +889,6 @@ function hasToJSON(o?: unknown): o is { toJSON(): void } {
   return !!(o && typeof o === "object" && "toJSON" in o);
 }
 
-
 type Primitive = undefined | null | boolean | string | number | Function | Date | { toJSON(): any };
 /** Makes the keys in `T` required while keeping the values undefined. */
 export type DeepRequired<T> = T extends Primitive
@@ -901,4 +900,3 @@ export type DeepRequired<T> = T extends Primitive
         ? ReadonlyArray<DeepRequired<U2>>
         : DeepRequired<T[P]>;
     };
-
