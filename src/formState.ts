@@ -1,8 +1,7 @@
 import equal from "fast-deep-equal";
 import {isPlainObject} from "is-plain-object";
-import { action, computed, isObservable, makeAutoObservable, observable, reaction, toJS } from "mobx";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { assertNever, fail } from "src/utils";
+import { action, computed, makeAutoObservable, observable, reaction, toJS } from "mobx";
+import { fail } from "src/utils";
 
 /**
  * Wraps a given input/on-the-wire type `T` for editing in a form.
