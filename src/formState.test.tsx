@@ -403,6 +403,16 @@ describe("formState", () => {
     expect(onBlur).toBeCalledTimes(2);
   });
 
+  it("can skip onBlur when programmatically setting a value", () => {
+    const onBlur = jest.fn();
+    // Given an author listening for blur
+    const a1 = createAuthorInputState({ books: [{}] }, onBlur);
+    // When we programmatically set a field that isn't focused
+    a1.set({ firstName: "first" }, { autoSave: false });
+    // Then we don't call onBlur
+    expect(onBlur).toBeCalledTimes(0);
+  });
+
   it("defers calling onBlur when setting a bound value", () => {
     const onBlur = jest.fn();
     // Given an author listening for blur
