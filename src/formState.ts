@@ -35,7 +35,7 @@ export type ObjectState<T, P = any> =
     // Pull in the touched, blur, dirty, etc
     FieldState<P, T> & {
       /** Sets the state of fields in `state`. */
-      set(state: Partial<T>): void;
+      set(state: Partial<T>, opts?: SetOpts): void;
 
       /** Returns whether the object can be saved, i.e. is valid, but also as a side-effect marks touched. */
       canSave(): boolean;
@@ -102,20 +102,29 @@ export interface FieldState<T, V> {
   focus(): void;
   /** Blur essentially touches the field. */
   blur(): void;
-  set(value: V): void;
+  set(value: V, opts?: SetOpts): void;
   /** Reverts back to the original value and resets dirty/touched. */
   reset(): void;
   /** Accepts the current changed value (if any) as the original and resets dirty/touched. */
   save(): void;
 }
 
-interface SetOpts {
+/** Public options for our `set` command. */
+export interface SetOpts {
+  /** Whether this `set` should trigger an auto-save; defaults to true. */
+  autoSave?: boolean;
+}
+
+/** Internal `.set` opts for conditionally that form-state internally percolates. */
+interface InternalSetOpts extends SetOpts {
+  /** `resetting` is the code calling `.reset()` to revert to original values. */
   resetting?: boolean;
+  /** `refreshing` is when `useFormState` sees a new value. */
   refreshing?: boolean;
 }
 
 interface FieldStateInternal<T, V> extends FieldState<T, V> {
-  set(value: V, opts?: SetOpts): void;
+  set(value: V, opts?: InternalSetOpts): void;
   _isIdKey: boolean;
   _isDeleteKey: boolean;
   _isReadOnlyKey: boolean;
@@ -123,7 +132,7 @@ interface FieldStateInternal<T, V> extends FieldState<T, V> {
 }
 
 type ObjectStateInternal<T, P = any> = ObjectState<T, P> & {
-  set(value: P, opts?: SetOpts): void;
+  set(value: P, opts?: InternalSetOpts): void;
 };
 
 /** Form state for list of children, i.e. `U` is a `Book` in a form with a `books: Book[]`. */
@@ -363,7 +372,7 @@ function newObjectState<T, P = any>(
     },
 
     // Accepts new values in bulk, i.e. when setting the form initial state from the backend.
-    set(value: T, opts: SetOpts = {}) {
+    set(value: T, opts: InternalSetOpts = {}) {
       if (this.readOnly && !opts.resetting && !opts.refreshing) {
         throw new Error(`${key || "formState"} is currently readOnly`);
       }
@@ -557,7 +566,7 @@ function newValueFieldState<T, K extends keyof T>(
       onBlur();
     },
 
-    set(value: V | null | undefined, opts: { resetting?: boolean; refreshing?: true } = {}) {
+    set(value: V | null | undefined, opts: InternalSetOpts = {}) {
       if (this.readOnly && !opts.resetting && !opts.refreshing) {
         throw new Error(`${key} is currently readOnly`);
       }
@@ -589,7 +598,7 @@ function newValueFieldState<T, K extends keyof T>(
       }
       // If we're being set programmatically, i.e. we don't currently have focus,
       // call blur to trigger any auto-saves.
-      if (!this._focused && !opts.refreshing && !opts.resetting && this.dirty && changed) {
+      if (!this._focused && !opts.refreshing && !opts.resetting && this.dirty && changed && opts.autoSave !== false) {
         this.blur();
       }
     },
@@ -769,7 +778,7 @@ function newListFieldState<T, K extends keyof T, U>(
       onBlur();
     },
 
-    set(values: U[], opts: SetOpts = {}) {
+    set(values: U[], opts: InternalSetOpts = {}) {
       if (this.readOnly && !opts.resetting && !opts.refreshing) {
         throw new Error(`${key} is currently readOnly`);
       }
