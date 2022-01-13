@@ -48,6 +48,25 @@ describe("formState", () => {
     expect(a.isPublished.required).toBeFalsy();
   });
 
+  it("trims whitespace within the required rule", () => {
+    const a: ObjectState<BookInput> = createObjectState<BookInput>(
+      { title: { type: "value", rules: [required] } },
+      { title: "initial valid title" },
+    );
+    let numErrors = 0;
+    autorun(() => {
+      numErrors = a.title.errors.length;
+    });
+    expect(a.valid).toBeTruthy();
+    expect(numErrors).toEqual(0);
+    // When a value contains only whitespace
+    a.title.value = "  ";
+    expect(a.title.valid).toBeFalsy();
+    expect(numErrors).toEqual(1);
+    expect(a.title.errors).toEqual(["Required"]);
+    expect(a.errors).toEqual(["title: Required"]);
+  });
+
   it("can set values", () => {
     const a = createObjectState<BookInput>({ title: { type: "value" } }, { title: "b1" });
     expect(a.title.value).toEqual("b1");
