@@ -58,6 +58,9 @@ export type UseFormStateOpts<T, I> = {
   autoSave?: (state: ObjectState<T>) => void;
 };
 
+// If the user's autoSave hook makes some last-minute `.set` calls to sneak
+// in some business logic right before their GraphQL mutation call, ignore it
+// so that we don't infinite loop.
 let isAutoSaving = false;
 
 /**
@@ -79,8 +82,8 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
 
   const form = useMemo(
     () => {
-      function onBlur() {
-        // Don't use canSave() because we don't want to set touched for all of the field
+      function maybeAutoSave() {
+        // Don't use canSave() because we don't want to set touched for all the fields
         if (autoSaveRef.current && form.dirty && form.valid && !isAutoSaving) {
           try {
             isAutoSaving = true;
@@ -91,7 +94,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
         }
       }
       const value = firstRunRef.current ? firstInitValue : initValue(config, init);
-      const form = createObjectState(config, value, { onBlur });
+      const form = createObjectState(config, value, { maybeAutoSave });
       form.readOnly = readOnly;
       // The identity of `addRules` is not stable, but assume that it is for better UX.
       // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -325,6 +325,57 @@ describe("formState", () => {
     expect(a.lastName.errors).toEqual(["Last name cannot be first name"]);
   });
 
+  it("passes sanitized values to validation rules", () => {
+    // Given a field with a validation rule
+    const rule = jest.fn().mockReturnValue("Required");
+    const a = createObjectState<AuthorInput>({ firstName: { type: "value", rules: [rule] } }, {});
+    expect(rule).toHaveBeenCalledTimes(0);
+    // When the field is set to empty string
+    a.firstName.value = "";
+    expect(a.firstName.errors).toEqual(["Required"]);
+    expect(rule).toHaveBeenCalledTimes(1);
+    // Then the validation rule was passed undefined
+    expect(rule).toHaveBeenCalledWith({
+      value: undefined,
+      originalValue: undefined,
+      key: "firstName",
+      object: expect.anything(),
+    });
+  });
+
+  it("passes trimmed values to validation rules on maybeAutoSave", () => {
+    // Given we have a required rule
+    const rule = jest.fn().mockReturnValue("Required");
+    const a = createObjectState<AuthorInput>({ firstName: { type: "value", rules: [rule] } }, {});
+    expect(rule).toHaveBeenCalledTimes(0);
+
+    // When the user initially sets an empty string value
+    a.firstName.focus();
+    a.firstName.value = "   ";
+    expect(a.firstName.errors).toEqual(["Required"]);
+
+    // Then initially the rule is called with the empty string
+    expect(rule).toHaveBeenCalledTimes(1);
+    expect(rule).toHaveBeenCalledWith({
+      value: "   ",
+      originalValue: undefined,
+      key: "firstName",
+      object: expect.anything(),
+    });
+
+    // But then when the field maybeAutoSaves (i.e. via blur)
+    a.firstName.maybeAutoSave();
+    expect(a.firstName.errors).toEqual(["Required"]);
+    // Then the rule is called with the undefined
+    expect(rule).toHaveBeenCalledTimes(2);
+    expect(rule).toHaveBeenCalledWith({
+      value: undefined,
+      originalValue: undefined,
+      key: "firstName",
+      object: expect.anything(),
+    });
+  });
+
   it("simple value changes trigger observers", () => {
     const a = createObjectState<BookInput>(
       {
@@ -378,84 +429,84 @@ describe("formState", () => {
     expect(a1.dirty).toBeFalsy();
   });
 
-  it("calls onBlur when adding or removing to a list", () => {
-    const onBlur = jest.fn();
-    const a1 = createAuthorInputState({ books: [] }, onBlur);
+  it("calls maybeAutoSave when adding or removing to a list", () => {
+    const maybeAutoSave = jest.fn();
+    const a1 = createAuthorInputState({ books: [] }, maybeAutoSave);
     expect(a1.books.dirty).toBeFalsy();
     a1.books.add({ title: "t2" });
     expect(a1.books.dirty).toBeTruthy();
     a1.books.remove(0);
     expect(a1.dirty).toBeFalsy();
-    expect(onBlur).toBeCalledTimes(2);
+    expect(maybeAutoSave).toBeCalledTimes(2);
   });
 
-  it("calls onBlur when programmatically setting a value", () => {
-    const onBlur = jest.fn();
+  it("calls maybeAutoSave when programmatically setting a value", () => {
+    const maybeAutoSave = jest.fn();
     // Given an author listening for blur
-    const a1 = createAuthorInputState({ books: [{}] }, onBlur);
+    const a1 = createAuthorInputState({ books: [{}] }, maybeAutoSave);
     // When we programmatically set a field that isn't focused
     a1.firstName.value = "first";
-    // Then we call onBlur
-    expect(onBlur).toBeCalledTimes(1);
+    // Then we call maybeAutoSave
+    expect(maybeAutoSave).toBeCalledTimes(1);
     // And when we set a nested value
     a1.books.rows[0].title.value = "title";
-    // Then we called onBlur again
-    expect(onBlur).toBeCalledTimes(2);
+    // Then we called maybeAutoSave again
+    expect(maybeAutoSave).toBeCalledTimes(2);
   });
 
-  it("can skip onBlur when programmatically setting a value", () => {
-    const onBlur = jest.fn();
+  it("can skip maybeAutoSave when programmatically setting a value", () => {
+    const maybeAutoSave = jest.fn();
     // Given an author listening for blur
-    const a1 = createAuthorInputState({ books: [{}] }, onBlur);
+    const a1 = createAuthorInputState({ books: [{}] }, maybeAutoSave);
     // When we programmatically set a field that isn't focused
     a1.set({ firstName: "first" }, { autoSave: false });
-    // Then we don't call onBlur
-    expect(onBlur).toBeCalledTimes(0);
+    // Then we don't call maybeAutoSave
+    expect(maybeAutoSave).toBeCalledTimes(0);
   });
 
-  it("defers calling onBlur when setting a bound value", () => {
-    const onBlur = jest.fn();
+  it("defers calling maybeAutoSave when setting a focused value", () => {
+    const maybeAutoSave = jest.fn();
     // Given an author listening for blur
-    const a1 = createAuthorInputState({ books: [{}] }, onBlur);
+    const a1 = createAuthorInputState({ books: [{}] }, maybeAutoSave);
     // And the field is focused
     a1.firstName.focus();
     // When we we set the field
     a1.firstName.value = "first";
-    // Then we don't call onBlur
-    expect(onBlur).toBeCalledTimes(0);
+    // Then we don't call maybeAutoSave
+    expect(maybeAutoSave).toBeCalledTimes(0);
   });
 
-  it("skips onBlur when refreshing", () => {
-    const onBlur = jest.fn();
+  it("skips maybeAutoSave when refreshing", () => {
+    const maybeAutoSave = jest.fn();
     // Given an author listening for blur
-    const a1 = createAuthorInputState({ books: [{}] }, onBlur);
+    const a1 = createAuthorInputState({ books: [{}] }, maybeAutoSave);
     // When we programmatically set a field that isn't focused
     (a1 as any).set({ firstName: "first" }, { refreshing: true });
-    // Then we don't call onBlur
-    expect(onBlur).toBeCalledTimes(0);
+    // Then we don't call maybeAutoSave
+    expect(maybeAutoSave).toBeCalledTimes(0);
   });
 
-  it("skips onBlur when resetting", () => {
-    const onBlur = jest.fn();
+  it("skips maybeAutoSave when resetting", () => {
+    const maybeAutoSave = jest.fn();
     // Given an author listening for blur
-    const a1 = createAuthorInputState({ books: [{}] }, onBlur);
-    // And we called onBlur once
+    const a1 = createAuthorInputState({ books: [{}] }, maybeAutoSave);
+    // And we called maybeAutoSave once
     a1.set({ firstName: "first" });
-    expect(onBlur).toBeCalledTimes(1);
+    expect(maybeAutoSave).toBeCalledTimes(1);
     // When we reset
     a1.reset();
     // We don't call blur again
-    expect(onBlur).toBeCalledTimes(1);
+    expect(maybeAutoSave).toBeCalledTimes(1);
   });
 
-  it("skips onBlur when not dirty", () => {
-    const onBlur = jest.fn();
+  it("skips maybeAutoSave when not dirty", () => {
+    const maybeAutoSave = jest.fn();
     // Given an author listening for blur
-    const a1 = createAuthorInputState({ firstName: "first", books: [{}] }, onBlur);
+    const a1 = createAuthorInputState({ firstName: "first", books: [{}] }, maybeAutoSave);
     // When we programmatically set a field to it's existing valued
     a1.firstName.value = "first";
-    // Then we don't call onBlur
-    expect(onBlur).toBeCalledTimes(0);
+    // Then we don't call maybeAutoSave
+    expect(maybeAutoSave).toBeCalledTimes(0);
   });
 
   it("knows list of primitives are dirty", () => {
@@ -1115,6 +1166,21 @@ describe("formState", () => {
     expect(formState.firstName.value).toEqual("f");
   });
 
+  it("trims string values on maybeAutoSave", () => {
+    const formState = createObjectState(authorWithBooksConfig, { firstName: "f", lastName: "l" });
+    // Given the user is typing with spaces
+    formState.firstName.focus();
+    formState.firstName.set("f ");
+    // And we initially keep the space
+    expect(formState.firstName.value).toEqual("f ");
+    // When the user hits Enter (which will call maybeAutoSave)
+    formState.firstName.maybeAutoSave();
+    // Then we trim it
+    expect(formState.firstName.value).toEqual("f");
+    // And the field is considered touched
+    expect(formState.firstName.touched).toEqual(true);
+  });
+
   it("trims empty values to undefined on blur", () => {
     const formState = createObjectState(authorWithBooksConfig, { firstName: "f", lastName: "l" });
     // Given the user is typing with only spaces
@@ -1286,8 +1352,8 @@ const authorWithBooksConfig: ObjectConfig<AuthorInput> = {
   },
 };
 
-function createAuthorInputState(input: AuthorInput, onBlur?: () => void) {
-  return createObjectState<AuthorInput>(authorWithBooksConfig, input, { onBlur });
+function createAuthorInputState(input: AuthorInput, maybeAutoSave?: () => void) {
+  return createObjectState<AuthorInput>(authorWithBooksConfig, input, { maybeAutoSave });
 }
 
 const authorWithAddressConfig: ObjectConfig<AuthorInput> = {

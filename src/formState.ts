@@ -100,8 +100,10 @@ export interface FieldState<T, V> {
   readonly changedValue: V;
   /** Focuses the field. Disables changes from `ObjectState.set` calls. */
   focus(): void;
-  /** Blur essentially touches the field. */
+  /** Blur marks the field as touched and triggers an auto-save. */
   blur(): void;
+  /** Triggers an auto-save; the caller (i.e. useFormState) should still dirty & valid check. */
+  maybeAutoSave(): void;
   set(value: V, opts?: SetOpts): void;
   /** Reverts back to the original value and resets dirty/touched. */
   reset(): void;
@@ -236,10 +238,10 @@ export type ObjectFieldConfig<U> = {
 export function createObjectState<T>(
   config: ObjectConfig<T>,
   instance: T,
-  opts: { onBlur?: () => void } = {},
+  opts: { maybeAutoSave?: () => void } = {},
 ): ObjectState<T> {
   const noop = () => {};
-  return newObjectState(config, undefined, instance, undefined, opts.onBlur || noop);
+  return newObjectState(config, undefined, instance, undefined, opts.maybeAutoSave || noop);
 }
 
 function newObjectState<T, P = any>(
@@ -247,7 +249,7 @@ function newObjectState<T, P = any>(
   parentState: (() => ObjectState<P>) | undefined,
   instance: T,
   key: keyof T | undefined,
-  onBlur: () => void,
+  maybeAutoSave: () => void,
 ): ObjectState<T, P> {
   // This is what we return, but we only know it's value until we call `observable`, so
   // we create a mutable variable to capture it so that we can create fields/call their
@@ -275,15 +277,23 @@ function newObjectState<T, P = any>(
         config.isReadOnlyKey || false,
         config.computed || false,
         config.readOnly || false,
-        onBlur,
+        maybeAutoSave,
       );
     } else if (config.type === "list") {
-      field = newListFieldState(instance, getObjectState, key, config.rules || [], config, config.config, onBlur);
+      field = newListFieldState(
+        instance,
+        getObjectState,
+        key,
+        config.rules || [],
+        config,
+        config.config,
+        maybeAutoSave,
+      );
     } else if (config.type === "object") {
       if (!instance[key]) {
         instance[key] = {} as any;
       }
-      field = newObjectState(config.config, getObjectState, instance[key] as any, key, onBlur) as any;
+      field = newObjectState(config.config, getObjectState, instance[key] as any, key, maybeAutoSave) as any;
     } else {
       throw new Error("Unsupported");
     }
@@ -459,7 +469,7 @@ function newValueFieldState<T, K extends keyof T>(
   isReadOnlyKey: boolean,
   computed: boolean,
   readOnly: boolean,
-  onBlur: () => void,
+  maybeAutoSave: () => void,
 ): FieldState<T, T[K] | null | undefined> {
   type V = T[K];
 
@@ -558,12 +568,16 @@ function newValueFieldState<T, K extends keyof T>(
     blur() {
       // Now that the user is done editing the field, we sneak in some trim logic
       if (this._focused) {
-        this.maybeTrim();
+        this.maybeAutoSave();
       }
       this._focused = false;
+    },
+
+    maybeAutoSave() {
+      this.maybeTrim();
       // touched is readonly, but we're allowed to change it
       this.touched = true;
-      onBlur();
+      maybeAutoSave();
     },
 
     set(value: V | null | undefined, opts: InternalSetOpts = {}) {
@@ -599,7 +613,7 @@ function newValueFieldState<T, K extends keyof T>(
       // If we're being set programmatically, i.e. we don't currently have focus,
       // call blur to trigger any auto-saves.
       if (!this._focused && !opts.refreshing && !opts.resetting && this.dirty && changed && opts.autoSave !== false) {
-        this.blur();
+        this.maybeAutoSave();
       }
     },
 
@@ -652,7 +666,7 @@ function newListFieldState<T, K extends keyof T, U>(
   rules: Rule<T, readonly ObjectState<U>[]>[],
   listConfig: ListFieldConfig<T, U>,
   config: ObjectConfig<U>,
-  onBlur: () => void,
+  maybeAutoSave: () => void,
 ): ListFieldState<T, U> {
   // Keep a map of "item in the parent list" -> "that item's ObjectState"
   const rowMap = new Map<U, ObjectStateInternal<U>>();
@@ -724,7 +738,7 @@ function newListFieldState<T, K extends keyof T, U>(
         // Because we're reading from this.value, child will be the proxy version
         let childState = rowMap.get(child);
         if (!childState) {
-          childState = newObjectState<U>(config, parentState, child, undefined, onBlur);
+          childState = newObjectState<U>(config, parentState, child, undefined, maybeAutoSave);
           rowMap.set(child, childState);
         }
         return childState;
@@ -774,8 +788,12 @@ function newListFieldState<T, K extends keyof T, U>(
 
     blur() {
       this._focused = false;
+      this.maybeAutoSave();
+    },
+
+    maybeAutoSave() {
       this.touched = true;
-      onBlur();
+      maybeAutoSave();
     },
 
     set(values: U[], opts: InternalSetOpts = {}) {
@@ -796,7 +814,7 @@ function newListFieldState<T, K extends keyof T, U>(
           }
 
           // If we didn't have an existing child, just make a new object state
-          childState = createObjectState(config, value, { onBlur });
+          childState = createObjectState(config, value, { maybeAutoSave });
           rowMap.set(value, childState);
         }
         // Return the already-observable'd value so that our `parent.value[key] = values` doesn't re-proxy things
@@ -811,12 +829,12 @@ function newListFieldState<T, K extends keyof T, U>(
 
     add(value: U, spliceIndex?: number): void {
       // This is called by the user, so value should be a non-proxy value we should keep
-      const childState = createObjectState(config, value, { onBlur });
+      const childState = createObjectState(config, value, { maybeAutoSave });
       rowMap.set(value, childState);
       this.ensureSet();
       this.value.splice(typeof spliceIndex === "number" ? spliceIndex : this.value.length, 0, childState.value);
       _tick.value++;
-      onBlur();
+      maybeAutoSave();
     },
 
     remove(indexOrValue: number | U): void {
@@ -830,7 +848,7 @@ function newListFieldState<T, K extends keyof T, U>(
         }
       }
       _tick.value++;
-      onBlur();
+      maybeAutoSave();
     },
 
     reset() {

@@ -3,7 +3,7 @@ import { isObservable, observable } from "mobx";
 import { Observer } from "mobx-react";
 import { useMemo, useState } from "react";
 import { AuthorInput, BookInput } from "src/formStateDomain";
-import { ObjectConfig, required } from "./formState";
+import { FieldState, ObjectConfig, required } from "./formState";
 import { pickFields, useFormState } from "./useFormState";
 
 describe("useFormState", () => {
@@ -376,8 +376,8 @@ describe("useFormState", () => {
             <div>
               <button data-testid="refreshData" onClick={() => setData(data2)} />
               <button data-testid="add" onClick={() => form.books.add({ title: "New Book" })} />
-              <button data-testid="blurBookOne" onClick={() => form.books.rows[0].title.blur()} />
-              <button data-testid="blurBookTwo" onClick={() => form.books.rows[1].title.blur()} />
+              <button data-testid="blurBookOne" onClick={() => focusAndBlur(form.books.rows[0].title)} />
+              <button data-testid="blurBookTwo" onClick={() => focusAndBlur(form.books.rows[1].title)} />
             </div>
           )}
         </Observer>
@@ -566,3 +566,9 @@ const authorWithAddressAndBooksConfig: ObjectConfig<AuthorInput> = {
     },
   },
 };
+
+/** Emulates a user focusing and then blurring a field. */
+function focusAndBlur(state: FieldState<any, any>): void {
+  state.focus();
+  state.blur();
+}
