@@ -71,7 +71,8 @@ export type Rule<T, V> = (opts: {
 // We pre-emptively make this a mobx action so that it's identity doesn't change when proxy-ified
 // and breaks our ability to do `rules.some(r => r === required)`.
 export const required = action(<V>({ value: v }: { value: V }): string | undefined => {
-  return v !== undefined && v !== null && (v as any) !== "" ? undefined : "Required";
+  const isEmptyString = typeof v === "string" ? v.trim() === "" : false;
+  return v !== undefined && v !== null && !isEmptyString ? undefined : "Required";
 });
 
 /**
