@@ -567,15 +567,14 @@ function newValueFieldState<T, K extends keyof T>(
     },
 
     blur() {
-      // Now that the user is done editing the field, we sneak in some trim logic
-      if (this._focused) {
-        this.maybeAutoSave();
-      }
+      this.maybeAutoSave();
       this._focused = false;
     },
 
     maybeAutoSave() {
+      // Now that the user is done editing the field, we sneak in some trim logic
       this.maybeTrim();
+
       // touched is readonly, but we're allowed to change it
       this.touched = true;
       maybeAutoSave();
