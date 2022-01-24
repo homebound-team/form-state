@@ -572,7 +572,7 @@ function newValueFieldState<T, K extends keyof T>(
     },
 
     maybeAutoSave() {
-      // Now that the user is done editing the field, we sneak in some trim logic
+      // Now that the user is done editing the field (note maybe w/o blurring, i.e. if they hit enter), we sneak in some trim logic
       this.maybeTrim();
 
       // touched is readonly, but we're allowed to change it
