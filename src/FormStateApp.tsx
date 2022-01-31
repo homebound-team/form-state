@@ -1,6 +1,7 @@
 import { Observer } from "mobx-react";
 import { AuthorInput } from "src/formStateDomain";
-import { FieldState, ObjectConfig, required, useFormState } from "src/index";
+import {FieldState, ObjectConfig, ObjectState, required, useFormState} from "src/index";
+import {useFormStates} from "src/useFormState";
 
 export function FormStateApp() {
   const formState = useFormState({
@@ -18,7 +19,7 @@ export function FormStateApp() {
         return state.firstName.value === state.lastName.value ? "Last name cannot equal first name" : undefined;
       });
     },
-    autoSave() {
+    async autoSave() {
       console.log("saving", formState.changedValue);
     },
   });
