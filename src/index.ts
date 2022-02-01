@@ -7,4 +7,5 @@ export {
   required,
   Rule,
 } from "src/formState";
-export { useFormState, useFormStates } from "src/useFormState";
+export { useFormState } from "src/useFormState";
+export { useFormStates } from "src/useFormStates";
