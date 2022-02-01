@@ -1,15 +1,7 @@
 import { isPlainObject } from "is-plain-object";
-import { isObservable } from "mobx";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  createObjectState,
-  ListFieldConfig,
-  ObjectConfig,
-  ObjectFieldConfig,
-  ObjectState,
-  ValueFieldConfig,
-} from "./formState";
-import { assertNever } from "./utils";
+import { createObjectState, ObjectConfig, ObjectState } from "./formState";
+import { initValue } from "./utils";
 
 export type UseFormStateOpts<T, I> = {
   /** The form configuration, should be a module-level const or useMemo'd. */
@@ -55,13 +47,17 @@ export type UseFormStateOpts<T, I> = {
    *
    * Does not need to be stable/useMemo'd.
    */
-  autoSave?: (state: ObjectState<T>) => void;
+  autoSave?: (state: ObjectState<T>) => Promise<void>;
 };
 
 // If the user's autoSave hook makes some last-minute `.set` calls to sneak
 // in some business logic right before their GraphQL mutation call, ignore it
 // so that we don't infinite loop.
 let isAutoSaving = false;
+
+// `pendingAutoSave` is a flag for determining if we need to immediately call `maybeAutoSave` again after the initial Promise finishes
+// This could happen if a field triggers auto-save while another field's auto-save is already in progress.
+let pendingAutoSave = false;
 
 /**
  * Creates a formState instance for editing in a form.
@@ -82,14 +78,22 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
 
   const form = useMemo(
     () => {
-      function maybeAutoSave() {
+      async function maybeAutoSave() {
+        if (isAutoSaving) {
+          pendingAutoSave = true;
+        }
+
         // Don't use canSave() because we don't want to set touched for all the fields
         if (autoSaveRef.current && form.dirty && form.valid && !isAutoSaving) {
           try {
             isAutoSaving = true;
-            autoSaveRef.current(form);
+            await autoSaveRef.current(form);
           } finally {
             isAutoSaving = false;
+            if (pendingAutoSave) {
+              pendingAutoSave = false;
+              await maybeAutoSave();
+            }
           }
         }
       }
@@ -97,7 +101,6 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
       const form = createObjectState(config, value, { maybeAutoSave });
       form.readOnly = readOnly;
       // The identity of `addRules` is not stable, but assume that it is for better UX.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
       (addRules || (() => {}))(form);
       firstRunRef.current = true;
       return form;
@@ -126,64 +129,4 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
   }, [form, readOnly]);
 
   return form;
-}
-
-/** Introspects the `init` prop to see if has a `map` function/etc. and returns the form value. */
-function initValue<T>(config: ObjectConfig<T>, init: any): T {
-  const initValue =
-    init && "input" in init && "map" in init
-      ? init.input
-        ? init.map(init.input as any)
-        : init.ifUndefined || {}
-      : init || {};
-  return pickFields(config, initValue) as T;
-}
-
-/**
- * Picks ony fields out of `instance` that are in the `formConfig`.
- *
- * This is useful for creating a form input from a GraphQL query result,
- * but ignoring extra data in the query that we don't want/need in the form.
- *
- * (Especially because the form.value will become our mutation's input type
- * that goes on the wire, we don't want superfluous data in it.)
- */
-export function pickFields<T, I>(
-  formConfig: ObjectConfig<T>,
-  instance: I,
-): { [K in keyof T]: K extends keyof I ? I[K] : never } {
-  // If the caller is using classes, i.e. with their own custom observable behavior, then just use as-is
-  if (!isPlainObject(instance)) {
-    return instance as any;
-  }
-  return Object.fromEntries(
-    Object.entries(formConfig).map(([key, _keyConfig]) => {
-      const keyConfig = (_keyConfig as any) as
-        | ObjectFieldConfig<any>
-        | ListFieldConfig<any, any>
-        | ValueFieldConfig<any, any>;
-      const value = (instance as any)[key];
-      if (keyConfig.type === "object") {
-        if (value) {
-          return [key, pickFields(keyConfig.config, value)];
-        } else {
-          return [key, value];
-        }
-      } else if (keyConfig.type === "list") {
-        if (isObservable(value)) {
-          // If we hit an observable array, leave it as the existing proxy so the our
-          // ListFieldState will react to changes in the original array.
-          return [key, value];
-        } else if (value) {
-          return [key, (value as any[]).map((u) => pickFields(keyConfig.config, u))];
-        } else {
-          return [key, value];
-        }
-      } else if (keyConfig.type === "value") {
-        return [key, value];
-      } else {
-        return assertNever(keyConfig);
-      }
-    }),
-  ) as any;
 }

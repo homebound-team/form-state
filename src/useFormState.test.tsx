@@ -1,10 +1,9 @@
-import { click, render } from "@homebound/rtl-utils";
-import { isObservable, observable } from "mobx";
+import { click, clickAndWait, render, wait } from "@homebound/rtl-utils";
 import { Observer } from "mobx-react";
 import { useMemo, useState } from "react";
-import { AuthorInput, BookInput } from "src/formStateDomain";
-import { FieldState, ObjectConfig, required } from "./formState";
-import { pickFields, useFormState } from "./useFormState";
+import { AuthorInput } from "src/formStateDomain";
+import { FieldState, ObjectConfig, ObjectState, required } from "./formState";
+import { useFormState } from "./useFormState";
 
 describe("useFormState", () => {
   it("calls init.map if init.input is defined", async () => {
@@ -389,7 +388,7 @@ describe("useFormState", () => {
     // When the data/child is now available
     click(r.refreshData);
     // And the field is blurred
-    click(r.blurBookOne);
+    await clickAndWait(r.blurBookOne);
     // Then we don't auto-save because nothing has changed
     expect(autoSave).toBeCalledTimes(0);
 
@@ -399,7 +398,7 @@ describe("useFormState", () => {
     // that say the new row can't be empty)
     expect(autoSave).toBeCalledTimes(1);
     // And the new book is blurred
-    click(r.blurBookTwo);
+    await clickAndWait(r.blurBookTwo);
     // Then we auto save again
     expect(autoSave).toBeCalledTimes(2);
   });
@@ -415,7 +414,7 @@ describe("useFormState", () => {
         config,
         init: data,
         // And there is reactive business logic in the `autoSave` method
-        autoSave(state) {
+        async autoSave(state) {
           state.lastName.set("l2");
           autoSaves++;
         },
@@ -433,82 +432,59 @@ describe("useFormState", () => {
     expect(autoSaves).toEqual(1);
   });
 
-  describe("pickFields", () => {
-    it("can pick a value field", () => {
-      const a = pickFields(
-        //
-        { firstName: { type: "value" } },
-        { firstName: "a", b: "ignored" },
+  it("can queue up changes for auto save if a save is already in progress", async () => {
+    const autoSaveStub = jest.fn();
+    type FormValue = Pick<AuthorInput, "id" | "firstName" | "lastName">;
+    const config: ObjectConfig<FormValue> = {
+      id: { type: "value" },
+      firstName: { type: "value" },
+      lastName: { type: "value" },
+    };
+
+    // Given a component using `getObjectState` for lazily creating ObjectStates
+    function TestComponent() {
+      const [apiData, setApiData] = useState<FormValue>({ id: "a:1", firstName: "Brandon", lastName: "Dow" });
+      const state = useFormState({ config, autoSave, init: { input: apiData, map: (v) => v } });
+      async function autoSave(form: ObjectState<FormValue>) {
+        autoSaveStub(form.changedValue);
+        // Pretend to make an API call and update the local state
+        setApiData((prevState) => ({ ...prevState, ...form.changedValue }));
+        await Promise.resolve(1);
+      }
+
+      return (
+        <div>
+          <button
+            data-testid="focusSetAndSaveField"
+            onClick={() => {
+              state.firstName.focus();
+              state.firstName.set("Foo");
+              state.firstName.maybeAutoSave();
+              state.firstName.blur();
+            }}
+          />
+          <button
+            data-testid="focusSetAndSaveFieldLastName"
+            onClick={() => {
+              state.lastName.focus();
+              state.lastName.set("Bar");
+              state.lastName.maybeAutoSave();
+            }}
+          />
+        </div>
       );
-      expect(a).toMatchInlineSnapshot(`
-      Object {
-        "firstName": "a",
-      }
-    `);
-    });
+    }
 
-    it("can pick an unset object fields", () => {
-      const a = pickFields(authorWithAddressConfig, { firstName: "a", b: "ignored" });
-      expect(a).toMatchInlineSnapshot(`
-      Object {
-        "address": undefined,
-        "firstName": "a",
-        "id": undefined,
-        "lastName": undefined,
-      }
-    `);
-    });
-
-    it("can pick a set object field", () => {
-      const a = pickFields(authorWithAddressConfig, { firstName: "a", b: "ignored", address: {} });
-      expect(a).toMatchInlineSnapshot(`
-      Object {
-        "address": Object {
-          "city": undefined,
-          "street": undefined,
-        },
-        "firstName": "a",
-        "id": undefined,
-        "lastName": undefined,
-      }
-    `);
-    });
-
-    it("can pick an unset list field", () => {
-      const a = pickFields(authorWithBooksConfig, { firstName: "a", b: "ignored" });
-      expect(a).toMatchInlineSnapshot(`
-      Object {
-        "books": undefined,
-        "firstName": "a",
-        "id": undefined,
-        "lastName": undefined,
-      }
-    `);
-    });
-
-    it("can pick a set list field", () => {
-      const a = pickFields(authorWithBooksConfig, { firstName: "a", b: "ignored", books: [{}] });
-      expect(a).toMatchInlineSnapshot(`
-      Object {
-        "books": Array [
-          Object {
-            "classification": undefined,
-            "id": undefined,
-            "title": undefined,
-          },
-        ],
-        "firstName": "a",
-        "id": undefined,
-        "lastName": undefined,
-      }
-    `);
-    });
-
-    it("can pick a set observable list field", () => {
-      const books = observable([] as BookInput[]);
-      const a = pickFields(authorWithBooksConfig, { firstName: "a", b: "ignored", books });
-      expect(isObservable(a.books)).toEqual(true);
-    });
+    const r = await render(<TestComponent />);
+    // And triggering the auto save behavior before awaiting the initial promise to resolve so we have pending changes.
+    click(r.focusSetAndSaveField());
+    click(r.focusSetAndSaveFieldLastName());
+    // Awaits the promises for all methods triggered above
+    await wait();
+    // Then expect the auto save to only have been called twice. Once with each changedValues.
+    expect(autoSaveStub).toBeCalledTimes(2);
+    expect(autoSaveStub).toBeCalledWith({ id: "a:1", firstName: "Foo" });
+    expect(autoSaveStub).toBeCalledWith({ id: "a:1", lastName: "Bar" });
   });
 });
 
@@ -516,19 +492,6 @@ const authorConfig: ObjectConfig<AuthorInput> = {
   id: { type: "value" },
   firstName: { type: "value" },
   lastName: { type: "value" },
-};
-
-const authorWithAddressConfig: ObjectConfig<AuthorInput> = {
-  id: { type: "value" },
-  firstName: { type: "value" },
-  lastName: { type: "value" },
-  address: {
-    type: "object",
-    config: {
-      street: { type: "value", rules: [required] },
-      city: { type: "value" },
-    },
-  },
 };
 
 const authorWithBooksConfig: ObjectConfig<AuthorInput> = {

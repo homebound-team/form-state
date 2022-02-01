@@ -8,3 +8,4 @@ export {
   Rule,
 } from "src/formState";
 export { useFormState } from "src/useFormState";
+export { useFormStates } from "src/useFormStates";
