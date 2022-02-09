@@ -1,4 +1,4 @@
-import { click, clickAndWait, render, wait } from "@homebound/rtl-utils";
+import { click, clickAndWait, render } from "@homebound/rtl-utils";
 import { Observer } from "mobx-react";
 import { useMemo, useState } from "react";
 import { AuthorInput } from "src/formStateDomain";
@@ -393,7 +393,7 @@ describe("useFormState", () => {
     expect(autoSave).toBeCalledTimes(0);
 
     // And when adding a new book
-    click(r.add);
+    await clickAndWait(r.add);
     // We autoSave the new row right away (because we don't have any validation rules
     // that say the new row can't be empty)
     expect(autoSave).toBeCalledTimes(1);
@@ -427,12 +427,45 @@ describe("useFormState", () => {
     }
     const r = await render(<TestComponent />);
     // When we change firstName
-    click(r.setFirst);
+    await clickAndWait(r.setFirst);
     // When autoSave didn't infinite loop
     expect(autoSaves).toEqual(1);
   });
 
-  it("can queue up changes for auto save if a save is already in progress", async () => {
+  it("batches calls to auto-save", async () => {
+    // Given a component
+    const autoSave = jest.fn();
+    function TestComponent() {
+      type FormValue = AuthorInput;
+      const config: ObjectConfig<FormValue> = authorConfig;
+      const data = { firstName: "f1", lastName: "f1" };
+      const form = useFormState({
+        config,
+        init: data,
+        autoSave: (form) => autoSave(form.changedValue),
+      });
+      return (
+        <div>
+          <button
+            data-testid="set"
+            onClick={() => {
+              // And it sets two fields in a single callback
+              form.firstName.set("f2");
+              form.lastName.set("l2");
+            }}
+          />
+        </div>
+      );
+    }
+    const r = await render(<TestComponent />);
+    // When we change both
+    await clickAndWait(r.set);
+    // Then we only call autoSave once
+    expect(autoSave).toBeCalledTimes(1);
+    expect(autoSave).toBeCalledWith({ firstName: "f2", lastName: "l2" });
+  });
+
+  it("queues changes for auto save if a save is already in progress", async () => {
     const autoSaveStub = jest.fn();
     type FormValue = Pick<AuthorInput, "id" | "firstName" | "lastName">;
     const config: ObjectConfig<FormValue> = {
@@ -444,12 +477,28 @@ describe("useFormState", () => {
     // Given a component using `getObjectState` for lazily creating ObjectStates
     function TestComponent() {
       const [apiData, setApiData] = useState<FormValue>({ id: "a:1", firstName: "Brandon", lastName: "Dow" });
-      const state = useFormState({ config, autoSave, init: { input: apiData, map: (v) => v } });
+      const state = useFormState({
+        config,
+        autoSave,
+        init: {
+          input: apiData,
+          map: (v) => {
+            // console.error({ v });
+            return v;
+          },
+        },
+      });
       async function autoSave(form: ObjectState<FormValue>) {
         autoSaveStub(form.changedValue);
+        const changed = form.changedValue;
+        let resolve: any;
+        const promise = new Promise((_resolve) => (resolve = _resolve));
         // Pretend to make an API call and update the local state
-        setApiData((prevState) => ({ ...prevState, ...form.changedValue }));
-        await Promise.resolve(1);
+        setTimeout(() => {
+          setApiData((prevState) => ({ ...prevState, ...changed }));
+          resolve();
+        }, 0);
+        return promise;
       }
 
       return (
@@ -476,11 +525,19 @@ describe("useFormState", () => {
     }
 
     const r = await render(<TestComponent />);
-    // And triggering the auto save behavior before awaiting the initial promise to resolve so we have pending changes.
-    click(r.focusSetAndSaveField());
-    click(r.focusSetAndSaveFieldLastName());
-    // Awaits the promises for all methods triggered above
-    await wait();
+    // And triggering the auto save behavior before awaiting the initial promise to
+    // resolve so we have pending changes.
+    click(r.focusSetAndSaveField(), { allowAsync: true });
+
+    // Let the initial autoSave be called
+    jest.runOnlyPendingTimers();
+    expect(autoSaveStub).toBeCalledTimes(1);
+    expect(autoSaveStub).toBeCalledWith({ id: "a:1", firstName: "Foo" });
+
+    // And while that is in flight, trigger another user action
+    await clickAndWait(r.focusSetAndSaveFieldLastName());
+    expect(autoSaveStub).toBeCalledTimes(2);
+
     // Then expect the auto save to only have been called twice. Once with each changedValues.
     expect(autoSaveStub).toBeCalledTimes(2);
     expect(autoSaveStub).toBeCalledWith({ id: "a:1", firstName: "Foo" });

@@ -3,12 +3,14 @@ import { createObjectState, ObjectConfig, ObjectState } from "src/formState";
 import { initValue } from "src/utils";
 
 export type ObjectStateCache<T, I> = Record<string, [ObjectState<T>, I]>;
+
 type UseFormStatesOpts<T, I> = {
   config: ObjectConfig<T>;
   autoSave?: (state: ObjectState<T>) => Promise<void>;
   getId: (v: I) => string;
   map?: (input: Exclude<I, null | undefined>) => T;
 };
+
 export function useFormStates<T, I>(opts: UseFormStatesOpts<T, I>): { getObjectState: (input: I) => ObjectState<T> } {
   const { config, autoSave, getId, map } = opts;
   const objectStateCache = useMemo<ObjectStateCache<T, I>>(() => ({}), [config]);

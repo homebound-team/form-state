@@ -47,17 +47,30 @@ export type UseFormStateOpts<T, I> = {
    *
    * Does not need to be stable/useMemo'd.
    */
-  autoSave?: (state: ObjectState<T>) => Promise<void>;
+  autoSave?: (state: ObjectState<T>) => Promise<unknown>;
 };
 
 // If the user's autoSave hook makes some last-minute `.set` calls to sneak
 // in some business logic right before their GraphQL mutation call, ignore it
 // so that we don't infinite loop.
-let isAutoSaving = false;
+let isAutoSaving: "queued" | "in-flight" | false = false;
 
 // `pendingAutoSave` is a flag for determining if we need to immediately call `maybeAutoSave` again after the initial Promise finishes
 // This could happen if a field triggers auto-save while another field's auto-save is already in progress.
 let pendingAutoSave = false;
+
+let timerId: any;
+if ("afterEach" in global) {
+  global.afterEach(() => {
+    const wasAutoSaving = isAutoSaving;
+    isAutoSaving = false;
+    pendingAutoSave = false;
+    timerId && clearTimeout(timerId);
+    if (wasAutoSaving) {
+      throw new Error("Test did not wait for an outstanding auto save");
+    }
+  });
+}
 
 /**
  * Creates a formState instance for editing in a form.
@@ -78,23 +91,35 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
 
   const form = useMemo(
     () => {
-      async function maybeAutoSave() {
-        if (isAutoSaving) {
+      function maybeAutoSave() {
+        if (isAutoSaving === "in-flight") {
           pendingAutoSave = true;
+        } else if (isAutoSaving === "queued") {
+          return;
         }
 
         // Don't use canSave() because we don't want to set touched for all the fields
         if (autoSaveRef.current && form.dirty && form.valid && !isAutoSaving) {
-          try {
-            isAutoSaving = true;
-            await autoSaveRef.current(form);
-          } finally {
-            isAutoSaving = false;
-            if (pendingAutoSave) {
-              pendingAutoSave = false;
-              await maybeAutoSave();
+          isAutoSaving = "queued";
+          // We use setTimeout as a cheap way to wait until the end of the current event listener
+          timerId = setTimeout(async () => {
+            try {
+              // We technically don't flip to in-flight until after the call in case the
+              // user's autoSave function itself wants to call a .set.
+              const promise = autoSaveRef.current!(form);
+              isAutoSaving = "in-flight";
+              await promise;
+            } finally {
+              isAutoSaving = false;
+              if (pendingAutoSave) {
+                pendingAutoSave = false;
+                // Push out the follow-up by 1 tick to allow refreshes to happen to potentially
+                // un-dirty the just-saved data (e.g. if we run right away, the caller's maybeAutoSave
+                // will see a form.changedValue that thinks the just-saved data is still dirty).
+                setTimeout(maybeAutoSave, 0);
+              }
             }
-          }
+          }, 0);
         }
       }
       const value = firstRunRef.current ? firstInitValue : initValue(config, init);
