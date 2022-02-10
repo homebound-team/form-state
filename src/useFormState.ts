@@ -60,17 +60,6 @@ let isAutoSaving: "queued" | "in-flight" | false = false;
 let pendingAutoSave = false;
 
 let timerId: any;
-if ("afterEach" in global) {
-  global.afterEach(() => {
-    const wasAutoSaving = isAutoSaving;
-    isAutoSaving = false;
-    pendingAutoSave = false;
-    timerId && clearTimeout(timerId);
-    if (wasAutoSaving) {
-      throw new Error("Test did not wait for an outstanding auto save");
-    }
-  });
-}
 
 /**
  * Creates a formState instance for editing in a form.
