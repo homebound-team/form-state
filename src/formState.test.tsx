@@ -1332,6 +1332,24 @@ describe("formState", () => {
     expect(formState.books.rows[1].isNewEntity).toBeTruthy();
     expect(formState.books.isNewEntity).toBeFalsy();
   });
+
+  it("can properly evaluate dirty lists after calling 'save'", () => {
+    // Given an empty list state
+    const a1 = createAuthorInputState({ books: [] });
+    expect(a1.books.dirty).toBeFalsy();
+    // When adding a book
+    a1.books.add({ title: "t2" });
+    // Then the list state is dirty
+    expect(a1.books.dirty).toBeTruthy();
+    // When saving the form state
+    a1.save();
+    // Then the list is no longer dirty
+    expect(a1.books.dirty).toBeFalsy();
+    // When adding a new book
+    a1.books.add({ title: "t3" });
+    // The list is again dirty
+    expect(a1.books.dirty).toBeTruthy();
+  });
 });
 
 class ObservableObject {

@@ -862,7 +862,7 @@ function newListFieldState<T, K extends keyof T, U>(
       this.rows.forEach((r) => {
         r.save();
       });
-      originalCopy = (parentInstance[key] as any) as U[];
+      originalCopy = [...((parentInstance[key] as any) || [])];
       _tick.value++;
     },
 
