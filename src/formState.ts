@@ -773,10 +773,21 @@ function newListFieldState<T, K extends keyof T, U>(
 
     get changedValue() {
       const result = [] as any;
-      const pushAll = listConfig.update !== "incremental";
+      const hasOpKey = Object.keys(listConfig.config).includes("op");
+      const hasLegacyOpKey = Object.keys(listConfig.config).some((key) => key === "delete" || key === "remove");
+      const incremental =
+        listConfig.update === "incremental" ||
+        // Implicitly enable incremental mode if we see an op key
+        (listConfig.update === undefined && (hasOpKey || hasLegacyOpKey));
+      const exhaustive = !incremental;
       this.rows.forEach((r) => {
-        if (pushAll || r.dirty) {
-          result.push(r.changedValue);
+        if (exhaustive || r.dirty || r.isNewEntity) {
+          const changed = r.changedValue;
+          // Ensure we have an `op: include` key, following https://joist-orm.io/docs/features/partial-update-apis
+          if (incremental && hasOpKey) {
+            (changed as any).op ??= "include";
+          }
+          result.push(changed);
         }
       });
       return result;
