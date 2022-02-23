@@ -1136,7 +1136,7 @@ describe("formState", () => {
     const formState = createObjectState<AuthorInput>(
       {
         id: { type: "value" },
-        // And the books collection not explicitly marked as incremental
+        // And the books collection is not explicitly marked as incremental
         books: {
           type: "list",
           config: {
@@ -1165,6 +1165,52 @@ describe("formState", () => {
     expect(formState.changedValue).toEqual({
       id: "a:1",
       books: [{ id: "b:1", op: "delete" }],
+    });
+  });
+
+  it("defaults the incremental op key to included when not set", () => {
+    // Given an author
+    const formState = createObjectState<AuthorInput>(
+      {
+        id: { type: "value" },
+        // And the books collection is not explicitly marked as incremental
+        books: {
+          type: "list",
+          config: {
+            id: { type: "value" },
+            title: { type: "value", rules: [required] },
+            // But it does have an op key
+            op: { type: "value" },
+          },
+        },
+      },
+      {
+        id: "a:1",
+        firstName: "f",
+        books: [
+          // And no op keys are initially set
+          { id: "b:1", title: "t1" },
+          { id: "b:2", title: "t2" },
+        ],
+      },
+    );
+    // And initially nothing is changed
+    expect(formState.changedValue).toEqual({ id: "a:1" });
+    // When we delete the 1st book
+    formState.books.rows[0].op.value = "delete";
+    // And add a 3rd book
+    formState.books.add({ title: "t3" });
+    // Then the 3rd book doesn't have an explicit op yet
+    expect(formState.books.rows[2].op.value).toBeUndefined();
+    // But when we create changedValue
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      books: [
+        // Then the deleted book is included
+        { id: "b:1", op: "delete" },
+        // And the 3rd book is included w/the `op: include` flag added
+        { title: "t3", op: "include" },
+      ],
     });
   });
 
