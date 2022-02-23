@@ -773,9 +773,13 @@ function newListFieldState<T, K extends keyof T, U>(
 
     get changedValue() {
       const result = [] as any;
-      const pushAll = listConfig.update !== "incremental";
+      const incremental =
+        listConfig.update === "incremental" ||
+        // Implicitly enable incremental mode if we see an op key
+        (listConfig.update === undefined &&
+          Object.entries(listConfig.config).some(([key]) => key === "op" || key === "delete" || key === "remove"));
       this.rows.forEach((r) => {
-        if (pushAll || r.dirty) {
+        if (!incremental || r.dirty) {
           result.push(r.changedValue);
         }
       });

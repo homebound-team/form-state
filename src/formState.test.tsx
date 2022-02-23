@@ -1131,6 +1131,43 @@ describe("formState", () => {
     });
   });
 
+  it("uses the op key as a hint to use incremental list behavior", () => {
+    // Given an author
+    const formState = createObjectState<AuthorInput>(
+      {
+        id: { type: "value" },
+        // And the books collection not explicitly marked as incremental
+        books: {
+          type: "list",
+          config: {
+            id: { type: "value" },
+            title: { type: "value", rules: [required] },
+            // But it does have an op key
+            op: { type: "value" },
+          },
+        },
+      },
+      {
+        id: "a:1",
+        firstName: "f",
+        books: [
+          // And the books start out as included
+          { id: "b:1", title: "t1", op: "include" },
+          { id: "b:2", title: "t2", op: "include" },
+        ],
+      },
+    );
+    // And initially nothing is changed
+    expect(formState.changedValue).toEqual({ id: "a:1" });
+    // When we delete the 1st book
+    formState.books.rows[0].op.value = "delete";
+    // Then only the 1st book is included
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      books: [{ id: "b:1", op: "delete" }],
+    });
+  });
+
   it("can observe value changes", () => {
     const formState = createObjectState(authorWithBooksConfig, { firstName: "f" });
     let ticks = 0;

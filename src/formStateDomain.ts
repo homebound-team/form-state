@@ -34,6 +34,7 @@ export interface BookInput {
   classification?: DeweyDecimalClassification;
   delete?: boolean | null | undefined;
   isPublished?: boolean;
+  op?: "include" | "delete" | "remove";
 }
 
 export interface DeweyDecimalClassification {
