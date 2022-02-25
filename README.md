@@ -2,40 +2,44 @@
 
 form-state is a headless form state management library, built on top of mobx.
 
-It acts as a buffer between the current canonical data (i.e. the server-side data, or GraphQL cache data) and the user's WIP data that is being actively mutated in form fields.
+It acts as a buffer between the canonical data/entity (i.e. the server-side data, or local Redux/GraphQL/etc. cache data) and the user's WIP data/entity that is being actively mutated in form fields.
 
 It also keeps track of low-level form UX details like:
 
 * Which form fields are dirty
-* Which forms fields are invalid/invalid
+* Which forms fields are valid/invalid
 * Which forms fields are touched (i.e. don't show validation errors for untouched fields)
-* Attempting to submit the form should touch (valid) all fields
-* When should form fields auto-save?
-* Which form fields should auto-save?
+* Enabling/disabling buttons/form UX based on the overall form-wide state
+* Submitting the form should touch (validate) all fields
+* Auto-saving the form when appropriate (i.e. not on keystroke, but after blur/leaving the field)
+* Queue and debounce auto-saves if one is already in-flight
 * Building a wire payload that has only changed fields
+  * Handles children, i.e. a `author: { books: [...} }` will include only changed books if necessary
 
 # The Three Type/Shapes Mental Model
 
-There are generally three types of data involved in a form:
+In general when working with forms (e.g. not just form-state), there are three types/shapes of data involved:
 
 1. The input data/shape from the server (i.e. a GraphQL/REST query)
-2. The form data/shape that is being reactively bound to form fields
-3. The mutation data/shape that will submit the change to the server (i.e. the GraphQL mutation)
+2. The form data/shape that is being reactively bound to form fields (i.e. used as `<TextField value=form.firstName onChange=(v) => form.firstName = v />`)
+3. The mutation data/shape that will submit the change to the server (i.e. the GraphQL mutation/REST POST)
 
 form-state generally refers to each of these shapes as:
 
 * The input type
+  * (Hrm, in retrospect "input" is an unfortunate term b/c that is what GraphQL uses for its mutation types, i.e. `input SaveAuthorInput`...we should consider changing this).
 * The form type
 * The ...third type...
 
-(Note that "input type" is an unfortunate name b/c that is what GraphQL uses for it's mutation types, i.e. `input SaveAuthorInput`...we should consider changing this).
+And then provides an API/DSL for managing the mapping between each of these in a standard/conventional manner. 
 
-Concretely the differences between these small types are small nuances:
+
+Admittedly (and hopefully, b/c it makes the code simpler), the differences between each of these types can often be small, i.e.:
 
 * The input type might have `{ author: { book: { id: "b:1" } }` but the mutation wants `{ author: { bookId: "b:1" } }`
 * ...have other examples...
 
-That are usually simple/mechanistic changes, but nonetheless just some boilerplate that form-state helps pages have a strong convention around.
+These are usually simple/mechanistic changes, but nonetheless just some boilerplate that form-state provides conventions for.
 
 # Basic Usage
 
