@@ -179,4 +179,35 @@ describe("useFormStates", () => {
     // Then the two form-states are no longer equal.
     expect(r.statesEqual()).toHaveTextContent("false");
   });
+
+  it("calls addRules once per form state", async () => {
+    // Given a user wants to use addRules
+    const addRules = jest.fn();
+
+    function TestComponent() {
+      const config: ObjectConfig<FormValue> = { id: { type: "value" }, firstName: { type: "value" } };
+      const { getObjectState } = useFormStates<FormValue, FormValue>({
+        config,
+        addRules,
+        getId: (o) => o.id!,
+      });
+      return (
+        <div>
+          {/* And pretend this getObjectState was called in multiple renders. */}
+          <ChildComponent os={getObjectState({ id: "a:1", firstName: "Brandon" })} />
+          <ChildComponent os={getObjectState({ id: "a:1", firstName: "Brandon" })} />
+        </div>
+      );
+    }
+    // When we render
+    const r = await render(<TestComponent />);
+    // Then addRules was only called once
+    expect(addRules).toHaveBeenCalledTimes(1);
+  });
 });
+
+type FormValue = Pick<AuthorInput, "id" | "firstName">;
+
+function ChildComponent({ os }: { os: ObjectState<FormValue> }) {
+  return <div data-testid="firstName">{os.firstName.value}</div>;
+}
