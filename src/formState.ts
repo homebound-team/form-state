@@ -126,7 +126,7 @@ interface InternalSetOpts extends SetOpts {
   refreshing?: boolean;
 }
 
-interface FieldStateInternal<T, V> extends FieldState<T, V> {
+export interface FieldStateInternal<T, V> extends FieldState<T, V> {
   set(value: V, opts?: InternalSetOpts): void;
   _isIdKey: boolean;
   _isDeleteKey: boolean;
@@ -134,7 +134,7 @@ interface FieldStateInternal<T, V> extends FieldState<T, V> {
   _focused: boolean;
 }
 
-type ObjectStateInternal<T, P = any> = ObjectState<T, P> & {
+export type ObjectStateInternal<T, P = any> = ObjectState<T, P> & {
   set(value: P, opts?: InternalSetOpts): void;
 };
 
