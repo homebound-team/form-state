@@ -30,21 +30,21 @@ type UseFormStatesOpts<T, I> = {
   addRules?: (state: ObjectState<T>) => void;
 
   /**
-   * Given an input to `getObjectState`, returns the identity value that we'll cache that value's form state on.
+   * Given an input to `getFormState`, returns the identity value that we'll cache that value's form state on.
    *
    * Does not need to be stable/useMemo'd.
    */
   getId: (v: I) => string;
 
   /**
-   * Maps an input to `getObjectState` to the actual form shape `T`.
+   * Maps an input to `getFormState` to the actual form shape `T`.
    *
    * Does not need to be stable/useMemo'd.
    */
   map?: (input: Exclude<I, null | undefined>) => T;
 };
 
-export function useFormStates<T, I>(opts: UseFormStatesOpts<T, I>): { getObjectState: (input: I) => ObjectState<T> } {
+export function useFormStates<T, I>(opts: UseFormStatesOpts<T, I>): { getFormState: (input: I) => ObjectState<T> } {
   const { config, autoSave, getId, map, addRules } = opts;
   const objectStateCache = useMemo<ObjectStateCache<T, I>>(
     () => ({}),
@@ -79,7 +79,7 @@ export function useFormStates<T, I>(opts: UseFormStatesOpts<T, I>): { getObjectS
     }
   }
 
-  const getObjectState = useCallback(
+  const getFormState = useCallback(
     (input: I) => {
       const existing = objectStateCache[getId(input)];
       let form = existing?.[0];
@@ -108,7 +108,7 @@ export function useFormStates<T, I>(opts: UseFormStatesOpts<T, I>): { getObjectS
     [objectStateCache, config],
   );
 
-  return { getObjectState };
+  return { getFormState };
 }
 
 // If the user's autoSave hook makes some last-minute `.set` calls to sneak
