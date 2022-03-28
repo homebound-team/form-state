@@ -1,7 +1,9 @@
-import { click, clickAndWait, render, wait } from "@homebound/rtl-utils";
+import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
 import { act } from "@testing-library/react";
+import { reaction } from "mobx";
 import { Observer } from "mobx-react";
 import { useMemo, useState } from "react";
+import { TextField } from "src/FormStateApp";
 import { AuthorInput } from "src/formStateDomain";
 import { FieldState, ObjectConfig, ObjectState, required } from "./formState";
 import { useFormState } from "./useFormState";
@@ -534,6 +536,40 @@ describe("useFormState", () => {
     expect(autoSaveStub).toBeCalledTimes(2);
     expect(autoSaveStub).toBeCalledWith({ id: "a:1", firstName: "Foo" });
     expect(autoSaveStub).toBeCalledWith({ id: "a:1", lastName: "Bar" });
+  });
+
+  it("calls autoSave with results of calculations in addRules", async () => {
+    const autoSaveStub = jest.fn();
+    type FormValue = Pick<AuthorInput, "id" | "firstName" | "lastName">;
+    const config: ObjectConfig<FormValue> = {
+      id: { type: "value" },
+      firstName: { type: "value" },
+      lastName: { type: "value" },
+    };
+
+    // Given a component that is using autoSave
+    function TestComponent() {
+      const fs = useFormState({
+        config,
+        addRules(fs) {
+          // And also has calculated values
+          reaction(
+            () => fs.firstName.value,
+            (curr) => (fs.lastName.value = curr),
+          );
+        },
+        autoSave: (fs) => autoSaveStub(fs.changedValue),
+        init: { id: "a:1" },
+      });
+      return <TextField field={fs.firstName} />;
+    }
+
+    const r = await render(<TestComponent />);
+    // When the user sets one field
+    await typeAndWait(r.firstName, "first");
+    // Then we only called autoSave once
+    expect(autoSaveStub).toBeCalledTimes(1);
+    expect(autoSaveStub).toBeCalledWith({ id: "a:1", firstName: "first", lastName: "first" });
   });
 });
 

@@ -44,7 +44,7 @@ type UseFormStatesOpts<T, I> = {
   map?: (input: Exclude<I, null | undefined>) => T;
 };
 
-export function useFormStates<T, I>(opts: UseFormStatesOpts<T, I>): { getFormState: (input: I) => ObjectState<T> } {
+export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): { getFormState: (input: I) => ObjectState<T> } {
   const { config, autoSave, getId, map, addRules } = opts;
   const objectStateCache = useMemo<ObjectStateCache<T, I>>(
     () => ({}),
@@ -68,6 +68,13 @@ export function useFormStates<T, I>(opts: UseFormStatesOpts<T, I>): { getFormSta
     if (autoSaveRef.current && form.dirty && form.valid && !isAutoSaving) {
       try {
         isAutoSaving = true;
+        // See if we have any reactions that want to run (i.e. added by addRules hooks)
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        // If a reaction re-queued our form during the ^ wait, remove it
+        let i = -1;
+        while ((i = pendingAutoSaves.current.indexOf(form)) !== -1) {
+          pendingAutoSaves.current.splice(i, 1);
+        }
         await autoSaveRef.current(form);
       } finally {
         isAutoSaving = false;

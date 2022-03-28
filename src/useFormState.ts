@@ -59,8 +59,6 @@ let isAutoSaving: "queued" | "in-flight" | false = false;
 // This could happen if a field triggers auto-save while another field's auto-save is already in progress.
 let pendingAutoSave = false;
 
-let timerId: any;
-
 /**
  * Creates a formState instance for editing in a form.
  */
@@ -91,7 +89,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
         if (autoSaveRef.current && form.dirty && form.valid && !isAutoSaving) {
           isAutoSaving = "queued";
           // We use setTimeout as a cheap way to wait until the end of the current event listener
-          timerId = setTimeout(async () => {
+          setTimeout(async () => {
             try {
               // We technically don't flip to in-flight until after the call in case the
               // user's autoSave function itself wants to call a .set.
