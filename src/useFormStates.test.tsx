@@ -1,6 +1,8 @@
-import { click, clickAndWait, render, wait } from "@homebound/rtl-utils";
+import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
+import { reaction } from "mobx";
 import { useMemo, useState } from "react";
 import { ObjectConfig, ObjectState, required } from "src/formState";
+import { TextField } from "src/FormStateApp";
 import { AuthorInput } from "src/formStateDomain";
 import { useFormStates } from "src/useFormStates";
 
@@ -136,10 +138,9 @@ describe("useFormStates", () => {
     click(r.focusSetAndSaveField2());
     // Awaits the promises for all methods triggered above
     await wait();
-    // Then expect the auto save to only have been called three times. Once with each set of changedValues.
-    expect(autoSaveStub).toBeCalledTimes(3);
-    expect(autoSaveStub).toBeCalledWith({ id: "a:1", firstName: "Foo" });
-    expect(autoSaveStub).toBeCalledWith({ id: "a:1", lastName: "Bar" });
+    // Then expect the auto save to only have been called two times. Once with each set of changedValues.
+    expect(autoSaveStub).toBeCalledTimes(2);
+    expect(autoSaveStub).toBeCalledWith({ id: "a:1", firstName: "Foo", lastName: "Bar" });
     expect(autoSaveStub).toBeCalledWith({ id: "a:2", lastName: "Bar" });
   });
 
@@ -204,9 +205,48 @@ describe("useFormStates", () => {
     // Then addRules was only called once
     expect(addRules).toHaveBeenCalledTimes(1);
   });
+
+  it("calls autoSave with results of calculations in addRules", async () => {
+    // Given a user wants to use auto save
+    const autoSave = jest.fn();
+
+    function TestComponent() {
+      const config: ObjectConfig<FirstAndLastValue> = {
+        id: { type: "value" },
+        firstName: { type: "value" },
+        lastName: { type: "value" },
+      };
+      const { getFormState } = useFormStates({
+        config,
+        getId: (o) => o.id!,
+        addRules(fs) {
+          // And they have a reactive true that calculates last name
+          reaction(
+            () => fs.firstName.value,
+            (curr) => {
+              console.log({ curr });
+              fs.lastName.set(curr);
+            },
+          );
+        },
+        async autoSave(fs) {
+          autoSave(fs.changedValue);
+        },
+      });
+      return <TextField field={getFormState({ id: "a:1", firstName: "Brandon" }).firstName} />;
+    }
+    // When we render
+    const r = await render(<TestComponent />);
+    // And update the firstName
+    await typeAndWait(r.firstName(), "first");
+    // Then autoSave was called once with both input+calc'd values
+    expect(autoSave).toHaveBeenCalledTimes(1);
+    expect(autoSave).toHaveBeenCalledWith({ id: "a:1", firstName: "first", lastName: "first" });
+  });
 });
 
 type FormValue = Pick<AuthorInput, "id" | "firstName">;
+type FirstAndLastValue = Pick<AuthorInput, "id" | "firstName" | "lastName">;
 
 function ChildComponent({ os }: { os: ObjectState<FormValue> }) {
   return <div data-testid="firstName">{os.firstName.value}</div>;
