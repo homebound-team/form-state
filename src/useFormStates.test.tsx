@@ -15,7 +15,7 @@ describe("useFormStates", () => {
     }
     function TestComponent() {
       const config: ObjectConfig<FormValue> = { id: { type: "value" }, firstName: { type: "value" } };
-      const { getObjectState } = useFormStates<FormValue, FormValue>({
+      const { getFormState } = useFormStates<FormValue, FormValue>({
         config,
         autoSave,
         getId: (o) => o.id!,
@@ -23,7 +23,7 @@ describe("useFormStates", () => {
 
       return (
         <div>
-          <ChildComponent os={getObjectState({ id: "a:1", firstName: "Brandon" })} />
+          <ChildComponent os={getFormState({ id: "a:1", firstName: "Brandon" })} />
         </div>
       );
     }
@@ -37,13 +37,13 @@ describe("useFormStates", () => {
     type FormValue = Pick<AuthorInput, "id" | "firstName">;
     const config: ObjectConfig<FormValue> = { id: { type: "value" }, firstName: { type: "value" } };
 
-    // Given a component using `getObjectState` for lazily creating ObjectStates
+    // Given a component using `getFormState` for lazily creating ObjectStates
     function TestComponent() {
       const [apiData, setApiData] = useState<FormValue>({ id: "a:1", firstName: "Brandon" });
-      const { getObjectState } = useFormStates<FormValue, FormValue>({ config, autoSave, getId: (o) => o.id! });
+      const { getFormState } = useFormStates<FormValue, FormValue>({ config, autoSave, getId: (o) => o.id! });
       // Memoize an original for comparing the update against.
-      const originalState = useMemo(() => getObjectState(apiData), []);
-      const state = getObjectState(apiData);
+      const originalState = useMemo(() => getFormState(apiData), []);
+      const state = getFormState(apiData);
 
       return (
         <div>
@@ -78,14 +78,14 @@ describe("useFormStates", () => {
       lastName: { type: "value" },
     };
 
-    // Given a component using `getObjectState` for lazily creating ObjectStates
+    // Given a component using `getFormState` for lazily creating ObjectStates
     function TestComponent() {
       const [apiData, setApiData] = useState<FormValue>({ id: "a:1", firstName: "Tony", lastName: "Stark" });
       const [apiData2, setApiData2] = useState<FormValue>({ id: "a:2", firstName: "Steve", lastName: "Rogers" });
 
-      const { getObjectState } = useFormStates<FormValue, FormValue>({ config, autoSave, getId: (o) => o.id! });
-      const state = getObjectState(apiData);
-      const state2 = getObjectState(apiData2);
+      const { getFormState } = useFormStates<FormValue, FormValue>({ config, autoSave, getId: (o) => o.id! });
+      const state = getFormState(apiData);
+      const state2 = getFormState(apiData2);
 
       async function autoSave(form: ObjectState<FormValue>) {
         autoSaveStub(form.changedValue);
@@ -157,10 +157,10 @@ describe("useFormStates", () => {
 
     function TestComponent() {
       const [config, setConfig] = useState(originalConfig);
-      const { getObjectState } = useFormStates<FormValue, FormValue>({ config, autoSave, getId: (o) => o.id! });
+      const { getFormState } = useFormStates<FormValue, FormValue>({ config, autoSave, getId: (o) => o.id! });
       // Memoize an original for comparing the update against.
-      const originalState = useMemo(() => getObjectState(apiData), []);
-      const state = getObjectState(apiData);
+      const originalState = useMemo(() => getFormState(apiData), []);
+      const state = getFormState(apiData);
 
       return (
         <div>
@@ -186,16 +186,16 @@ describe("useFormStates", () => {
 
     function TestComponent() {
       const config: ObjectConfig<FormValue> = { id: { type: "value" }, firstName: { type: "value" } };
-      const { getObjectState } = useFormStates<FormValue, FormValue>({
+      const { getFormState } = useFormStates<FormValue, FormValue>({
         config,
         addRules,
         getId: (o) => o.id!,
       });
       return (
         <div>
-          {/* And pretend this getObjectState was called in multiple renders. */}
-          <ChildComponent os={getObjectState({ id: "a:1", firstName: "Brandon" })} />
-          <ChildComponent os={getObjectState({ id: "a:1", firstName: "Brandon" })} />
+          {/* And pretend this getFormState was called in multiple renders. */}
+          <ChildComponent os={getFormState({ id: "a:1", firstName: "Brandon" })} />
+          <ChildComponent os={getFormState({ id: "a:1", firstName: "Brandon" })} />
         </div>
       );
     }
