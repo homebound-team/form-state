@@ -224,7 +224,6 @@ describe("useFormStates", () => {
           reaction(
             () => fs.firstName.value,
             (curr) => {
-              console.log({ curr });
               fs.lastName.set(curr);
             },
           );
