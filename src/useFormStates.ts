@@ -46,6 +46,7 @@ type UseFormStatesOpts<T, I> = {
 
 export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): { getFormState: (input: I) => ObjectState<T> } {
   const { config, autoSave, getId, map, addRules } = opts;
+
   const objectStateCache = useMemo<ObjectStateCache<T, I>>(
     () => ({}),
     // Force resetting the cache if config changes
@@ -53,43 +54,41 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): { getFor
     [config],
   );
   // Keep track of ObjectStates that triggered auto-save when a save was already in progress.
-  const pendingAutoSaves = useRef<ObjectState<T>[]>([]);
-
+  const pendingAutoSaves = useRef<Set<ObjectState<T>>>(new Set());
   // Use a ref so our memo'ized `autoSave` always see the latest value
-  const autoSaveRef = useRef<((state: ObjectState<T>) => void) | undefined>(autoSave);
+  const autoSaveRef = useRef<UseFormStatesOpts<T, I>["autoSave"]>(autoSave);
   autoSaveRef.current = autoSave;
-
-  async function maybeAutoSave(form: ObjectState<T>) {
-    if (isAutoSaving && !pendingAutoSaves.current.includes(form)) {
-      pendingAutoSaves.current.push(form);
-    }
-
-    // Don't use canSave() because we don't want to set touched for all the fields
-    if (autoSaveRef.current && form.dirty && form.valid && !isAutoSaving) {
-      try {
-        isAutoSaving = true;
-        // See if we have any reactions that want to run (i.e. added by addRules hooks)
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        // If a reaction re-queued our form during the ^ wait, remove it
-        let i = -1;
-        while ((i = pendingAutoSaves.current.indexOf(form)) !== -1) {
-          pendingAutoSaves.current.splice(i, 1);
-        }
-        await autoSaveRef.current(form);
-      } finally {
-        isAutoSaving = false;
-
-        if (pendingAutoSaves.current.length > 0) {
-          await maybeAutoSave(pendingAutoSaves.current.shift()!);
-        }
-      }
-    }
-  }
 
   const getFormState = useCallback(
     (input: I) => {
       const existing = objectStateCache[getId(input)];
       let form = existing?.[0];
+
+      async function maybeAutoSave(form: ObjectState<T>) {
+        // Don't use canSave() because we don't want to set touched for all the fields
+        if (autoSaveRef.current && form.dirty && form.valid) {
+          const { current: pending } = pendingAutoSaves;
+          if (isAutoSaving) {
+            pending.add(form);
+            return;
+          }
+          try {
+            isAutoSaving = true;
+            // See if we have any reactions that want to run (i.e. added by addRules hooks)
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            // If a reaction re-queued our form during the ^ wait, remove it
+            pending.delete(form);
+            await autoSaveRef.current(form);
+          } finally {
+            isAutoSaving = false;
+            if (pending.size > 0) {
+              const first = pending.values().next().value!;
+              pending.delete(first);
+              await maybeAutoSave(first);
+            }
+          }
+        }
+      }
 
       // If it didn't exist, then add to the cache.
       if (!form) {
