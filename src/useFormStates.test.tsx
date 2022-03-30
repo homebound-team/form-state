@@ -211,11 +211,6 @@ describe("useFormStates", () => {
     const autoSave = jest.fn();
 
     function TestComponent() {
-      const config: ObjectConfig<FirstAndLastValue> = {
-        id: { type: "value" },
-        firstName: { type: "value" },
-        lastName: { type: "value" },
-      };
       const { getFormState } = useFormStates({
         config,
         getId: (o) => o.id!,
@@ -242,11 +237,62 @@ describe("useFormStates", () => {
     expect(autoSave).toHaveBeenCalledTimes(1);
     expect(autoSave).toHaveBeenCalledWith({ id: "a:1", firstName: "first", lastName: "first" });
   });
+
+  it("can set readOnly via the hook opt", async () => {
+    // Given a test component
+    function TestComponent({ readOnly }: { readOnly: boolean }) {
+      const { getFormState } = useFormStates({
+        config,
+        getId: (o) => o.id!,
+        // And it passes readOnly directly to useFormStates
+        readOnly,
+      });
+      return <ChildComponent os={getFormState({ id: "a:1", firstName: "Brandon" })} />;
+    }
+    // When we render
+    const r = await render(<TestComponent readOnly={true} />);
+    // Then it's read only
+    expect(r.firstName()).toHaveAttribute("data-readonly", "true");
+    // And when we rerender
+    await r.rerender(<TestComponent readOnly={false} />);
+    // Then it's not read only
+    expect(r.firstName()).toHaveAttribute("data-readonly", "false");
+  });
+
+  it("can set readOnly via the getFormState function", async () => {
+    // Given a test component
+    function TestComponent({ readOnly }: { readOnly: boolean }) {
+      const { getFormState } = useFormStates({
+        config,
+        getId: (o) => o.id!,
+      });
+      // And it passes readOnly directly to getFormState
+      return <ChildComponent os={getFormState({ id: "a:1", firstName: "Brandon" }, { readOnly })} />;
+    }
+    // When we render
+    const r = await render(<TestComponent readOnly={true} />);
+    // Then it's read only
+    expect(r.firstName()).toHaveAttribute("data-readonly", "true");
+    // And when we rerender
+    await r.rerender(<TestComponent readOnly={false} />);
+    // Then it's not read only
+    expect(r.firstName()).toHaveAttribute("data-readonly", "false");
+  });
 });
 
 type FormValue = Pick<AuthorInput, "id" | "firstName">;
 type FirstAndLastValue = Pick<AuthorInput, "id" | "firstName" | "lastName">;
 
+const config: ObjectConfig<FirstAndLastValue> = {
+  id: { type: "value" },
+  firstName: { type: "value" },
+  lastName: { type: "value" },
+};
+
 function ChildComponent({ os }: { os: ObjectState<FormValue> }) {
-  return <div data-testid="firstName">{os.firstName.value}</div>;
+  return (
+    <div data-testid="firstName" data-readonly={os.firstName.readOnly}>
+      {os.firstName.value}
+    </div>
+  );
 }
