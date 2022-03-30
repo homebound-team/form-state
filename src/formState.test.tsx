@@ -777,9 +777,52 @@ describe("formState", () => {
   it("maintain field readOnly state when form is readOnly", () => {
     // Given a formState
     const formState = createObjectState<BookInput>({ title: { type: "value", rules: [required], readOnly: true } }, {});
-
     // Then expect form
     expect(formState.title.readOnly).toBeTruthy();
+  });
+
+  it("has an object-level readOnly=true override field-level readOnly=false", () => {
+    // Given a top-level object
+    const a1 = createAuthorInputState({
+      firstName: "a1",
+      lastName: "aL1",
+      books: [{ title: "b1", classification: dd100 }],
+    });
+    // And it is read-only
+    a1.readOnly = true;
+
+    // Then it's fields are read-only
+    const fields = [a1, a1.firstName, a1.books, a1.books.rows[0].title, a1.books.rows[0].classification];
+    fields.forEach((f) => expect(f.readOnly).toBeTruthy());
+
+    // And even if a specific field tries to _not_ be read-only,
+    // i.e. due to a more granular business rule that happens to
+    // be allowed right now
+    a1.firstName.readOnly = false;
+
+    // Then the field-level rule is ignored, and it's still treated as read-only
+    expect(a1.firstName.readOnly).toBeTruthy();
+  });
+
+  it("has an field-level readOnly=true override object-level readOnly=false", () => {
+    // Given a top-level object
+    const a1 = createAuthorInputState({
+      firstName: "a1",
+      lastName: "aL1",
+      books: [{ title: "b1", classification: dd100 }],
+    });
+    // And the top-level form is explicitly set to read-only=false
+    a1.readOnly = false;
+
+    // Then it's fields are not read-only
+    const fields = [a1, a1.firstName, a1.books, a1.books.rows[0].title, a1.books.rows[0].classification];
+    fields.forEach((f) => expect(f.readOnly).toBeFalsy());
+
+    // But when one of the fields opts in to readOnly
+    a1.firstName.readOnly = true;
+
+    // Then the field-level rule is respected
+    expect(a1.firstName.readOnly).toBeTruthy();
   });
 
   it("canSave returns dirty and touches", () => {

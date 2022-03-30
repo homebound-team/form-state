@@ -42,10 +42,19 @@ type UseFormStatesOpts<T, I> = {
    * Does not need to be stable/useMemo'd.
    */
   map?: (input: Exclude<I, null | undefined>) => T;
+
+  /**
+   * Sets all `ObjectState`s to readOnly.
+   */
+  readOnly?: boolean;
 };
 
-export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): { getFormState: (input: I) => ObjectState<T> } {
-  const { config, autoSave, getId, map, addRules } = opts;
+type UseFormStatesHook<T, I> = {
+  getFormState: (input: I, opts?: { readOnly?: boolean }) => ObjectState<T>;
+};
+
+export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormStatesHook<T, I> {
+  const { config, autoSave, getId, map, addRules, readOnly = false } = opts;
 
   const objectStateCache = useMemo<ObjectStateCache<T, I>>(
     () => ({}),
@@ -58,9 +67,12 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): { getFor
   // Use a ref so our memo'ized `autoSave` always see the latest value
   const autoSaveRef = useRef<UseFormStatesOpts<T, I>["autoSave"]>(autoSave);
   autoSaveRef.current = autoSave;
+  // Use a ref b/c we're memod
+  const readOnlyRef = useRef<boolean>(readOnly);
+  readOnlyRef.current = readOnly;
 
-  const getFormState = useCallback(
-    (input: I) => {
+  const getFormState = useCallback<UseFormStatesHook<T, I>["getFormState"]>(
+    (input, opts = {}) => {
       const existing = objectStateCache[getId(input)];
       let form = existing?.[0];
 
@@ -106,6 +118,8 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): { getFor
         (form as ObjectStateInternal<any>).set(initValue(config, map ? { map, input } : input), { refreshing: true });
         existing[1] = input;
       }
+
+      form.readOnly = readOnlyRef.current || !!opts.readOnly;
 
       return form;
     },

@@ -242,12 +242,13 @@ export function createObjectState<T>(
   opts: { maybeAutoSave?: () => void } = {},
 ): ObjectState<T> {
   const noop = () => {};
-  return newObjectState(config, undefined, instance, undefined, opts.maybeAutoSave || noop);
+  return newObjectState(config, undefined, undefined, instance, undefined, opts.maybeAutoSave || noop);
 }
 
 function newObjectState<T, P = any>(
   config: ObjectConfig<T>,
   parentState: (() => ObjectState<P>) | undefined,
+  parentListState: FieldState<any, any> | undefined,
   instance: T,
   key: keyof T | undefined,
   maybeAutoSave: () => void,
@@ -294,7 +295,7 @@ function newObjectState<T, P = any>(
       if (!instance[key]) {
         instance[key] = {} as any;
       }
-      field = newObjectState(config.config, getObjectState, instance[key] as any, key, maybeAutoSave) as any;
+      field = newObjectState(config.config, getObjectState, undefined, instance[key] as any, key, maybeAutoSave) as any;
     } else {
       throw new Error("Unsupported");
     }
@@ -346,13 +347,16 @@ function newObjectState<T, P = any>(
     },
 
     get readOnly(): boolean {
-      return this._readOnly || this._considerReadOnly();
+      return (
+        this._readOnly ||
+        this._considerReadOnly() ||
+        (parentState && parentState().readOnly) ||
+        parentListState?.readOnly
+      );
     },
 
     set readOnly(readOnly: boolean) {
       this._readOnly = readOnly;
-      // Use this.readOnly so we can _considerReadOnly
-      getFields(this).forEach((f) => (f.readOnly = this.readOnly));
     },
 
     get valid(): boolean {
@@ -488,8 +492,6 @@ function newValueFieldState<T, K extends keyof T>(
 
     touched: false,
 
-    /** Configuration readOnly state. Mostly used to determine original state. */
-    _configReadOnly: readOnly,
     /** Current readOnly value. */
     _readOnly: readOnly || false,
 
@@ -517,26 +519,14 @@ function newValueFieldState<T, K extends keyof T>(
       return !areEqual(this.originalValue, this.value);
     },
 
+    /** Returns whether this field is readOnly, although if our parent is readOnly then it trumps. */
     get readOnly(): boolean {
-      return this._readOnly;
+      return parentState().readOnly || this._readOnly;
     },
 
-    /**
-     * Field readOnly is only opinionated when set.
-     * - When set to true from FormObject, accept change since true is higher priority.
-     * - When set to false from FormObject, use original (`_configReadOnly`) value.
-     */
+    /** Sets the field readOnly, but `v` will still be or-d with the parent's readOnly state. */
     set readOnly(v: boolean) {
-      if (this._configReadOnly === undefined) {
-        this._readOnly = v;
-        return;
-      }
-
-      if (v) {
-        this._readOnly = v;
-      } else {
-        this._readOnly = this._configReadOnly || false;
-      }
+      this._readOnly = v;
     },
 
     // For primitive fields, the changed value is just the value.
@@ -687,12 +677,11 @@ function newListFieldState<T, K extends keyof T, U>(
     _readOnly: false,
 
     get readOnly(): boolean {
-      return this._readOnly;
+      return this._readOnly || parentState().readOnly;
     },
 
     set readOnly(readOnly: boolean) {
       this._readOnly = readOnly;
-      this.rows.forEach((r) => (r.readOnly = readOnly));
     },
 
     set value(v: U[]) {
@@ -738,7 +727,14 @@ function newListFieldState<T, K extends keyof T, U>(
         // Because we're reading from this.value, child will be the proxy version
         let childState = rowMap.get(child);
         if (!childState) {
-          childState = newObjectState<U>(config, parentState, child, undefined, maybeAutoSave);
+          childState = newObjectState<U>(
+            config,
+            parentState,
+            (list as any) as FieldState<any, any>,
+            child,
+            undefined,
+            maybeAutoSave,
+          );
           rowMap.set(child, childState);
         }
         return childState;
