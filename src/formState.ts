@@ -351,7 +351,7 @@ function newObjectState<T, P = any>(
         this._readOnly ||
         this._considerReadOnly() ||
         (parentState && parentState().readOnly) ||
-        parentListState?.readOnly
+        !!parentListState?.readOnly
       );
     },
 
