@@ -18,10 +18,10 @@ describe("useFormState", () => {
       type FormValue = Pick<AuthorInput, "firstName">;
       const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
       // And we have query data that may or may not be defined
-      const data: { firstName: string } | undefined = Math.random() >= 0 ? { firstName: "bob" } : undefined;
-      // Then the lambda is passed the "de-undefined" data
+      const data: { firstName: string } | undefined = { firstName: "bob" };
       const form = useFormState({
         config,
+        // Then the lambda is passed the "de-undefined" data, i.e. `d.firstName` is not a compile error
         init: { input: data, map: (d) => ({ firstName: d.firstName }) },
       });
       return <div>{form.firstName.value}</div>;
@@ -573,6 +573,24 @@ describe("useFormState", () => {
     // Then we only called autoSave once
     expect(autoSaveStub).toBeCalledTimes(1);
     expect(autoSaveStub).toBeCalledWith({ id: "a:1", firstName: "first", lastName: "first" });
+  });
+
+  it("sets loading if input.data is undefined", async () => {
+    // Given a component
+    type FormValue = Pick<AuthorInput, "firstName">;
+    const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+    function TestComponent({ data }: { data: AuthorInput | undefined }) {
+      const form = useFormState({ config, init: { input: data, map: (d) => d } });
+      return <Observer>{() => <div data-testid="loading">{String(form.loading)}</div>}</Observer>;
+    }
+    // And we initially pass in `init.input: undefined`
+    const r = await render(<TestComponent data={undefined} />);
+    // Then the form is marked as loading
+    expect(r.loading()).toHaveTextContent("true");
+    // And when the data is loading
+    await r.rerender(<TestComponent data={{ firstName: "first" }} />);
+    // Then the form is marked as not loading
+    expect(r.loading()).toHaveTextContent("false");
   });
 });
 

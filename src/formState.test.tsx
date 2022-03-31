@@ -793,16 +793,13 @@ describe("formState", () => {
     });
     // And it is read-only
     a1.readOnly = true;
-
-    // Then it's fields are read-only
+    // Then its fields are read-only
     const fields = [a1, a1.firstName, a1.books, a1.books.rows[0].title, a1.books.rows[0].classification];
     fields.forEach((f) => expect(f.readOnly).toBeTruthy());
-
     // And even if a specific field tries to _not_ be read-only,
     // i.e. due to a more granular business rule that happens to
     // be allowed right now
     a1.firstName.readOnly = false;
-
     // Then the field-level rule is ignored, and it's still treated as read-only
     expect(a1.firstName.readOnly).toBeTruthy();
   });
@@ -816,16 +813,49 @@ describe("formState", () => {
     });
     // And the top-level form is explicitly set to read-only=false
     a1.readOnly = false;
-
-    // Then it's fields are not read-only
+    // Then its fields are not read-only
     const fields = [a1, a1.firstName, a1.books, a1.books.rows[0].title, a1.books.rows[0].classification];
     fields.forEach((f) => expect(f.readOnly).toBeFalsy());
-
     // But when one of the fields opts in to readOnly
     a1.firstName.readOnly = true;
-
     // Then the field-level rule is respected
     expect(a1.firstName.readOnly).toBeTruthy();
+  });
+
+  it("has an object-level loading=true override field-level loading=false", () => {
+    // Given a top-level object
+    const a1 = createAuthorInputState({
+      firstName: "a1",
+      lastName: "aL1",
+      books: [{ title: "b1", classification: dd100 }],
+    });
+    // And it is loading
+    a1.loading = true;
+    // Then its fields are read-only
+    const fields = [a1, a1.firstName, a1.books, a1.books.rows[0].title, a1.books.rows[0].classification];
+    fields.forEach((f) => expect(f.loading).toBeTruthy());
+    // And even if a specific field tries to _not_ be loading
+    a1.firstName.loading = false;
+    // Then the field-level value is ignored, and it's still treated as loading
+    expect(a1.firstName.loading).toBeTruthy();
+  });
+
+  it("has an field-level loading=true override object-level loading=false", () => {
+    // Given a top-level object
+    const a1 = createAuthorInputState({
+      firstName: "a1",
+      lastName: "aL1",
+      books: [{ title: "b1", classification: dd100 }],
+    });
+    // And the top-level form is explicitly set to loading=false
+    a1.loading = false;
+    // Then its fields are not loading
+    const fields = [a1, a1.firstName, a1.books, a1.books.rows[0].title, a1.books.rows[0].classification];
+    fields.forEach((f) => expect(f.loading).toBeFalsy());
+    // But when one of the fields opts in to loading
+    a1.firstName.loading = true;
+    // Then the field-level loading is respected
+    expect(a1.firstName.loading).toBeTruthy();
   });
 
   it("canSave returns dirty and touches", () => {

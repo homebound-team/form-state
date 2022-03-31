@@ -113,6 +113,9 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
       const value = firstRunRef.current ? firstInitValue : initValue(config, init);
       const form = createObjectState(config, value, { maybeAutoSave });
       form.readOnly = readOnly;
+      if (init && "input" in init && !("ifUndefined" in init)) {
+        form.loading = init.input === undefined;
+      }
       // The identity of `addRules` is not stable, but assume that it is for better UX.
       (addRules || (() => {}))(form);
       firstRunRef.current = true;
@@ -132,6 +135,9 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
     if (firstRunRef.current || isWrappingMobxProxy) {
       firstRunRef.current = false;
       return;
+    }
+    if (init && "input" in init && !("ifUndefined" in init)) {
+      form.loading = init.input === undefined;
     }
     (form as any).set(initValue(config, init), { refreshing: true });
   }, [form, ...dep]);
