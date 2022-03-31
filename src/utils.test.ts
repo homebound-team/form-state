@@ -1,6 +1,7 @@
 import { isObservable, observable } from "mobx";
-import { ObjectConfig, required } from "src/formState";
+import { ObjectConfig } from "src/config";
 import { AuthorInput, BookInput } from "src/formStateDomain";
+import { required } from "src/rules";
 import { pickFields } from "src/utils";
 
 describe("utils", () => {

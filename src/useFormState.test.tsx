@@ -3,9 +3,12 @@ import { act } from "@testing-library/react";
 import { reaction } from "mobx";
 import { Observer } from "mobx-react";
 import { useMemo, useState } from "react";
+import { ObjectConfig } from "src/config";
+import { ObjectState } from "src/fields/objectField";
+import { FieldState } from "src/fields/valueField";
 import { TextField } from "src/FormStateApp";
 import { AuthorInput } from "src/formStateDomain";
-import { FieldState, ObjectConfig, ObjectState, required } from "./formState";
+import { required } from "src/rules";
 import { useFormState } from "./useFormState";
 
 describe("useFormState", () => {

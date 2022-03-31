@@ -1,6 +1,9 @@
 import { autorun, makeAutoObservable, observable, reaction } from "mobx";
+import { ObjectConfig } from "src/config";
+import { createObjectState, ObjectState } from "src/fields/objectField";
+import { FieldState } from "src/fields/valueField";
 import { AuthorAddress, AuthorInput, BookInput, Color, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
-import { createObjectState, FieldState, ObjectConfig, ObjectState, required } from "./formState";
+import { required } from "src/rules";
 
 describe("formState", () => {
   it("mobx lists maintain observable identity", () => {
