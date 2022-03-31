@@ -1,9 +1,11 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
 import { reaction } from "mobx";
 import { useMemo, useState } from "react";
-import { ObjectConfig, ObjectState, required } from "src/formState";
+import { ObjectConfig } from "src/config";
+import { ObjectState } from "src/fields/objectField";
 import { TextField } from "src/FormStateApp";
 import { AuthorInput } from "src/formStateDomain";
+import { required } from "src/rules";
 import { useFormStates } from "src/useFormStates";
 
 describe("useFormStates", () => {
@@ -201,7 +203,7 @@ describe("useFormStates", () => {
       );
     }
     // When we render
-    const r = await render(<TestComponent />);
+    await render(<TestComponent />);
     // Then addRules was only called once
     expect(addRules).toHaveBeenCalledTimes(1);
   });

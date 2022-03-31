@@ -1,6 +1,22 @@
+import equal from "fast-deep-equal";
 import { isPlainObject } from "is-plain-object";
-import { isObservable } from "mobx";
-import { ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/formState";
+import { isObservable, toJS } from "mobx";
+import { ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
+
+export type Builtin = Date | Function | Uint8Array | string | number | boolean;
+
+export type Primitive = undefined | null | boolean | string | number | Function | Date | { toJSON(): any };
+
+/** Makes the keys in `T` required while keeping the values undefined. */
+export type DeepRequired<T> = T extends Primitive
+  ? T
+  : {
+      [P in keyof Required<T>]: T[P] extends Array<infer U>
+        ? Array<DeepRequired<U>>
+        : T[P] extends ReadonlyArray<infer U2>
+        ? ReadonlyArray<DeepRequired<U2>>
+        : DeepRequired<T[P]>;
+    };
 
 export function fail(message?: string): never {
   throw new Error(message || "Failed");
@@ -68,4 +84,40 @@ export function pickFields<T, I>(
       }
     }),
   ) as any;
+}
+
+export function isNotUndefined<T>(value: T | undefined): value is T {
+  return value !== undefined;
+}
+
+export function isEmpty(value: any): boolean {
+  return value === undefined || value === null || value === "";
+}
+
+/**
+ * An equals that does deep-ish equality.
+ *
+ * We only do non-identity equals for:
+ *
+ * - "plain" objects that have no custom prototype/i.e. are object literals
+ * - objects that implement `toJSON`
+ *
+ */
+export function areEqual<T>(a?: T, b?: T): boolean {
+  if (isPlainObject(a)) {
+    return equal(toJS(a), toJS(b));
+  }
+  if (hasToJSON(a) || hasToJSON(b)) {
+    const a1 = hasToJSON(a) ? a.toJSON() : a;
+    const b1 = hasToJSON(b) ? b.toJSON() : b;
+    return equal(a1, b1);
+  }
+  if (a && b && a instanceof Array && b instanceof Array) {
+    return equal(a, b);
+  }
+  return a === b;
+}
+
+export function hasToJSON(o?: unknown): o is { toJSON(): void } {
+  return !!(o && typeof o === "object" && "toJSON" in o);
 }

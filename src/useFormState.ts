@@ -1,6 +1,7 @@
 import { isPlainObject } from "is-plain-object";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createObjectState, ObjectConfig, ObjectState } from "./formState";
+import { ObjectConfig } from "src/config";
+import { createObjectState, ObjectState } from "src/fields/objectField";
 import { initValue } from "./utils";
 
 export type UseFormStateOpts<T, I> = {
