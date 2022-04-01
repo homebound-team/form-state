@@ -575,6 +575,24 @@ describe("useFormState", () => {
     expect(autoSaveStub).toBeCalledWith({ id: "a:1", firstName: "first", lastName: "first" });
   });
 
+  it("sets loading if opts.loading is true", async () => {
+    // Given a component
+    type FormValue = Pick<AuthorInput, "firstName">;
+    const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+    function TestComponent({ loading }: { loading: boolean }) {
+      const form = useFormState({ config, loading });
+      return <Observer>{() => <div data-testid="loading">{String(form.loading)}</div>}</Observer>;
+    }
+    // And we initially pass in `init.query.loading: true`
+    const r = await render(<TestComponent loading={true} />);
+    // Then the form is marked as loading
+    expect(r.loading()).toHaveTextContent("true");
+    // And when the query is not loading
+    await r.rerender(<TestComponent loading={false} />);
+    // Then the form is marked as not loading
+    expect(r.loading()).toHaveTextContent("false");
+  });
+
   it("sets loading if input.data is undefined", async () => {
     // Given a component
     type FormValue = Pick<AuthorInput, "firstName">;
@@ -587,8 +605,26 @@ describe("useFormState", () => {
     const r = await render(<TestComponent data={undefined} />);
     // Then the form is marked as loading
     expect(r.loading()).toHaveTextContent("true");
-    // And when the data is loading
+    // And when the data is no longer undefined
     await r.rerender(<TestComponent data={{ firstName: "first" }} />);
+    // Then the form is marked as not loading
+    expect(r.loading()).toHaveTextContent("false");
+  });
+
+  it("sets loading if query.loading is true", async () => {
+    // Given a component
+    type FormValue = Pick<AuthorInput, "firstName">;
+    const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+    function TestComponent({ loading, data }: { loading: boolean; data: AuthorInput | undefined }) {
+      const form = useFormState({ config, init: { query: { data, loading, error: null }, map: (d) => d } });
+      return <Observer>{() => <div data-testid="loading">{String(form.loading)}</div>}</Observer>;
+    }
+    // And we initially pass in `init.query.loading: true`
+    const r = await render(<TestComponent loading={true} data={undefined} />);
+    // Then the form is marked as loading
+    expect(r.loading()).toHaveTextContent("true");
+    // And when the query is not loading
+    await r.rerender(<TestComponent loading={false} data={{ firstName: "first" }} />);
     // Then the form is marked as not loading
     expect(r.loading()).toHaveTextContent("false");
   });

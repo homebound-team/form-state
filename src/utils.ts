@@ -2,6 +2,7 @@ import equal from "fast-deep-equal";
 import { isPlainObject } from "is-plain-object";
 import { isObservable, toJS } from "mobx";
 import { ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
+import { InputAndMap, QueryAndMap, UseFormStateOpts } from "src/useFormState";
 
 export type Builtin = Date | Function | Uint8Array | string | number | boolean;
 
@@ -28,13 +29,23 @@ export function assertNever(x: never): never {
 
 /** Introspects the `init` prop to see if has a `map` function/etc. and returns the form value. */
 export function initValue<T>(config: ObjectConfig<T>, init: any): T {
-  const initValue =
-    init && "input" in init && "map" in init
-      ? init.input
-        ? init.map(init.input as any)
-        : init.ifUndefined || {}
-      : init || {};
-  return pickFields(config, initValue) as T;
+  let value: any;
+  if (isInput(init)) {
+    value = init.input ? init.map(init.input) : init.ifUndefined;
+  } else if (isQuery(init)) {
+    value = init.query.data ? init.map(init.query.data) : init.ifUndefined;
+  } else {
+    value = init;
+  }
+  return pickFields(config, value ?? {}) as T;
+}
+
+export function isInput<T, I>(init: UseFormStateOpts<T, I>["init"]): init is InputAndMap<T, I> {
+  return !!init && "input" in init && "map" in init;
+}
+
+export function isQuery<T, I>(init: UseFormStateOpts<T, I>["init"]): init is QueryAndMap<T, I> {
+  return !!init && "query" in init && "map" in init;
 }
 
 /**

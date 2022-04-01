@@ -2,7 +2,22 @@ import { isPlainObject } from "is-plain-object";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ObjectConfig } from "src/config";
 import { createObjectState, ObjectState } from "src/fields/objectField";
-import { initValue } from "./utils";
+import { initValue, isInput, isQuery } from "./utils";
+
+// A structural match for useQuery
+export type Query<I> = { data: I; loading: boolean; error?: any };
+
+export type InputAndMap<T, I> = {
+  input: I;
+  map: (input: Exclude<I, null | undefined>) => T;
+  ifUndefined?: T;
+};
+
+export type QueryAndMap<T, I> = {
+  query: Query<I>;
+  map: (input: Exclude<I, null | undefined>) => T;
+  ifUndefined?: T;
+};
 
 export type UseFormStateOpts<T, I> = {
   /** The form configuration, should be a module-level const or useMemo'd. */
@@ -25,13 +40,7 @@ export type UseFormStateOpts<T, I> = {
    * only call `init.map` if it's set, otherwise we'll use `init.ifDefined` or `{}`, saving you
    * from having to null check within your `init.map` function.
    */
-  init?:
-    | T
-    | {
-        input: I;
-        map: (input: Exclude<I, null | undefined>) => T;
-        ifUndefined?: T;
-      };
+  init?: T | InputAndMap<T, I> | QueryAndMap<T, I>;
 
   /**
    * A hook to add custom, cross-field validation rules that can be difficult to setup directly in the config DSL.
@@ -42,6 +51,14 @@ export type UseFormStateOpts<T, I> = {
 
   /** Whether the form should be read only, when changed it won't re-create the whole form. */
   readOnly?: boolean;
+
+  /**
+   * Whether the form is loading.
+   *
+   * Note that we also will infer loading from `init.input === undefined` or `init.query.loading`,
+   * so you only need to set this directly if you're not using either of those conventions.
+   */
+  loading?: boolean;
 
   /**
    * Fired when the form should auto-save, i.e. after a) blur and b) all fields are valid.
@@ -64,7 +81,7 @@ let pendingAutoSave = false;
  * Creates a formState instance for editing in a form.
  */
 export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T> {
-  const { config, init, addRules, readOnly = false, autoSave } = opts;
+  const { config, init, addRules, readOnly = false, loading, autoSave } = opts;
 
   // Use a ref so our memo'ized `onBlur` always see the latest value
   const autoSaveRef = useRef<((state: ObjectState<T>) => void) | undefined>(autoSave);
@@ -75,7 +92,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
   const [firstInitValue] = useState(() => initValue(config, init));
   const isWrappingMobxProxy = !isPlainObject(firstInitValue);
   // If they're using init.input, useMemo on it (and it might be an array), otherwise allow the identity of init be unstable
-  const dep = init && "input" in init && "map" in init ? (Array.isArray(init.input) ? init.input : [init.input]) : [];
+  const dep = isInput(init) ? makeArray(init.input) : isQuery(init) ? [init.query.data, init.query.loading] : [];
 
   const form = useMemo(
     () => {
@@ -113,9 +130,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
       const value = firstRunRef.current ? firstInitValue : initValue(config, init);
       const form = createObjectState(config, value, { maybeAutoSave });
       form.readOnly = readOnly;
-      if (init && "input" in init && !("ifUndefined" in init)) {
-        form.loading = init.input === undefined;
-      }
+      setLoading(form, opts);
       // The identity of `addRules` is not stable, but assume that it is for better UX.
       (addRules || (() => {}))(form);
       firstRunRef.current = true;
@@ -136,16 +151,35 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
       firstRunRef.current = false;
       return;
     }
-    if (init && "input" in init && !("ifUndefined" in init)) {
-      form.loading = init.input === undefined;
-    }
+    setLoading(form, opts);
     (form as any).set(initValue(config, init), { refreshing: true });
   }, [form, ...dep]);
 
   // Use useEffect so that we don't touch the form.init proxy during a render
   useEffect(() => {
     form.readOnly = readOnly;
-  }, [form, readOnly]);
+    if (loading !== undefined) {
+      form.loading = loading;
+    }
+  }, [form, readOnly, loading]);
 
   return form;
+}
+
+function setLoading(form: ObjectState<any>, opts: UseFormStateOpts<any, any>) {
+  const { loading, init } = opts;
+  if (loading !== undefined) {
+    // Prefer the explicit/top-level opts.loading if it's set
+    form.loading = loading;
+  } else if (isInput(init) && !init.ifUndefined) {
+    // Otherwise, check for `init.input`
+    form.loading = init.input === undefined;
+  } else if (isQuery(init)) {
+    // Or `query.loading`
+    form.loading = init.query.loading;
+  }
+}
+
+function makeArray(input: any): any[] {
+  return Array.isArray(input) ? input : [input];
 }
