@@ -94,11 +94,11 @@ export function FormStateApp() {
                 <button data-testid="touch" onClick={() => (formState.touched = !formState.touched)}>
                   touch
                 </button>
-                <button data-testid="reset" onClick={() => formState.reset()}>
-                  reset
+                <button data-testid="revertChanges" onClick={() => formState.revertChanges()}>
+                  revert
                 </button>
-                <button data-testid="save" onClick={() => formState.save()}>
-                  save
+                <button data-testid="commitChanges" onClick={() => formState.commitChanges()}>
+                  commit
                 </button>
                 <button data-testid="set" onClick={() => formState.set({ firstName: "a2" })}>
                   set

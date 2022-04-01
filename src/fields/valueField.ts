@@ -37,9 +37,9 @@ export interface FieldState<T, V> {
   maybeAutoSave(): void;
   set(value: V, opts?: SetOpts): void;
   /** Reverts back to the original value and resets dirty/touched. */
-  reset(): void;
+  revertChanges(): void;
   /** Accepts the current changed value (if any) as the original and resets dirty/touched. */
-  save(): void;
+  commitChanges(): void;
 }
 
 /** Public options for our `set` command. */
@@ -217,14 +217,14 @@ export function newValueFieldState<T, K extends keyof T>(
       }
     },
 
-    reset() {
+    revertChanges() {
       if (!computed) {
         this.set(this.originalValue, { resetting: true });
       }
       this.touched = false;
     },
 
-    save() {
+    commitChanges() {
       if (isPlainObject(this.originalValue)) {
         this.originalValue = toJS(this.value);
       } else {

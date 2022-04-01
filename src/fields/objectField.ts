@@ -235,13 +235,13 @@ export function newObjectState<T, P = any>(
     },
 
     // Resets all fields back to their original values
-    reset() {
-      getFields(this).forEach((f) => f.reset());
+    revertChanges() {
+      getFields(this).forEach((f) => f.revertChanges());
     },
 
     // Saves all current values into _originalValue
-    save() {
-      getFields(this).forEach((f) => f.save());
+    commitChanges() {
+      getFields(this).forEach((f) => f.commitChanges());
     },
 
     // Create a result that is only populated with changed keys
