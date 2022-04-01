@@ -154,6 +154,7 @@ export function newObjectState<T, P = any>(
 
     // private
     _readOnly: false,
+    _loading: false,
 
     _considerDeleted(): boolean {
       const deleteField = getFields(this).find((f) => f._isDeleteKey);
@@ -184,6 +185,14 @@ export function newObjectState<T, P = any>(
 
     set readOnly(readOnly: boolean) {
       this._readOnly = readOnly;
+    },
+
+    get loading(): boolean {
+      return this._loading || (parentState && parentState().loading) || !!parentListState?.loading;
+    },
+
+    set loading(loading: boolean) {
+      this._loading = loading;
     },
 
     get valid(): boolean {

@@ -40,6 +40,7 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     _focused: false,
     _readOnly: false,
+    _loading: false,
 
     get readOnly(): boolean {
       return this._readOnly || parentState().readOnly;
@@ -47,6 +48,14 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     set readOnly(readOnly: boolean) {
       this._readOnly = readOnly;
+    },
+
+    get loading(): boolean {
+      return this._loading || parentState().loading;
+    },
+
+    set loading(loading: boolean) {
+      this._loading = loading;
     },
 
     set value(v: U[]) {

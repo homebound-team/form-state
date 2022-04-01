@@ -20,6 +20,7 @@ export interface FieldState<T, V> {
   readonly originalValue: V;
   touched: boolean;
   readOnly: boolean;
+  loading: boolean;
   readonly required: boolean;
   readonly dirty: boolean;
   readonly valid: boolean;
@@ -93,7 +94,7 @@ export function newValueFieldState<T, K extends keyof T>(
 
     /** Current readOnly value. */
     _readOnly: readOnly || false,
-
+    _loading: false,
     _focused: false,
 
     _isIdKey: isIdKey,
@@ -123,9 +124,19 @@ export function newValueFieldState<T, K extends keyof T>(
       return parentState().readOnly || this._readOnly;
     },
 
-    /** Sets the field readOnly, but `v` will still be or-d with the parent's readOnly state. */
-    set readOnly(v: boolean) {
-      this._readOnly = v;
+    /** Sets the field readOnly, but `loading` will still be or-d with the parent's readOnly state. */
+    set readOnly(readOnly: boolean) {
+      this._readOnly = readOnly;
+    },
+
+    /** Returns whether this field is loading, or if our parent is loading. */
+    get loading(): boolean {
+      return parentState().loading || this._loading;
+    },
+
+    /** Sets the field loading, but `loading` will still be or-d with the parent's loading state. */
+    set loading(loading: boolean) {
+      this._loading = loading;
     },
 
     // For primitive fields, the changed value is just the value.
