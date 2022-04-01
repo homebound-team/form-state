@@ -13,7 +13,7 @@ describe("FormStateApp", () => {
     fireEvent.blur(r.firstName());
     expect(r.firstName_touched()).toHaveTextContent("true");
 
-    click(r.save);
+    click(r.commitChanges);
     expect(r.firstName_dirty()).toHaveTextContent("false");
     expect(r.firstName_touched()).toHaveTextContent("false");
   });
@@ -22,7 +22,7 @@ describe("FormStateApp", () => {
     const r = await render(<FormStateApp />);
     expect(r.firstName_original()).toHaveTextContent("a1");
     click(r.set);
-    click(r.save);
+    click(r.commitChanges);
     expect(r.firstName_original()).toHaveTextContent("a2");
   });
 });

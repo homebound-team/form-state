@@ -516,7 +516,7 @@ describe("formState", () => {
     a1.set({ firstName: "first" });
     expect(maybeAutoSave).toBeCalledTimes(1);
     // When we reset
-    a1.reset();
+    a1.revertChanges();
     // We don't call blur again
     expect(maybeAutoSave).toBeCalledTimes(1);
   });
@@ -614,7 +614,7 @@ describe("formState", () => {
     a1.books.add({ title: "b3" });
     expect(a1.books.touched).toEqual(true);
     expect(a1.dirty).toBeTruthy();
-    a1.reset();
+    a1.revertChanges();
     expect(a1.firstName.value).toBe("a1");
     expect(a1.firstName.touched).toBeFalsy();
     expect(a1.lastName.value).toBe("aL1");
@@ -651,7 +651,7 @@ describe("formState", () => {
     // And the "readOnly=true" operation has "beat" the reset operation
     a1.readOnly = true;
     // When we reset
-    a1.reset();
+    a1.revertChanges();
     // Then it still works
     expect(a1.firstName.value).toBe("a1");
     expect(a1.firstName.touched).toBeFalsy();
@@ -684,17 +684,17 @@ describe("formState", () => {
 
     // verify ValueFieldState is dirty, then save, then no longer dirty.
     expect(a1.firstName.dirty).toBeTruthy();
-    a1.firstName.save();
+    a1.firstName.commitChanges();
     expect(a1.firstName.dirty).toBeFalsy();
 
     // verify ListFieldState is dirty, then save, then no longer dirty.
     expect(a1.books.dirty).toBeTruthy();
-    a1.books.save();
+    a1.books.commitChanges();
     expect(a1.books.dirty).toBeFalsy();
 
     // Verify the remaining form is still dirty
     expect(a1.dirty).toBeTruthy();
-    a1.save();
+    a1.commitChanges();
     // Verify after save the whole form is no longer dirty.
     expect(a1.dirty).toBeFalsy();
   });
@@ -961,7 +961,7 @@ describe("formState", () => {
     expect(a.books.rows[1].readOnly).toBeFalsy();
     expect(a.books.rows[1].title.readOnly).toBeFalsy();
     // And reset does not blow up
-    a.reset();
+    a.revertChanges();
   });
 
   it("can set nested values when original null", () => {
@@ -1026,7 +1026,7 @@ describe("formState", () => {
     formState.firstName.value = "change";
     expect(formState.fullName.value).toEqual("change last");
 
-    formState.reset();
+    formState.revertChanges();
     expect(formState.firstName.value).toEqual("first");
   });
 
@@ -1043,7 +1043,7 @@ describe("formState", () => {
     expect(formState.firstName.value).toEqual("Bob");
     formState.fullName.set("Fred Smith");
     expect(formState.firstName.value).toEqual("Fred");
-    formState.reset();
+    formState.revertChanges();
     expect(formState.firstName.value).toEqual("first");
   });
 
@@ -1063,7 +1063,7 @@ describe("formState", () => {
     formState.firstName.value = "change";
     expect(formState.fullName.value).toEqual("change last");
 
-    formState.reset();
+    formState.revertChanges();
     expect(formState.firstName.value).toEqual("first");
   });
 
@@ -1501,7 +1501,7 @@ describe("formState", () => {
     // Then the list state is dirty
     expect(a1.books.dirty).toBeTruthy();
     // When saving the form state
-    a1.save();
+    a1.commitChanges();
     // Then the list is no longer dirty
     expect(a1.books.dirty).toBeFalsy();
     // When adding a new book

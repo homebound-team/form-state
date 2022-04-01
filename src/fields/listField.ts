@@ -232,17 +232,15 @@ export function newListFieldState<T, K extends keyof T, U>(
       maybeAutoSave();
     },
 
-    reset() {
+    revertChanges() {
       if (originalCopy) {
         this.set(originalCopy, { resetting: true });
-        this.rows.forEach((r) => r.reset());
+        this.rows.forEach((r) => r.revertChanges());
       }
     },
 
-    save() {
-      this.rows.forEach((r) => {
-        r.save();
-      });
+    commitChanges() {
+      this.rows.forEach((r) => r.commitChanges());
       originalCopy = [...((parentInstance[key] as any) || [])];
       _tick.value++;
     },
