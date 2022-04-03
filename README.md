@@ -7,14 +7,18 @@ It acts as a buffer between the canonical data/entity (i.e. the server-side data
 It also keeps track of low-level form UX details like:
 
 * Which form fields are dirty
-* Which forms fields are valid/invalid
-* Which forms fields are touched (i.e. don't show validation errors for untouched fields)
+* Which form fields are valid/invalid
+* Which form fields are touched (i.e. don't show validation errors for untouched fields)
 * Enabling/disabling buttons/form UX based on the overall form-wide state
 * Submitting the form should touch (validate) all fields
 * Auto-saving the form when appropriate (i.e. not on keystroke, but after blur/leaving the field)
-* Queue and debounce auto-saves if one is already in-flight
+* Queueing auto-saves if one is already in-flight
+  * Auto-saves in a table with per-row forms will serialize to avoid cross-child write conflicts on the backend
+* Not over-writing the user's WIP/actively-focused field when auto-saved data refreshes 
 * Building a wire payload that has only changed fields
-  * Handles children, i.e. a `author: { books: [...} }` will include only changed books if necessary
+  * `form.changedValue` will return the entity `id` + only changed fields to faciliate doing partial update APIs
+  * Supports collections of children, i.e. a `author: { books: [...} }` will include only changed books if necessary
+  * Child collections can be either exhausive (if any child changes, submit them all) or incremental (only include changed children), to match the backend endpoint's semantics
 
 # The Three Type/Shapes Mental Model
 
