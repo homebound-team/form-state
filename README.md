@@ -1,3 +1,6 @@
+![npm](https://img.shields.io/npm/v/@homebound/form-state)
+[![CircleCI](https://circleci.com/gh/homebound-team/form-state.svg?style=svg)](https://circleci.com/gh/homebound-team/form-state)
+
 # form-state
 
 form-state is a headless form state management library, built on top of mobx.
