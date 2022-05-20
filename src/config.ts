@@ -55,6 +55,8 @@ export type ValueFieldConfig<T, V> = {
   computed?: boolean;
   /** Marks a field as being initially read-only, i.e. `field.readOnly = true/false` can change this default. */
   readOnly?: boolean;
+  /** Marks an array field to be order agnostic when determining changed/dirty states */
+  strictOrder?: false;
 };
 
 /** Field configuration for list values, i.e. `U` is `Book` in a form with `books: Book[]`. */
