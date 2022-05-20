@@ -128,9 +128,8 @@ export function areEqual<T>(a?: T, b?: T, strictOrder?: boolean): boolean {
       return equal(a, b);
     }
 
-    const length = a.length;
-    if (length !== b.length) return false;
-    return a.every((a1) => !!b.find((b1) => equal(a1, b1)));
+    if (a.length !== b.length) return false;
+    return a.every((a1) => b.some((b1) => equal(a1, b1)));
   }
   return a === b;
 }
