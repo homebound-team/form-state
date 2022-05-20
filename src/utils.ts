@@ -114,7 +114,7 @@ export function isEmpty(value: any): boolean {
  * - objects that implement `toJSON`
  *
  */
-export function areEqual<T>(a?: T, b?: T): boolean {
+export function areEqual<T>(a?: T, b?: T, strictOrder?: boolean): boolean {
   if (isPlainObject(a)) {
     return equal(toJS(a), toJS(b));
   }
@@ -124,7 +124,12 @@ export function areEqual<T>(a?: T, b?: T): boolean {
     return equal(a1, b1);
   }
   if (a && b && a instanceof Array && b instanceof Array) {
-    return equal(a, b);
+    if (strictOrder !== false) {
+      return equal(a, b);
+    }
+
+    if (a.length !== b.length) return false;
+    return a.every((a1) => b.some((b1) => equal(a1, b1)));
   }
   return a === b;
 }

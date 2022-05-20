@@ -74,6 +74,7 @@ export function newValueFieldState<T, K extends keyof T>(
   isReadOnlyKey: boolean,
   computed: boolean,
   readOnly: boolean,
+  strictOrder: boolean,
   maybeAutoSave: () => void,
 ): FieldState<T, T[K] | null | undefined> {
   type V = T[K];
@@ -116,7 +117,7 @@ export function newValueFieldState<T, K extends keyof T>(
     },
 
     get dirty(): boolean {
-      return !areEqual(this.originalValue, this.value);
+      return !areEqual(this.originalValue, this.value, strictOrder);
     },
 
     /** Returns whether this field is readOnly, although if our parent is readOnly then it trumps. */
@@ -203,7 +204,7 @@ export function newValueFieldState<T, K extends keyof T>(
       const newValue = keepNull ? null : isEmpty(value) || coerceEmptyList ? undefined : value;
 
       // Set the value on our parent object
-      const changed = !areEqual(newValue, this.value);
+      const changed = !areEqual(newValue, this.value, strictOrder);
       parentInstance[key] = newValue!;
       _tick.value++;
 

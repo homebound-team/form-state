@@ -106,6 +106,7 @@ export function newObjectState<T, P = any>(
         config.isReadOnlyKey || false,
         config.computed || false,
         config.readOnly || false,
+        config.strictOrder ?? true,
         maybeAutoSave,
       );
     } else if (config.type === "list") {

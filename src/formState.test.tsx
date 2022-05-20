@@ -555,6 +555,32 @@ describe("formState", () => {
     expect(a1.dirty).toBeFalsy();
   });
 
+  it("can evaluate arrays to be equal even if order of options are different from original when strictOrder = false", () => {
+    // Given an array field value where we define `strictOrder` as false
+    const a1 = createObjectState<AuthorInput>(
+      { favoriteColors: { type: "value", strictOrder: false } },
+      { favoriteColors: [Color.Red, Color.Blue] },
+    );
+    expect(a1.favoriteColors.dirty).toBeFalsy();
+    // When changing the order of the values
+    a1.favoriteColors.set([Color.Blue, Color.Red]);
+    // Then expect the field to not be dirty
+    expect(a1.dirty).toBeFalsy();
+  });
+
+  it("evaluates arrays to be equal based on order by default", () => {
+    // Given an array field value
+    const a1 = createObjectState<AuthorInput>(
+      { favoriteColors: { type: "value" } },
+      { favoriteColors: [Color.Red, Color.Blue] },
+    );
+    expect(a1.favoriteColors.dirty).toBeFalsy();
+    // When we change the order of the values
+    a1.favoriteColors.set([Color.Blue, Color.Red]);
+    // Then the field should be dirty
+    expect(a1.dirty).toBeTruthy();
+  });
+
   it("knows originally unset fields are dirty", () => {
     // Given firstName is purposefully not set when originally initialized
     const a1 = createAuthorInputState({});
