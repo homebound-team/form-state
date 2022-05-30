@@ -7,7 +7,7 @@ export enum AutoSaveStatus {
   ERROR = "error",
 }
 
-export interface AutoSaveContextType {
+export interface AutoSaveStatusContextType {
   status: AutoSaveStatus;
   /** Resets status to IDLE, particularly useful if "Error" or "Done" is stale */
   resetStatus: VoidFunction;
@@ -18,7 +18,7 @@ export interface AutoSaveContextType {
   resolveAutoSave: (error?: unknown) => void;
 }
 
-export const AutoSaveContext = React.createContext<AutoSaveContextType>({
+export const AutoSaveStatusContext = React.createContext<AutoSaveStatusContextType>({
   status: AutoSaveStatus.IDLE,
   resetStatus() {},
   errors: [],
@@ -26,7 +26,7 @@ export const AutoSaveContext = React.createContext<AutoSaveContextType>({
   resolveAutoSave() {},
 });
 
-export function AutoSaveProvider({ children }: PropsWithChildren<{}>) {
+export function AutoSaveStatusProvider({ children }: PropsWithChildren<{}>) {
   const [status, setStatus] = useState(AutoSaveStatus.IDLE);
   const [errors, setErrors] = useState<unknown[]>([]);
   const [inFlight, setInFlight] = useState(0);
@@ -56,8 +56,8 @@ export function AutoSaveProvider({ children }: PropsWithChildren<{}>) {
   }, []);
 
   return (
-    <AutoSaveContext.Provider value={{ status, resetStatus, errors, triggerAutoSave, resolveAutoSave }}>
+    <AutoSaveStatusContext.Provider value={{ status, resetStatus, errors, triggerAutoSave, resolveAutoSave }}>
       {children}
-    </AutoSaveContext.Provider>
+    </AutoSaveStatusContext.Provider>
   );
 }

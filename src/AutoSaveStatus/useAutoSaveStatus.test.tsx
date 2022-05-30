@@ -1,25 +1,25 @@
 import { act, renderHook } from "@testing-library/react-hooks";
-import { AutoSaveProvider, AutoSaveStatus } from "./AutoSaveProvider";
-import { useAutoSave } from "./useAutoSave";
+import { AutoSaveStatus, AutoSaveStatusProvider } from "./AutoSaveStatusProvider";
+import { useAutoSaveStatus } from "./useAutoSaveStatus";
 
-describe(useAutoSave, () => {
+describe(useAutoSaveStatus, () => {
   it("renders without a provider", () => {
-    const { result } = renderHook(() => useAutoSave());
+    const { result } = renderHook(() => useAutoSaveStatus());
 
     expect(result.current.status).toBe(AutoSaveStatus.IDLE);
   });
 
   it("renders with a provider", () => {
-    const { result } = renderHook(() => useAutoSave(), {
-      wrapper: ({ children }) => <AutoSaveProvider>{children}</AutoSaveProvider>,
+    const { result } = renderHook(() => useAutoSaveStatus(), {
+      wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
     });
 
     expect(result.current.status).toBe(AutoSaveStatus.IDLE);
   });
 
   it("indicates when something is in-flight", () => {
-    const { result } = renderHook(() => useAutoSave(), {
-      wrapper: ({ children }) => <AutoSaveProvider>{children}</AutoSaveProvider>,
+    const { result } = renderHook(() => useAutoSaveStatus(), {
+      wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
     });
 
     act(() => result.current.triggerAutoSave());
@@ -28,8 +28,8 @@ describe(useAutoSave, () => {
   });
 
   it("indicates when a request has settled", () => {
-    const { result } = renderHook(() => useAutoSave(), {
-      wrapper: ({ children }) => <AutoSaveProvider>{children}</AutoSaveProvider>,
+    const { result } = renderHook(() => useAutoSaveStatus(), {
+      wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
     });
 
     act(() => result.current.triggerAutoSave());
@@ -39,8 +39,8 @@ describe(useAutoSave, () => {
   });
 
   it("indicates when an error happened", () => {
-    const { result } = renderHook(() => useAutoSave(), {
-      wrapper: ({ children }) => <AutoSaveProvider>{children}</AutoSaveProvider>,
+    const { result } = renderHook(() => useAutoSaveStatus(), {
+      wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
     });
 
     act(() => result.current.triggerAutoSave());
@@ -51,8 +51,8 @@ describe(useAutoSave, () => {
   });
 
   it("resets status to Idle when told to", () => {
-    const { result } = renderHook(() => useAutoSave(), {
-      wrapper: ({ children }) => <AutoSaveProvider>{children}</AutoSaveProvider>,
+    const { result } = renderHook(() => useAutoSaveStatus(), {
+      wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
     });
 
     expect(result.current.status).toBe(AutoSaveStatus.IDLE);
@@ -66,8 +66,8 @@ describe(useAutoSave, () => {
 
   it("status goes through the full lifecycle when passed a reset timeout", async () => {
     // Given a timeout has been passed to `useAutoSave()`
-    const { result } = renderHook(() => useAutoSave(100), {
-      wrapper: ({ children }) => <AutoSaveProvider>{children}</AutoSaveProvider>,
+    const { result } = renderHook(() => useAutoSaveStatus(100), {
+      wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
     });
     // When we trigger a save
     act(() => result.current.triggerAutoSave());
@@ -86,8 +86,8 @@ describe(useAutoSave, () => {
   });
 
   it("clears errors on reset status", () => {
-    const { result } = renderHook(() => useAutoSave(), {
-      wrapper: ({ children }) => <AutoSaveProvider>{children}</AutoSaveProvider>,
+    const { result } = renderHook(() => useAutoSaveStatus(), {
+      wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
     });
     act(() => result.current.triggerAutoSave());
     act(() => result.current.resolveAutoSave(new Error("some error")));
@@ -99,8 +99,8 @@ describe(useAutoSave, () => {
 
   it("does not automatically invoke reset timeout if there are errors", () => {
     // Given a timeout has been passed to `useAutoSave()`
-    const { result } = renderHook(() => useAutoSave(100), {
-      wrapper: ({ children }) => <AutoSaveProvider>{children}</AutoSaveProvider>,
+    const { result } = renderHook(() => useAutoSaveStatus(100), {
+      wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
     });
 
     act(() => result.current.triggerAutoSave());
@@ -115,8 +115,8 @@ describe(useAutoSave, () => {
 
   it("does allow manual resetting even if there are errors", () => {
     // Given a timeout has been passed to `useAutoSave()`
-    const { result } = renderHook(() => useAutoSave(100), {
-      wrapper: ({ children }) => <AutoSaveProvider>{children}</AutoSaveProvider>,
+    const { result } = renderHook(() => useAutoSaveStatus(100), {
+      wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
     });
 
     act(() => result.current.triggerAutoSave());
@@ -131,8 +131,8 @@ describe(useAutoSave, () => {
   });
 
   it("handles multiple in-flight requests", () => {
-    const { result } = renderHook(() => useAutoSave(), {
-      wrapper: ({ children }) => <AutoSaveProvider>{children}</AutoSaveProvider>,
+    const { result } = renderHook(() => useAutoSaveStatus(), {
+      wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
     });
 
     // When we trigger 2 AutoSaves and only resolve 1

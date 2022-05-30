@@ -1,12 +1,12 @@
 import { useContext, useEffect, useRef } from "react";
-import { AutoSaveContext, AutoSaveStatus } from "./AutoSaveProvider";
+import { AutoSaveStatus, AutoSaveStatusContext } from "./AutoSaveStatusProvider";
 
 /**
  * Provides access to the nearest AutoSaveContext data, with an optional
  * parameter to reset from "Done" to "Idle" after a given timeout
  */
-export function useAutoSave(resetToIdleTimeout?: number) {
-  const autoSave = useContext(AutoSaveContext);
+export function useAutoSaveStatus(resetToIdleTimeout?: number) {
+  const autoSave = useContext(AutoSaveStatusContext);
   const { status, resetStatus } = autoSave;
   const resetToIdleTimeoutRef = useRef<number | null>(null);
 
