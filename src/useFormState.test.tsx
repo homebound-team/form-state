@@ -1,5 +1,6 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
 import { act } from "@testing-library/react";
+import { act as actOnHook, renderHook } from "@testing-library/react-hooks";
 import { reaction } from "mobx";
 import { Observer } from "mobx-react";
 import { useMemo, useState } from "react";
@@ -9,6 +10,8 @@ import { FieldState } from "src/fields/valueField";
 import { TextField } from "src/FormStateApp";
 import { AuthorInput } from "src/formStateDomain";
 import { required } from "src/rules";
+import { AutoSaveStatusProvider, useAutoSaveStatus } from "./AutoSaveStatus";
+import { AutoSaveStatus } from "./AutoSaveStatus/AutoSaveStatusProvider";
 import { useFormState } from "./useFormState";
 
 describe("useFormState", () => {
@@ -627,6 +630,40 @@ describe("useFormState", () => {
     await r.rerender(<TestComponent loading={false} data={{ firstName: "first" }} />);
     // Then the form is marked as not loading
     expect(r.loading()).toHaveTextContent("false");
+  });
+
+  it("updates AutoSaveStatusProvider when autoSaving", async () => {
+    type FormValue = Pick<AuthorInput, "firstName">;
+    const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+    const { result } = renderHook(
+      () => {
+        const autoSave = useAutoSaveStatus();
+        const fs = useFormState({ config, autoSave: async () => {} });
+
+        return { fs, autoSave };
+      },
+      {
+        wrapper: ({ children }) => (
+          <AutoSaveStatusProvider>
+            <Observer>{() => <>{children}</>}</Observer>
+          </AutoSaveStatusProvider>
+        ),
+      },
+    );
+    expect(result.current.autoSave.status).toBe(AutoSaveStatus.IDLE);
+
+    // When we invoke a change and autoSave fires
+    actOnHook(() => {
+      result.current.fs.set({ firstName: "test" });
+    });
+    // Idk where/how to intercept "Saving" but once it settles...
+    await actOnHook(async () => {
+      jest.runAllTimers();
+    });
+
+    // Then we expect AutoSaveStatus to be notiied of Doneness
+    // (Per implementation details, implies "Saving" status happened)
+    expect(result.current.autoSave.status).toBe(AutoSaveStatus.DONE);
   });
 });
 
