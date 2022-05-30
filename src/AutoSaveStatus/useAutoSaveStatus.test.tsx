@@ -149,4 +149,16 @@ describe(useAutoSaveStatus, () => {
     // We expect it to finally settle
     expect(result.current.status).toBe(AutoSaveStatus.DONE);
   });
+
+  it("clears errors when a new save is triggered", () => {
+    const { result } = renderHook(() => useAutoSaveStatus(), {
+      wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
+    });
+
+    act(() => result.current.triggerAutoSave());
+    act(() => result.current.resolveAutoSave(new Error("some error")));
+    expect(result.current.errors.length).toBe(1);
+    act(() => result.current.triggerAutoSave());
+    expect(result.current.errors.length).toBe(0);
+  });
 });
