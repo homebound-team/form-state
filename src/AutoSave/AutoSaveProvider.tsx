@@ -33,11 +33,12 @@ export function AutoSaveProvider({ children }: PropsWithChildren<{}>) {
 
   useEffect(() => {
     if (inFlight === 0) {
-      if (errors.length) return setStatus(AutoSaveStatus.ERROR);
+      if (status === AutoSaveStatus.IDLE) return;
+      else if (errors.length) return setStatus(AutoSaveStatus.ERROR);
       else return setStatus(AutoSaveStatus.DONE);
     }
     if (inFlight > 0) return setStatus(AutoSaveStatus.SAVING);
-  }, [errors.length, inFlight]);
+  }, [errors.length, inFlight, status]);
 
   const triggerAutoSave = useCallback(() => {
     setInFlight((c) => c + 1);
@@ -46,11 +47,12 @@ export function AutoSaveProvider({ children }: PropsWithChildren<{}>) {
 
   const resolveAutoSave = useCallback((error?: unknown) => {
     setInFlight((c) => Math.max(0, c - 1));
-    setErrors((errs) => errs.concat(error));
+    if (error) setErrors((errs) => errs.concat(error));
   }, []);
 
   const resetStatus = useCallback(() => {
     setStatus(AutoSaveStatus.IDLE);
+    setErrors([]);
   }, []);
 
   return (
