@@ -55,12 +55,10 @@ describe(useAutoSaveStatus, () => {
       wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
     });
 
-    expect(result.current.status).toBe(AutoSaveStatus.IDLE);
     act(() => result.current.triggerAutoSave());
-    expect(result.current.status).toBe(AutoSaveStatus.SAVING);
     act(() => result.current.resolveAutoSave());
-    expect(result.current.status).toBe(AutoSaveStatus.DONE);
     act(() => result.current.resetStatus());
+
     expect(result.current.status).toBe(AutoSaveStatus.IDLE);
   });
 
@@ -157,8 +155,8 @@ describe(useAutoSaveStatus, () => {
 
     act(() => result.current.triggerAutoSave());
     act(() => result.current.resolveAutoSave(new Error("some error")));
-    expect(result.current.errors.length).toBe(1);
     act(() => result.current.triggerAutoSave());
+
     expect(result.current.errors.length).toBe(0);
   });
 });
