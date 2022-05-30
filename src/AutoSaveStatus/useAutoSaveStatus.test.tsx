@@ -159,4 +159,26 @@ describe(useAutoSaveStatus, () => {
 
     expect(result.current.errors.length).toBe(0);
   });
+
+  it("handles calling resolve too much", () => {
+    const { result } = renderHook(() => useAutoSaveStatus(), {
+      wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
+    });
+
+    // When save hasn't been invoked yet
+    act(() => result.current.resolveAutoSave());
+    act(() => result.current.resolveAutoSave());
+    act(() => result.current.resolveAutoSave());
+
+    // Then we effectively didn't run
+    expect(result.current.status).toBe(AutoSaveStatus.IDLE);
+
+    // And when 1 save has triggered, and we resolve too much
+    act(() => result.current.triggerAutoSave());
+    act(() => result.current.resolveAutoSave());
+    act(() => result.current.resolveAutoSave());
+
+    // Then we expect it to be happily "Done"
+    expect(result.current.status).toBe(AutoSaveStatus.DONE);
+  });
 });

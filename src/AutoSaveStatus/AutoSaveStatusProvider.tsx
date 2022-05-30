@@ -31,13 +31,12 @@ export function AutoSaveStatusProvider({ children }: PropsWithChildren<{}>) {
   const [errors, setErrors] = useState<unknown[]>([]);
   const [inFlight, setInFlight] = useState(0);
 
+  /** Handles setting Status */
   useEffect(() => {
-    if (inFlight === 0) {
-      if (status === AutoSaveStatus.IDLE) return;
-      else if (errors.length) return setStatus(AutoSaveStatus.ERROR);
-      else return setStatus(AutoSaveStatus.DONE);
-    }
     if (inFlight > 0) return setStatus(AutoSaveStatus.SAVING);
+    if (status === AutoSaveStatus.IDLE) return;
+    if (errors.length) return setStatus(AutoSaveStatus.ERROR);
+    return setStatus(AutoSaveStatus.DONE);
   }, [errors.length, inFlight, status]);
 
   const triggerAutoSave = useCallback(() => {
