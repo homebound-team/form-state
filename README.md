@@ -28,7 +28,7 @@ It also keeps track of low-level form UX details like:
 In general when working with forms (e.g. not just form-state), there are three types/shapes of data involved:
 
 1. The input data/shape from the server (i.e. a GraphQL/REST query)
-2. The form data/shape that is being reactively bound to form fields (i.e. used as `<TextField value=form.firstName onChange=(v) => form.firstName = v />`)
+2. The form data/shape that is being reactively bound to form fields (i.e. used as `<TextField value={form.firstName} onChange={(v) => form.firstName = v} />`)
 3. The mutation data/shape that will submit the change to the server (i.e. the GraphQL mutation/REST POST)
 
 form-state generally refers to each of these shapes as:
