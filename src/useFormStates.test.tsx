@@ -305,11 +305,19 @@ describe("useFormStates", () => {
       result.current.fs.getFormState({ id: "a:1" }).set({ firstName: "test" });
     });
 
+    actOnHook(() => {
+      // useFormStates has a setTimeout(..., 0) that needs to trigger
+      jest.advanceTimersToNextTimer();
+    });
+
+    expect(result.current.autoSave.status).toBe(AutoSaveStatus.SAVING);
+
     await actOnHook(async () => {
       jest.runAllTimers();
     });
 
     expect(result.current.autoSave.status).toBe(AutoSaveStatus.DONE);
+    jest.clearAllTimers();
   });
 });
 

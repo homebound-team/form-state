@@ -3,11 +3,9 @@ import { AutoSaveStatus, AutoSaveStatusProvider } from "./AutoSaveStatusProvider
 import { useAutoSaveStatus } from "./useAutoSaveStatus";
 
 describe(useAutoSaveStatus, () => {
-  /** The internal setTimeout running after tests is spamming the console, so run/catch it quietly here */
+  /** The internal setTimeout running after tests is spamming the console, so cancel them all here */
   afterEach(() => {
-    act(() => {
-      jest.runAllTimers();
-    });
+    jest.clearAllTimers();
   });
 
   it("renders without a provider", () => {

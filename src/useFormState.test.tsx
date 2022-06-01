@@ -654,14 +654,21 @@ describe("useFormState", () => {
     actOnHook(() => {
       result.current.fs.set({ firstName: "test" });
     });
-    // Idk where/how to intercept "Saving" but once it settles...
+    actOnHook(() => {
+      // useFormState has a setTimeout(..., 0) that needs to run
+      jest.advanceTimersToNextTimer();
+    });
+
+    expect(result.current.autoSave.status).toBe(AutoSaveStatus.SAVING);
+
+    // Idk why this needs to be async but it doesn't work otherwise
     await actOnHook(async () => {
       jest.runAllTimers();
     });
 
     // Then we expect AutoSaveStatus to be notiied of Doneness
-    // (Per implementation details, implies "Saving" status happened)
     expect(result.current.autoSave.status).toBe(AutoSaveStatus.DONE);
+    jest.clearAllTimers();
   });
 });
 
