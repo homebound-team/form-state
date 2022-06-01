@@ -636,12 +636,10 @@ describe("useFormState", () => {
     type FormValue = Pick<AuthorInput, "firstName">;
     const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
     const { result } = renderHook(
-      () => {
-        const autoSave = useAutoSaveStatus();
-        const fs = useFormState({ config, autoSave: async () => {} });
-
-        return { fs, autoSave };
-      },
+      () => ({
+        fs: useFormState({ config, autoSave: async () => {} }),
+        autoSave: useAutoSaveStatus(),
+      }),
       {
         wrapper: ({ children }) => (
           <AutoSaveStatusProvider>
