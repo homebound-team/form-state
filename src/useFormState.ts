@@ -108,6 +108,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
         // Don't use canSave() because we don't want to set touched for all the fields
         if (autoSaveRef.current && form.dirty && form.valid && !isAutoSaving) {
           isAutoSaving = "queued";
+          let maybeError: undefined | string;
           // We use setTimeout as a cheap way to wait until the end of the current event listener
           setTimeout(async () => {
             try {
@@ -117,9 +118,11 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
               isAutoSaving = "in-flight";
               autoSaveStatusContext.triggerAutoSave();
               await promise;
+            } catch (e) {
+              maybeError = String(e);
             } finally {
               isAutoSaving = false;
-              autoSaveStatusContext.resolveAutoSave();
+              autoSaveStatusContext.resolveAutoSave(maybeError?.toString());
               if (pendingAutoSave) {
                 pendingAutoSave = false;
                 // Push out the follow-up by 1 tick to allow refreshes to happen to potentially

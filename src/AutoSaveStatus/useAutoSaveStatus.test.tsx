@@ -3,6 +3,13 @@ import { AutoSaveStatus, AutoSaveStatusProvider } from "./AutoSaveStatusProvider
 import { useAutoSaveStatus } from "./useAutoSaveStatus";
 
 describe(useAutoSaveStatus, () => {
+  /** The internal setTimeout running after tests is spamming the console, so run/catch it quietly here */
+  afterEach(() => {
+    act(() => {
+      jest.runAllTimers();
+    });
+  });
+
   it("renders without a provider", () => {
     const { result } = renderHook(() => useAutoSaveStatus());
 
@@ -64,8 +71,8 @@ describe(useAutoSaveStatus, () => {
 
   it("status goes through the full lifecycle when passed a reset timeout", async () => {
     // Given a timeout has been passed to `useAutoSave()`
-    const { result } = renderHook(() => useAutoSaveStatus(100), {
-      wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
+    const { result } = renderHook(() => useAutoSaveStatus(), {
+      wrapper: ({ children }) => <AutoSaveStatusProvider resetToIdleTimeout={1_000}>{children}</AutoSaveStatusProvider>,
     });
     // When we trigger a save
     act(() => result.current.triggerAutoSave());
@@ -97,7 +104,7 @@ describe(useAutoSaveStatus, () => {
 
   it("does not automatically invoke reset timeout if there are errors", () => {
     // Given a timeout has been passed to `useAutoSave()`
-    const { result } = renderHook(() => useAutoSaveStatus(100), {
+    const { result } = renderHook(() => useAutoSaveStatus(), {
       wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
     });
 
@@ -113,7 +120,7 @@ describe(useAutoSaveStatus, () => {
 
   it("does allow manual resetting even if there are errors", () => {
     // Given a timeout has been passed to `useAutoSave()`
-    const { result } = renderHook(() => useAutoSaveStatus(100), {
+    const { result } = renderHook(() => useAutoSaveStatus(), {
       wrapper: ({ children }) => <AutoSaveStatusProvider>{children}</AutoSaveStatusProvider>,
     });
 
@@ -166,8 +173,6 @@ describe(useAutoSaveStatus, () => {
     });
 
     // When save hasn't been invoked yet
-    act(() => result.current.resolveAutoSave());
-    act(() => result.current.resolveAutoSave());
     act(() => result.current.resolveAutoSave());
 
     // Then we effectively didn't run

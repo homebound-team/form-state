@@ -87,6 +87,7 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             pending.add(form);
             return;
           }
+          let maybeError: undefined | string;
           try {
             isAutoSaving = true;
             autoSaveStatusContext.triggerAutoSave();
@@ -95,9 +96,11 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             // If a reaction re-queued our form during the ^ wait, remove it
             pending.delete(form);
             await autoSaveRef.current(form);
+          } catch (e) {
+            maybeError = String(e);
           } finally {
             isAutoSaving = false;
-            autoSaveStatusContext.resolveAutoSave();
+            autoSaveStatusContext.resolveAutoSave(maybeError);
             if (pending.size > 0) {
               const first = pending.values().next().value!;
               pending.delete(first);

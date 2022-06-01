@@ -1,4 +1,4 @@
-import React, { PropsWithChildren, useCallback, useEffect, useState } from "react";
+import React, { PropsWithChildren, useCallback, useEffect, useRef, useState } from "react";
 
 export enum AutoSaveStatus {
   IDLE = "idle",
@@ -26,10 +26,16 @@ export const AutoSaveStatusContext = React.createContext<AutoSaveStatusContextTy
   resolveAutoSave() {},
 });
 
-export function AutoSaveStatusProvider({ children }: PropsWithChildren<{}>) {
+type AutoSaveStatusProviderProps = PropsWithChildren<{
+  /** After a successful save, reset Status back to `Idle` after this many milliseconds */
+  resetToIdleTimeout?: number;
+}>;
+
+export function AutoSaveStatusProvider({ children, resetToIdleTimeout = 6_000 }: AutoSaveStatusProviderProps) {
   const [status, setStatus] = useState(AutoSaveStatus.IDLE);
   const [errors, setErrors] = useState<unknown[]>([]);
   const [inFlight, setInFlight] = useState(0);
+  const resetToIdleTimeoutRef = useRef<number | null>(null);
 
   /** Handles setting Status */
   useEffect(() => {
@@ -53,6 +59,22 @@ export function AutoSaveStatusProvider({ children }: PropsWithChildren<{}>) {
     setStatus(AutoSaveStatus.IDLE);
     setErrors([]);
   }, []);
+
+  /** Resets AutoSaveStatus from "Done" to "Idle" after a timeout, if one is provided */
+  useEffect(() => {
+    if (resetToIdleTimeout === undefined) return;
+
+    // Specifically avoid auto-reset if Errors are present
+    if (status !== AutoSaveStatus.DONE) return;
+
+    // Only run the latest Timeout
+    if (resetToIdleTimeoutRef.current) clearTimeout(resetToIdleTimeoutRef.current);
+
+    resetToIdleTimeoutRef.current = window.setTimeout(() => {
+      resetStatus();
+      resetToIdleTimeoutRef.current = null;
+    }, resetToIdleTimeout);
+  }, [resetStatus, resetToIdleTimeout, status]);
 
   return (
     <AutoSaveStatusContext.Provider value={{ status, resetStatus, errors, triggerAutoSave, resolveAutoSave }}>
