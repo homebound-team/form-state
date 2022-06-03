@@ -98,6 +98,7 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             await autoSaveRef.current(form);
           } catch (e) {
             maybeError = String(e);
+            throw e;
           } finally {
             isAutoSaving = false;
             autoSaveStatusContext.resolveAutoSave(maybeError);

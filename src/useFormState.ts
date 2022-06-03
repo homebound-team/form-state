@@ -120,6 +120,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
               await promise;
             } catch (e) {
               maybeError = String(e);
+              throw e;
             } finally {
               isAutoSaving = false;
               autoSaveStatusContext.resolveAutoSave(maybeError?.toString());
