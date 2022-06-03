@@ -1,5 +1,7 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
+import { act as actOnHook, renderHook } from "@testing-library/react-hooks";
 import { reaction } from "mobx";
+import { Observer } from "mobx-react";
 import { useMemo, useState } from "react";
 import { ObjectConfig } from "src/config";
 import { ObjectState } from "src/fields/objectField";
@@ -7,6 +9,8 @@ import { TextField } from "src/FormStateApp";
 import { AuthorInput } from "src/formStateDomain";
 import { required } from "src/rules";
 import { useFormStates } from "src/useFormStates";
+import { AutoSaveStatusProvider, useAutoSaveStatus } from "./AutoSaveStatus";
+import { AutoSaveStatus } from "./AutoSaveStatus/AutoSaveStatusProvider";
 
 describe("useFormStates", () => {
   it("can lazily create form states", async () => {
@@ -279,6 +283,41 @@ describe("useFormStates", () => {
     await r.rerender(<TestComponent readOnly={false} />);
     // Then it's not read only
     expect(r.firstName()).toHaveAttribute("data-readonly", "false");
+  });
+
+  it("notifies AutoSaveStatusProvider of updates", async () => {
+    const { result } = renderHook(
+      () => ({
+        fs: useFormStates({ config, autoSave: async () => {}, getId: (o) => o.id! }),
+        autoSave: useAutoSaveStatus(),
+      }),
+      {
+        wrapper: ({ children }) => (
+          <AutoSaveStatusProvider>
+            <Observer>{() => <>{children}</>}</Observer>
+          </AutoSaveStatusProvider>
+        ),
+      },
+    );
+    expect(result.current.autoSave.status).toBe(AutoSaveStatus.IDLE);
+
+    actOnHook(() => {
+      result.current.fs.getFormState({ id: "a:1" }).set({ firstName: "test" });
+    });
+
+    actOnHook(() => {
+      // useFormStates has a setTimeout(..., 0) that needs to trigger
+      jest.advanceTimersToNextTimer();
+    });
+
+    expect(result.current.autoSave.status).toBe(AutoSaveStatus.SAVING);
+
+    await actOnHook(async () => {
+      jest.runAllTimers();
+    });
+
+    expect(result.current.autoSave.status).toBe(AutoSaveStatus.DONE);
+    jest.clearAllTimers();
   });
 });
 
