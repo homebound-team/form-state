@@ -1,4 +1,4 @@
-import React, { PropsWithChildren, useCallback, useEffect, useRef, useState } from "react";
+import React, { PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export enum AutoSaveStatus {
   IDLE = "idle",
@@ -76,9 +76,13 @@ export function AutoSaveStatusProvider({ children, resetToIdleTimeout = 6_000 }:
     }, resetToIdleTimeout);
   }, [resetStatus, resetToIdleTimeout, status]);
 
-  return (
-    <AutoSaveStatusContext.Provider value={{ status, resetStatus, errors, triggerAutoSave, resolveAutoSave }}>
-      {children}
-    </AutoSaveStatusContext.Provider>
-  );
+  const value = useMemo(() => ({ status, resetStatus, errors, triggerAutoSave, resolveAutoSave }), [
+    errors,
+    resetStatus,
+    resolveAutoSave,
+    status,
+    triggerAutoSave,
+  ]);
+
+  return <AutoSaveStatusContext.Provider value={value}>{children}</AutoSaveStatusContext.Provider>;
 }
