@@ -59,3 +59,16 @@ See the [sample](https://github.com/homebound-team/form-state/blob/main/src/Form
 - Add `omitFromValue` so we can have two fields, `book.author.id` / `book.author.name`, where `book.author.name` is used for showing the author name, but `book.author.id` is the only field that is submitted to the server on mutation (maybe pair this with `Ref` based mutations)
 
 - Undo/redo would in theory be neat and easy to do on top of the existing infra
+
+# Internal Implementation
+
+form-state keeps the "actual data" (basically a POJO of your form data) separate from the "mobx proxies that track reactivity" (the `ObjectState` interface with `.get` / `.set` / `.errors` other methods).
+
+This works well b/c the "actual data" returned from `ObjectState.value` or `FieldState.value` is always a non-proxy POJO that can be dropped on the wire without causing serialization issues.
+
+However, it does mean that form-state internally uses a few "that looks odd" tricks like `_tick.value++` to ensure code like `formState.value.firstName` will be reactive, even though the `.firstName` is not actually a proxy access (but doing `formState.firstName.value` would be).
+
+(To be clear, both `formState.firstName.value` and `formState.value.firstName` return the same value, and also have the same reactivity semantics, this is just noting that form-state's internals need to do a few extra tricks to get the latter to be reactive.)
+
+
+
