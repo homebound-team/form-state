@@ -1,4 +1,4 @@
-import { computed, makeAutoObservable, observable } from "mobx";
+import { computed, makeAutoObservable, observable, reaction } from "mobx";
 import { ListFieldConfig, ObjectConfig } from "src/config";
 import { createObjectState, newObjectState, ObjectState, ObjectStateInternal } from "src/fields/objectField";
 import { FieldState, InternalSetOpts } from "src/fields/valueField";
@@ -26,6 +26,7 @@ export function newListFieldState<T, K extends keyof T, U>(
   // Keep a map of "item in the parent list" -> "that item's ObjectState"
   const rowMap = new Map<U, ObjectStateInternal<U>>();
   const _tick = observable({ value: 1 });
+  const _childTick = observable({ value: 1 });
 
   // this is for dirty checking, not object identity
   let originalCopy = [...((parentInstance[key] as any) || [])];
@@ -35,7 +36,7 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     // Our fundamental state of wrapped Us
     get value() {
-      return _tick.value > 0 ? ((parentInstance[key] as any) as U[]) : fail();
+      return _tick.value > 0 && _childTick.value > 0 ? ((parentInstance[key] as any) as U[]) : fail();
     },
 
     _focused: false,
@@ -97,7 +98,9 @@ export function newListFieldState<T, K extends keyof T, U>(
       // It's unclear why we need to access _tick.value here, b/c calling `this.value` should
       // transitively register us as a dependency on it
       if (_tick.value < 0) fail();
-      return (this.value || []).map((child) => {
+      // Avoid using `this.value` to avoid registering `_childTick` as a dependency
+      const value = (parentInstance[key] as any) as U[];
+      return (value || []).map((child) => {
         // Because we're reading from this.value, child will be the proxy version
         let childState = rowMap.get(child);
         if (!childState) {
@@ -253,8 +256,17 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
   };
 
-  return makeAutoObservable(list, {
+  const proxy = makeAutoObservable(list, {
     // See other makeAutoObservable comment
     value: computed({ equals: () => false }),
   }) as any;
+
+  // Any time a row's value changes, percolate that to our `.value` (so the callers to our
+  // `.value` will rerun given the value they saw has deeply changed.)
+  reaction(
+    () => proxy.rows.map((r: any) => r.value),
+    () => _childTick.value++,
+  );
+
+  return proxy;
 }

@@ -1331,6 +1331,23 @@ describe("formState", () => {
     expect(ticks).toEqual(1);
   });
 
+  it("can observe value changes on lists", () => {
+    const formState = createObjectState(authorWithBooksConfig, { books: [{ title: "b1" }] });
+    let ticks = 0;
+    reaction(
+      () => formState.books.value,
+      () => ticks++,
+      { equals: () => false },
+    );
+    expect(ticks).toEqual(0);
+    formState.books.rows[0].title.value = "b1";
+    expect(ticks).toEqual(0);
+    formState.books.rows[0].title.value = "b1...";
+    expect(ticks).toEqual(1);
+    formState.books.add({ title: "b2" });
+    expect(ticks).toEqual(2);
+  });
+
   it("does not override a focused, changed field", () => {
     const formState = createObjectState(authorWithBooksConfig, { firstName: "f", lastName: "l" });
     // Given first name is focused
