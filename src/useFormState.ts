@@ -83,7 +83,8 @@ let pendingAutoSave = false;
  */
 export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T> {
   const { config, init, addRules, readOnly = false, loading, autoSave } = opts;
-  const autoSaveStatusContext = useAutoSaveStatus();
+  // ...should this be deleted b/c we are directly instrumenting Apollo now?
+  const { setLoading } = useAutoSaveStatus();
 
   // Use a ref so our memo'ized `onBlur` always see the latest value
   const autoSaveRef = useRef<((state: ObjectState<T>) => void) | undefined>(autoSave);
@@ -116,14 +117,14 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
               // user's autoSave function itself wants to call a .set.
               const promise = autoSaveRef.current!(form);
               isAutoSaving = "in-flight";
-              autoSaveStatusContext.triggerAutoSave();
+              setLoading(true);
               await promise;
             } catch (e) {
               maybeError = String(e);
               throw e;
             } finally {
               isAutoSaving = false;
-              autoSaveStatusContext.resolveAutoSave(maybeError?.toString());
+              setLoading(false, maybeError?.toString());
               if (pendingAutoSave) {
                 pendingAutoSave = false;
                 // Push out the follow-up by 1 tick to allow refreshes to happen to potentially
@@ -138,7 +139,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
       const value = firstRunRef.current ? firstInitValue : initValue(config, init);
       const form = createObjectState(config, value, { maybeAutoSave });
       form.readOnly = readOnly;
-      setLoading(form, opts);
+      setLoadingValue(form, opts);
       // The identity of `addRules` is not stable, but assume that it is for better UX.
       (addRules || (() => {}))(form);
       firstRunRef.current = true;
@@ -159,7 +160,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
       firstRunRef.current = false;
       return;
     }
-    setLoading(form, opts);
+    setLoadingValue(form, opts);
     (form as any).set(initValue(config, init), { refreshing: true });
   }, [form, ...dep]);
 
@@ -174,7 +175,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
   return form;
 }
 
-function setLoading(form: ObjectState<any>, opts: UseFormStateOpts<any, any>) {
+function setLoadingValue(form: ObjectState<any>, opts: UseFormStateOpts<any, any>) {
   const { loading, init } = opts;
   if (loading !== undefined) {
     // Prefer the explicit/top-level opts.loading if it's set
