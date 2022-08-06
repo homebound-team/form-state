@@ -26,7 +26,7 @@ describe(useAutoSaveStatus, () => {
   it("indicates when something is in-flight", () => {
     const { result } = renderHook(() => useAutoSaveStatus(), { wrapper });
 
-    act(() => result.current.setLoading(true));
+    act(() => result.current.setSaving(true));
 
     expect(result.current.status).toBe(AutoSaveStatus.SAVING);
   });
@@ -34,8 +34,8 @@ describe(useAutoSaveStatus, () => {
   it("indicates when a request has settled", () => {
     const { result } = renderHook(() => useAutoSaveStatus(), { wrapper });
 
-    act(() => result.current.setLoading(true));
-    act(() => result.current.setLoading(false));
+    act(() => result.current.setSaving(true));
+    act(() => result.current.setSaving(false));
 
     expect(result.current.status).toBe(AutoSaveStatus.DONE);
   });
@@ -43,8 +43,8 @@ describe(useAutoSaveStatus, () => {
   it("indicates when an error happened", () => {
     const { result } = renderHook(() => useAutoSaveStatus(), { wrapper });
 
-    act(() => result.current.setLoading(true));
-    act(() => result.current.setLoading(false, "Some error"));
+    act(() => result.current.setSaving(true));
+    act(() => result.current.setSaving(false, "Some error"));
 
     expect(result.current.status).toBe(AutoSaveStatus.ERROR);
     expect(result.current.errors.length).toBe(1);
@@ -54,11 +54,11 @@ describe(useAutoSaveStatus, () => {
     // Given a timeout has been passed to `useAutoSave()`
     const { result } = renderHook(() => useAutoSaveStatus(), { wrapper });
     // When we trigger a save
-    act(() => result.current.setLoading(true));
+    act(() => result.current.setSaving(true));
     // Then status is Saving
     expect(result.current.status).toBe(AutoSaveStatus.SAVING);
     // And when we trigger a resolution
-    act(() => result.current.setLoading(false));
+    act(() => result.current.setSaving(false));
     // Then status is Done
     expect(result.current.status).toBe(AutoSaveStatus.DONE);
     // But when the timer runs out
@@ -71,10 +71,10 @@ describe(useAutoSaveStatus, () => {
 
   it("clears errors on reset status", () => {
     const { result } = renderHook(() => useAutoSaveStatus(), { wrapper });
-    act(() => result.current.setLoading(true));
-    act(() => result.current.setLoading(false, "some error"));
+    act(() => result.current.setSaving(true));
+    act(() => result.current.setSaving(false, "some error"));
     expect(result.current.errors.length).toBe(1);
-    act(() => result.current.setLoading(true));
+    act(() => result.current.setSaving(true));
     expect(result.current.errors.length).toBe(0);
     expect(result.current.status).toBe(AutoSaveStatus.SAVING);
   });
@@ -83,8 +83,8 @@ describe(useAutoSaveStatus, () => {
     // Given a timeout has been passed to `useAutoSave()`
     const { result } = renderHook(() => useAutoSaveStatus(), { wrapper });
 
-    act(() => result.current.setLoading(true));
-    act(() => result.current.setLoading(false, "Some error"));
+    act(() => result.current.setSaving(true));
+    act(() => result.current.setSaving(false, "Some error"));
     act(() => {
       jest.runOnlyPendingTimers();
     });

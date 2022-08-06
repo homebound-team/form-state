@@ -84,7 +84,7 @@ let pendingAutoSave = false;
 export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T> {
   const { config, init, addRules, readOnly = false, loading, autoSave } = opts;
   // ...should this be deleted b/c we are directly instrumenting Apollo now?
-  const { setLoading } = useAutoSaveStatus();
+  const { setSaving } = useAutoSaveStatus();
 
   // Use a ref so our memo'ized `onBlur` always see the latest value
   const autoSaveRef = useRef<((state: ObjectState<T>) => void) | undefined>(autoSave);
@@ -117,14 +117,14 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
               // user's autoSave function itself wants to call a .set.
               const promise = autoSaveRef.current!(form);
               isAutoSaving = "in-flight";
-              setLoading(true);
+              setSaving(true);
               await promise;
             } catch (e) {
               maybeError = String(e);
               throw e;
             } finally {
               isAutoSaving = false;
-              setLoading(false, maybeError?.toString());
+              setSaving(false, maybeError?.toString());
               if (pendingAutoSave) {
                 pendingAutoSave = false;
                 // Push out the follow-up by 1 tick to allow refreshes to happen to potentially

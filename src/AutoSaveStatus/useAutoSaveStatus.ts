@@ -10,19 +10,19 @@ export interface AutoSaveStatusHook {
    * If `error` is passed, it will be added as `errors`; note that we assume `error`
    * will be passed on the loading `true` -> `false` transition.
    */
-  setLoading(loading: boolean, error?: string): void;
+  setSaving(loading: boolean, error?: string): void;
 }
 
 /**
- * Provides the current auto-save `status` as well as a `setLoading` setter
+ * Provides the current auto-save `status` as well as a `setSaving` setter
  * to easily flag the current component's loading state as true/false.
  *
  * If your component makes multiple API calls, you can also use two `useAutoSaveStatus`
  * hooks, i.e.:
  *
  * ```
- * const { setLoading: setLoadingA } = useAutoSaveStatus();
- * const { setLoading: setLoadingB } = useAutoSaveStatus();
+ * const { setSaving: setLoadingA } = useAutoSaveStatus();
+ * const { setSaving: setLoadingB } = useAutoSaveStatus();
  * ```
  *
  * Also ideally your application's infra will automatically integrate `useAutoSaveStatus`
@@ -35,7 +35,7 @@ export function useAutoSaveStatus(): AutoSaveStatusHook {
   const isLoading = useRef(false);
 
   // Make a setter that can be called on every render but only trigger/resolve if loading changed
-  const setLoading = useCallback(
+  const setSaving = useCallback(
     (loading: boolean, error?: string) => {
       if (loading !== isLoading.current) {
         loading ? triggerAutoSave() : resolveAutoSave(error);
@@ -52,5 +52,5 @@ export function useAutoSaveStatus(): AutoSaveStatusHook {
     };
   }, [resolveAutoSave]);
 
-  return { status, errors, setLoading };
+  return { status, errors, setSaving };
 }
