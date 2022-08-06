@@ -14,7 +14,7 @@ export interface AutoSaveStatusHook {
 }
 
 /**
- * Provides the current auto-save `status` as well as a `setInFlight` setter
+ * Provides the current auto-save `status` as well as a `setLoading` setter
  * to easily flag the current component's loading state as true/false.
  *
  * If your component makes multiple API calls, you can also use two `useAutoSaveStatus`
