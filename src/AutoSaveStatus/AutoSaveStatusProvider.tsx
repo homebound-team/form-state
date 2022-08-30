@@ -1,26 +1,27 @@
 import React, { PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export enum AutoSaveStatus {
+  /** No calls are in-flight or just-recently-saved. */
   IDLE = "idle",
+  /** A call is actively in-flight. */
   SAVING = "saving",
+  /** A call is no longer actively in-flight, but has recently finished/can show confirmed. */
   DONE = "done",
+  /** A call is no longer actively in-fight, but has errored out. */
   ERROR = "error",
 }
 
 export interface AutoSaveStatusContextType {
   status: AutoSaveStatus;
-  /** Resets status to IDLE, particularly useful if "Error" or "Done" is stale */
-  resetStatus: VoidFunction;
-  errors: unknown[];
+  errors: string[];
   /** Notifies AutoSaveContext that a request is in-flight */
   triggerAutoSave: VoidFunction;
   /** Notifies AutoSaveContext that a request has settled, optionally taking an error */
-  resolveAutoSave: (error?: unknown) => void;
+  resolveAutoSave: (error?: string) => void;
 }
 
 export const AutoSaveStatusContext = React.createContext<AutoSaveStatusContextType>({
   status: AutoSaveStatus.IDLE,
-  resetStatus() {},
   errors: [],
   triggerAutoSave() {},
   resolveAutoSave() {},
@@ -31,13 +32,20 @@ type AutoSaveStatusProviderProps = PropsWithChildren<{
   resetToIdleTimeout?: number;
 }>;
 
+/**
+ * Provides an app-wide-ish store of in-flight/save status.
+ *
+ * Generally there will be only a single `AutoSaveStatusProvider` at the top of the app's
+ * component tree, although you could also have one inside a modal or drawer component
+ * to more locally capture/display loading/save status.
+ */
 export function AutoSaveStatusProvider({ children, resetToIdleTimeout = 6_000 }: AutoSaveStatusProviderProps) {
   const [status, setStatus] = useState(AutoSaveStatus.IDLE);
-  const [errors, setErrors] = useState<unknown[]>([]);
+  const [errors, setErrors] = useState<string[]>([]);
   const [inFlight, setInFlight] = useState(0);
   const resetToIdleTimeoutRef = useRef<number | null>(null);
 
-  /** Handles setting Status */
+  // We always derive Status from inFlight/errors
   useEffect(() => {
     if (inFlight > 0) return setStatus(AutoSaveStatus.SAVING);
     if (status === AutoSaveStatus.IDLE) return;
@@ -50,14 +58,9 @@ export function AutoSaveStatusProvider({ children, resetToIdleTimeout = 6_000 }:
     setErrors([]);
   }, []);
 
-  const resolveAutoSave = useCallback((error?: unknown) => {
+  const resolveAutoSave = useCallback((error?: string) => {
     setInFlight((c) => Math.max(0, c - 1));
     if (error) setErrors((errs) => errs.concat(error));
-  }, []);
-
-  const resetStatus = useCallback(() => {
-    setStatus(AutoSaveStatus.IDLE);
-    setErrors([]);
   }, []);
 
   /** Resets AutoSaveStatus from "Done" to "Idle" after a timeout, if one is provided */
@@ -71,14 +74,14 @@ export function AutoSaveStatusProvider({ children, resetToIdleTimeout = 6_000 }:
     if (resetToIdleTimeoutRef.current) clearTimeout(resetToIdleTimeoutRef.current);
 
     resetToIdleTimeoutRef.current = window.setTimeout(() => {
-      resetStatus();
+      setStatus(AutoSaveStatus.IDLE);
+      setErrors([]);
       resetToIdleTimeoutRef.current = null;
     }, resetToIdleTimeout);
-  }, [resetStatus, resetToIdleTimeout, status]);
+  }, [resetToIdleTimeout, status]);
 
-  const value = useMemo(() => ({ status, resetStatus, errors, triggerAutoSave, resolveAutoSave }), [
+  const value = useMemo(() => ({ status, errors, triggerAutoSave, resolveAutoSave }), [
     errors,
-    resetStatus,
     resolveAutoSave,
     status,
     triggerAutoSave,
