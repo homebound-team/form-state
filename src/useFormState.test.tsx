@@ -670,6 +670,51 @@ describe("useFormState", () => {
     expect(result.current.autoSave.status).toBe(AutoSaveStatus.DONE);
     jest.clearAllTimers();
   });
+
+  it("treats the id changing as a whole new entity instead of a delete", async () => {
+    type FormValue = Pick<AuthorInput, "id" | "firstName">;
+    const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+    function TestComponent() {
+      // Given an initial author a1
+      const [author, setAuthor] = useState<AuthorInput>({ id: "a:1", firstName: "a1" });
+      const form = useFormState({ config, init: { input: author, map: (a) => a } });
+      return (
+        <Observer>
+          {() => (
+            <div>
+              <div data-testid="value">{String(form.firstName.value)}</div>
+              <div data-testid="dirty">{String(form.firstName.dirty)}</div>
+              <div data-testid="originalValue">{String(form.firstName.originalValue)}</div>
+              <div data-testid="objectValue">{String(form.value.firstName)}</div>
+              <div data-testid="a1" onClick={() => setAuthor({ id: "a:1", firstName: "a1" })} />
+              <div data-testid="a2" onClick={() => setAuthor({ id: "a:2", firstName: undefined })} />
+            </div>
+          )}
+        </Observer>
+      );
+    }
+    const r = await render(<TestComponent />);
+    // And the value is initially a1/and not dirty
+    expect(r.value()).toHaveTextContent("a1");
+    expect(r.dirty()).toHaveTextContent("false");
+    expect(r.originalValue()).toHaveTextContent("a1");
+    expect(r.objectValue()).toHaveTextContent("a1");
+    // When we switch to a completely separate author
+    click(r.a2);
+    // Then it switches to the next author
+    expect(r.value()).toHaveTextContent("undefined");
+    // And the field is not dirty (which had been the case before this bug fix)
+    expect(r.dirty()).toHaveTextContent("false");
+    expect(r.originalValue()).toHaveTextContent("undefined");
+    expect(r.objectValue()).toHaveTextContent("undefined");
+    // And when we switch back to the original author
+    click(r.a1);
+    // It again restores the value and does not think an edit was WIP
+    expect(r.value()).toHaveTextContent("a1");
+    expect(r.dirty()).toHaveTextContent("false");
+    expect(r.originalValue()).toHaveTextContent("a1");
+    expect(r.objectValue()).toHaveTextContent("a1");
+  });
 });
 
 const authorConfig: ObjectConfig<AuthorInput> = {

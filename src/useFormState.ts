@@ -160,6 +160,12 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
       return;
     }
     setLoading(form, opts);
+    // Note: maybe someday we want to watch the `id` value and notice if it's changing (i.e. 2 -> 3),
+    // and treat this more as a reset than a refresh, b/c the id changing means it's probably
+    // not "the cache refreshed after a mutation save" but "the cache changed b/c of changing
+    // rows in the table that our side panel's form has open/is focused on" (which ideally would
+    // be treated as a full component remount by having an `key` field somewhere in the parent
+    // component, but it's unlikely the user will always remember to do this).
     (form as any).set(initValue(config, init), { refreshing: true });
   }, [form, ...dep]);
 

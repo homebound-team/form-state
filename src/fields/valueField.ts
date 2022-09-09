@@ -198,7 +198,7 @@ export function newValueFieldState<T, K extends keyof T>(
 
       // If the user has deleted/emptied a value that was originally set, keep it as `null`
       // so that our partial update to the backend correctly unsets it.
-      const keepNull = !isEmpty(this.originalValue) && isEmpty(value);
+      const keepNull = !isEmpty(this.originalValue) && isEmpty(value) && !opts.refreshing;
       // If a list of primitives was originally undefined, coerce `[]` to `undefined`
       const coerceEmptyList = value && value instanceof Array && value.length === 0 && isEmpty(this.originalValue);
       const newValue = keepNull ? null : isEmpty(value) || coerceEmptyList ? undefined : value;
@@ -236,7 +236,9 @@ export function newValueFieldState<T, K extends keyof T>(
 
     get originalValue(): V | null | undefined {
       // A dummy check to for reactivity around our non-proxy value
-      return _originalValueTick.value > -1 ? _originalValue : _originalValue;
+      const value = _originalValueTick.value > -1 ? _originalValue : _originalValue;
+      // Re-create the `keepNull` logic so that `.value` === `.originalValue`
+      return value === null ? (undefined as any) : value;
     },
 
     set originalValue(v: V | null | undefined) {
