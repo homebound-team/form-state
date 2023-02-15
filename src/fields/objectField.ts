@@ -160,7 +160,7 @@ export function newObjectState<T, P = any>(
   }
 
   const obj = {
-    ...Object.fromEntries(fieldStates.filter(isDefined)),
+    ...Object.fromEntries(fieldStates),
 
     key,
 
@@ -319,8 +319,4 @@ export function newObjectState<T, P = any>(
   );
 
   return proxy!;
-}
-
-function isDefined<T extends any>(param: T | undefined | null): param is T {
-  return param !== null && param !== undefined;
 }
