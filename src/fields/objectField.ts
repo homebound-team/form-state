@@ -102,8 +102,6 @@ export function newObjectState<T, P = any>(
     return proxy;
   }
 
-  const fragmentFieldNames: string[] = [];
-
   const fieldStates = Object.entries(config).map(([_key, _config]) => {
     const key = _key as keyof T;
     const config = _config as
@@ -142,7 +140,6 @@ export function newObjectState<T, P = any>(
       }
       field = newObjectState(config.config, getObjectState, undefined, instance[key] as any, key, maybeAutoSave) as any;
     } else if (config.type === "fragment") {
-      fragmentFieldNames.push(key as string);
       field = newFragmentField(instance, key);
     } else {
       throw new Error("Unsupported");
