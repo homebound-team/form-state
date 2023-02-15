@@ -1,4 +1,4 @@
-import { ObjectState } from "src/fields/objectField";
+import { Fragment, ObjectState } from "src/fields/objectField";
 import { Rule } from "src/rules";
 import { Builtin } from "src/utils";
 
@@ -16,7 +16,9 @@ export type ObjectConfig<T> = {
   //
   // We ignore functions (the OmitIf) to support observable classes that have
   // helper methods, i.e. `.toInput()`.
-  [P in keyof OmitIf<T, Function>]: T[P] extends Array<infer U> | null | undefined
+  [P in keyof OmitIf<T, Function>]: T[P] extends Fragment<infer V>
+    ? FragmentFieldConfig
+    : T[P] extends Array<infer U> | null | undefined
     ? U extends Builtin
       ? ValueFieldConfig<T, T[P]>
       : ListFieldConfig<T, U>
@@ -30,6 +32,11 @@ type OmitIf<Base, Condition> = Pick<
     [Key in keyof Base]: Base[Key] extends Condition ? never : Key;
   }[keyof Base]
 >;
+
+/** Field configuration for an opaque value that we don't actually want to include. */
+export type FragmentFieldConfig = {
+  type: "fragment";
+};
 
 /** Field configuration for primitive values, i.e. strings/numbers/Dates/user-defined types. */
 export type ValueFieldConfig<T, V> = {

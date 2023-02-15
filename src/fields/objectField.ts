@@ -1,5 +1,6 @@
 import { computed, makeAutoObservable, observable, reaction } from "mobx";
-import { ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
+import { FragmentFieldConfig, ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
+import { FragmentField, newFragmentField } from "src/fields/fragmentField";
 import { ListFieldState, newListFieldState } from "src/fields/listField";
 import { FieldState, FieldStateInternal, InternalSetOpts, newValueFieldState, SetOpts } from "src/fields/valueField";
 import { Builtin, fail } from "src/utils";
@@ -45,9 +46,19 @@ export type ObjectStateInternal<T, P = any> = ObjectState<T, P> & {
   set(value: P, opts?: InternalSetOpts): void;
 };
 
+const fragmentSym = Symbol("fragment");
+
+export type Fragment<V> = V & { [fragmentSym]: true };
+
+export function fragment<V>(value: V): Fragment<V> {
+  return value as any;
+}
+
 /** For a given input type `T`, decorate each field into the "field state" type that holds our form-relevant state, i.e. valid/touched/etc. */
 type FieldStates<T> = {
-  [K in keyof T]-?: T[K] extends Array<infer U> | null | undefined
+  [K in keyof T]-?: T[K] extends Fragment<infer V>
+    ? FragmentField<V>
+    : T[K] extends Array<infer U> | null | undefined
     ? [U] extends [Builtin]
       ? FieldState<T, T[K]>
       : ListFieldState<T, U>
@@ -91,10 +102,16 @@ export function newObjectState<T, P = any>(
     return proxy;
   }
 
+  const fragmentFieldNames: string[] = [];
+
   const fieldStates = Object.entries(config).map(([_key, _config]) => {
     const key = _key as keyof T;
-    const config = _config as ValueFieldConfig<T, any> | ObjectFieldConfig<any> | ListFieldConfig<T, any>;
-    let field: FieldState<T, any> | ListFieldState<T, any> | ObjectState<T, P>;
+    const config = _config as
+      | ValueFieldConfig<T, any>
+      | ObjectFieldConfig<any>
+      | ListFieldConfig<T, any>
+      | FragmentFieldConfig;
+    let field: FieldState<T, any> | ListFieldState<T, any> | ObjectState<T, P> | FragmentField<any>;
     if (config.type === "value") {
       field = newValueFieldState(
         instance,
@@ -124,6 +141,9 @@ export function newObjectState<T, P = any>(
         instance[key] = {} as any;
       }
       field = newObjectState(config.config, getObjectState, undefined, instance[key] as any, key, maybeAutoSave) as any;
+    } else if (config.type === "fragment") {
+      fragmentFieldNames.push(key as string);
+      field = newFragmentField(instance, key);
     } else {
       throw new Error("Unsupported");
     }
@@ -140,7 +160,7 @@ export function newObjectState<T, P = any>(
   }
 
   const obj = {
-    ...Object.fromEntries(fieldStates),
+    ...Object.fromEntries(fieldStates.filter(isDefined)),
 
     key,
 
@@ -299,4 +319,8 @@ export function newObjectState<T, P = any>(
   );
 
   return proxy!;
+}
+
+function isDefined<T extends any>(param: T | undefined | null): param is T {
+  return param !== null && param !== undefined;
 }
