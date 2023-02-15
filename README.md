@@ -107,23 +107,45 @@ See the [sample](https://github.com/homebound-team/form-state/blob/main/src/Form
 
 Normally, form-state expects all fields in the form to be inputs to the GraphQL mutation/wire call. For example, the `author.firstName` field will always be submitted to the `saveAuthor` mutation (albeit with `author.changedValue` you can have `firstName` conditionally included).
 
-However, sometimes there is "other data" that your UX needs to render the form, but is not strictly a form field, but it would be handy for the data to "just be on the form" anyway, as you're passing it in code.
+However, sometimes there is "other data" that your UX needs to render the form, which is not strictly a form field, but would be handy for the data to "just be on the form" anyway, as you're passing it in around code.
 
 A stereotypical example of this is GraphQL fragments, where an `AuthorFragment` might have a lot of misc read-only info that you want to display next to/within your form, but is not technically editable.
 
-In form-state, you can model with as a `Fragment`, which is setup as:
+In form-state, you can model with as a `Fragment`, which is set up as:
 
 ```ts
 // Your input type, likely generated from GraphQL mutation
 type AuthorInput = { firstName?: string };
-// Your "extra data", likely from your page's GraphQL query to get
-// the author to edit + "misc other data"
 
-// For your form, add-in the "extra data"
-type AuthorState = AuthorInput & { fragment: Fragment<AuthorFragment > };
+// Your wire data likely from your page's GraphQL query to get
+// the author to edit + also "misc other data"
+type AuthorFragment = { firstName: string; miscOtherData: {} };
+
+// For your page's form state, add-in the "extra data"
+type AuthorForm = AuthorInput & {
+  // The `Fragment` type tells form-state this is not a regular form field
+  data: Fragment<AuthorFragment >
+};
+
+// Tell the form config the "fragment" is not a real field
+const config: ObjectConfig<AuthorForm> = {
+  firstName: { type: "value", rules: [require] },
+  data: { type: "fragment" },
 }
-```
 
+// Now in the component...
+const data = useGraphQLQuery();
+const form = useFormState({
+  config,
+  init: {
+    input: data,
+    map: (d) => ({
+      firstName: data.author.firstName,
+      data: fragment(data),
+    }),
+  },
+});
+```
 
 
 # Internal Implementation Notes
