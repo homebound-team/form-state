@@ -1554,34 +1554,34 @@ describe("formState", () => {
   });
 
   describe("fragments", () => {
-    type BookWithFragment = BookInput & { object: Fragment<{ foo: string }> };
+    type BookWithFragment = BookInput & { data: Fragment<{ foo: string }> };
 
     it("ignores changes within fragments", () => {
       const a: ObjectState<BookWithFragment> = createObjectState<BookWithFragment>(
-        { title: { type: "value" }, object: { type: "fragment" } },
-        { title: "b1", object: fragment({ foo: "1" }) },
+        { title: { type: "value" }, data: { type: "fragment" } },
+        { title: "b1", data: fragment({ foo: "1" }) },
       );
       let numCalcs = 0;
       autorun(() => {
         numCalcs++;
         noop(a.value);
       });
-      expect(a.object.value).toEqual({ foo: "1" });
-      expect(isObservable(a.object.value)).toBe(false);
+      expect(a.data.value).toEqual({ foo: "1" });
+      expect(isObservable(a.data.value)).toBe(false);
       expect(numCalcs).toEqual(1);
-      a.object.value = { foo: "2" };
+      a.data.value = { foo: "2" };
       expect(numCalcs).toEqual(2);
-      a.object.value.foo = "3";
+      a.data.value.foo = "3";
       expect(numCalcs).toEqual(2);
     });
 
     it("ignores fragments in changedValue", () => {
       const a: ObjectState<BookWithFragment> = createObjectState<BookWithFragment>(
-        { title: { type: "value" }, object: { type: "fragment" } },
-        { title: "b1", object: fragment({ foo: "1" }) },
+        { title: { type: "value" }, data: { type: "fragment" } },
+        { title: "b1", data: fragment({ foo: "1" }) },
       );
       a.title.value = "b2";
-      a.object.value = fragment({ foo: "2" });
+      a.data.value = fragment({ foo: "2" });
       expect(a.changedValue).toMatchInlineSnapshot(`
         Object {
           "title": "b2",
@@ -1591,8 +1591,8 @@ describe("formState", () => {
 
     it("ignores fragments in value", () => {
       const a: ObjectState<BookWithFragment> = createObjectState<BookWithFragment>(
-        { title: { type: "value" }, object: { type: "fragment" } },
-        { title: "b1", object: fragment({ foo: "1" }) },
+        { title: { type: "value" }, data: { type: "fragment" } },
+        { title: "b1", data: fragment({ foo: "1" }) },
       );
       expect(a.value).toMatchInlineSnapshot(`
         Object {
