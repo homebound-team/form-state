@@ -1,6 +1,6 @@
-import { autorun, makeAutoObservable, observable, reaction } from "mobx";
+import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
 import { ObjectConfig } from "src/config";
-import { createObjectState, ObjectState } from "src/fields/objectField";
+import { createObjectState, fragment, Fragment, ObjectState } from "src/fields/objectField";
 import { FieldState } from "src/fields/valueField";
 import { AuthorAddress, AuthorInput, BookInput, Color, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
 import { required } from "src/rules";
@@ -1552,6 +1552,55 @@ describe("formState", () => {
     // The list is again dirty
     expect(a1.books.dirty).toBeTruthy();
   });
+
+  describe("fragments", () => {
+    type BookWithFragment = BookInput & { data: Fragment<{ foo: string }> };
+
+    it("ignores changes within fragments", () => {
+      const a: ObjectState<BookWithFragment> = createObjectState<BookWithFragment>(
+        { title: { type: "value" }, data: { type: "fragment" } },
+        { title: "b1", data: fragment({ foo: "1" }) },
+      );
+      let numCalcs = 0;
+      autorun(() => {
+        numCalcs++;
+        noop(a.value);
+      });
+      expect(a.data.value).toEqual({ foo: "1" });
+      expect(isObservable(a.data.value)).toBe(false);
+      expect(numCalcs).toEqual(1);
+      a.data.value = { foo: "2" };
+      expect(numCalcs).toEqual(2);
+      a.data.value.foo = "3";
+      expect(numCalcs).toEqual(2);
+    });
+
+    it("ignores fragments in changedValue", () => {
+      const a: ObjectState<BookWithFragment> = createObjectState<BookWithFragment>(
+        { title: { type: "value" }, data: { type: "fragment" } },
+        { title: "b1", data: fragment({ foo: "1" }) },
+      );
+      a.title.value = "b2";
+      a.data.value = fragment({ foo: "2" });
+      expect(a.changedValue).toMatchInlineSnapshot(`
+        Object {
+          "title": "b2",
+        }
+      `);
+    });
+
+    it("ignores fragments in value", () => {
+      const a: ObjectState<BookWithFragment> = createObjectState<BookWithFragment>(
+        { title: { type: "value" }, data: { type: "fragment" } },
+        { title: "b1", data: fragment({ foo: "1" }) },
+      );
+      expect(a.value).toMatchInlineSnapshot(`
+        Object {
+          "title": "b1",
+        }
+      `);
+    });
+  });
 });
 
 class ObservableObject {
@@ -1633,3 +1682,5 @@ const authorWithAddressAndBooksConfig: ObjectConfig<AuthorInput> = {
 function createAuthorWithAddressInputState(input: AuthorInput) {
   return createObjectState<AuthorInput>(authorWithAddressConfig, input);
 }
+
+function noop(t: unknown): void {}
