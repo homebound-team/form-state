@@ -6,7 +6,7 @@ import { required, Rule } from "src/rules";
 import { fail, isNotUndefined } from "src/utils";
 
 /** Form state for list of children, i.e. `U` is a `Book` in a form with a `books: Book[]`. */
-export interface ListFieldState<T, U> extends Omit<FieldState<T, U[]>, "originalValue"> {
+export interface ListFieldState<T, U> extends Omit<FieldState<U[]>, "originalValue"> {
   readonly rows: ReadonlyArray<ObjectState<U>>;
 
   add(value: U, index?: number): void;
@@ -18,7 +18,7 @@ export function newListFieldState<T, K extends keyof T, U>(
   parentInstance: T,
   parentState: () => ObjectState<T>,
   key: K,
-  rules: Rule<T, readonly ObjectState<U>[]>[],
+  rules: Rule<readonly ObjectState<U>[]>[],
   listConfig: ListFieldConfig<T, U>,
   config: ObjectConfig<U>,
   maybeAutoSave: () => void,
@@ -107,7 +107,7 @@ export function newListFieldState<T, K extends keyof T, U>(
           childState = newObjectState<U>(
             config,
             parentState as any,
-            (list as any) as FieldState<any, any>,
+            (list as any) as FieldState<any>,
             child,
             undefined,
             maybeAutoSave,

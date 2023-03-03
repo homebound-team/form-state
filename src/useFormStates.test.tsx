@@ -50,7 +50,7 @@ describe("useFormStates", () => {
       const [apiData, setApiData] = useState<FormValue>({ id: "a:1", firstName: "Brandon" });
       const { getFormState } = useFormStates<FormValue, FormValue>({ config, autoSave, getId: (o) => o.id! });
       // Memoize an original for comparing the update against.
-      const originalState = useMemo(() => getFormState(apiData), []);
+      const originalState = useMemo(() => getFormState(apiData), [getFormState]);
       const state = getFormState(apiData);
 
       return (
@@ -166,6 +166,7 @@ describe("useFormStates", () => {
       const [config, setConfig] = useState(originalConfig);
       const { getFormState } = useFormStates<FormValue, FormValue>({ config, autoSave, getId: (o) => o.id! });
       // Memoize an original for comparing the update against.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       const originalState = useMemo(() => getFormState(apiData), []);
       const state = getFormState(apiData);
 

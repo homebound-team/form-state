@@ -34,7 +34,7 @@ export type ObjectState<T, P = any> =
   // Add state.field1, state.field2 for each key in T
   FieldStates<T> &
     // Pull in the touched, blur, dirty, etc
-    FieldState<P, T> & {
+    FieldState<T> & {
       /** Sets the state of fields in `state`. */
       set(state: Partial<T>, opts?: SetOpts): void;
 
@@ -60,10 +60,10 @@ type FieldStates<T> = {
     ? FragmentField<V>
     : T[K] extends Array<infer U> | null | undefined
     ? [U] extends [Builtin]
-      ? FieldState<T, T[K]>
+      ? FieldState<T[K]>
       : ListFieldState<T, U>
     : T[K] extends Builtin | null | undefined
-    ? FieldState<T, T[K]>
+    ? FieldState<T[K]>
     : ObjectState<T[K], T>;
 };
 
@@ -86,7 +86,7 @@ export function createObjectState<T>(
 export function newObjectState<T, P = any>(
   config: ObjectConfig<T>,
   parentState: (() => ObjectState<P>) | undefined,
-  parentListState: FieldState<any, any> | undefined,
+  parentListState: FieldState<any> | undefined,
   instance: T,
   key: keyof T | undefined,
   maybeAutoSave: () => void,
@@ -109,7 +109,7 @@ export function newObjectState<T, P = any>(
       | ObjectFieldConfig<any>
       | ListFieldConfig<T, any>
       | FragmentFieldConfig;
-    let field: FieldState<T, any> | ListFieldState<T, any> | ObjectState<T, P> | FragmentField<any>;
+    let field: FieldState<any> | ListFieldState<T, any> | ObjectState<T, P> | FragmentField<any>;
     if (config.type === "value") {
       field = newValueFieldState(
         instance,
