@@ -166,7 +166,8 @@ describe("useFormStates", () => {
       const [config, setConfig] = useState(originalConfig);
       const { getFormState } = useFormStates<FormValue, FormValue>({ config, autoSave, getId: (o) => o.id! });
       // Memoize an original for comparing the update against.
-      const originalState = useMemo(() => getFormState(apiData), [getFormState]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const originalState = useMemo(() => getFormState(apiData), []);
       const state = getFormState(apiData);
 
       return (
