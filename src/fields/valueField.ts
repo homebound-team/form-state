@@ -14,7 +14,7 @@ import { areEqual, fail, isEmpty, isNotUndefined } from "src/utils";
  * Note that `V` will always have `null | undefined` added to it by `FieldStates`, b/c most form fields
  * i.e. text boxes, can always be cleared out/deleted.
  */
-export interface FieldState<T, V> {
+export interface FieldState<V> {
   readonly key: string;
   value: V;
   readonly originalValue: V;
@@ -25,7 +25,7 @@ export interface FieldState<T, V> {
   readonly dirty: boolean;
   readonly valid: boolean;
   readonly isNewEntity: boolean;
-  rules: Rule<T, V>[];
+  rules: Rule<V>[];
   readonly errors: string[];
   /** Returns a subset of V with only the changed values. Currently not observable. */
   readonly changedValue: V;
@@ -56,7 +56,7 @@ export interface InternalSetOpts extends SetOpts {
   refreshing?: boolean;
 }
 
-export interface FieldStateInternal<T, V> extends FieldState<T, V> {
+export interface FieldStateInternal<T, V> extends FieldState<V> {
   set(value: V, opts?: InternalSetOpts): void;
   _isIdKey: boolean;
   _isDeleteKey: boolean;
@@ -68,7 +68,7 @@ export function newValueFieldState<T, K extends keyof T>(
   parentInstance: T,
   parentState: () => ObjectState<T>,
   key: K,
-  rules: Rule<T, T[K] | null | undefined>[],
+  rules: Rule<T[K] | null | undefined>[],
   isIdKey: boolean,
   isDeleteKey: boolean,
   isReadOnlyKey: boolean,
@@ -76,7 +76,7 @@ export function newValueFieldState<T, K extends keyof T>(
   readOnly: boolean,
   strictOrder: boolean,
   maybeAutoSave: () => void,
-): FieldState<T, T[K] | null | undefined> {
+): FieldState<T[K] | null | undefined> {
   type V = T[K];
 
   // keep a copy here for reference equality

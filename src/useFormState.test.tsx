@@ -321,14 +321,14 @@ describe("useFormState", () => {
 
   it("useFormState can accept new data with computed fields", async () => {
     // Given a component
-    function TestComponent() {
-      // And it's using a class/mobx proxy as the basis for the data
-      class AuthorRow {
-        constructor(public firstName: string, public lastName: string) {}
-        get fullName() {
-          return this.firstName + " " + this.lastName;
-        }
+    // And it's using a class/mobx proxy as the basis for the data
+    class AuthorRow {
+      constructor(public firstName: string, public lastName: string) {}
+      get fullName() {
+        return this.firstName + " " + this.lastName;
       }
+    }
+    function TestComponent() {
       // And we have two sets of data
       const data1 = { firstName: "f1", lastName: "l1" };
       const data2 = { firstName: "f2", lastName: "l2" };
@@ -760,7 +760,7 @@ const authorWithAddressAndBooksConfig: ObjectConfig<AuthorInput> = {
 };
 
 /** Emulates a user focusing and then blurring a field. */
-function focusAndBlur(state: FieldState<any, any>): void {
+function focusAndBlur(state: FieldState<any>): void {
   state.focus();
   state.blur();
 }

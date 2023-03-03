@@ -1093,28 +1093,6 @@ describe("formState", () => {
     expect(formState.firstName.value).toEqual("first");
   });
 
-  it("lets rules validate against other fields", () => {
-    const formState = createObjectState<AuthorInput>(
-      {
-        firstName: { type: "value", rules: [] },
-        lastName: {
-          type: "value",
-          rules: [
-            ({ object }) => {
-              if (object.firstName.value === object.lastName.value) {
-                return "Must not match first name";
-              }
-            },
-          ],
-        },
-      },
-      {},
-    );
-    formState.firstName.value = "bob";
-    formState.lastName.value = "bob";
-    expect(formState.lastName.errors).toEqual(["Must not match first name"]);
-  });
-
   it("can return only changed primitive fields", () => {
     // Given an author
     const formState = createObjectState(authorWithBooksConfig, {
@@ -1443,13 +1421,13 @@ describe("formState", () => {
     // @ts-expect-error
     form.id.set(undefined);
     // A BoundField typically has `string | undefined | null` so works on firstName
-    let field1: FieldState<AuthorInput, string | undefined | null>;
+    let field1: FieldState<string | undefined | null>;
     field1 = form.firstName;
     // But not on id
     // @ts-expect-error
     field1 = form.id;
     // And same thing with any as the object type
-    let field2: FieldState<any, string | undefined | null>;
+    let field2: FieldState<string | undefined | null>;
     field2 = form.firstName;
     // @ts-expect-error
     field2 = form.id;
@@ -1468,7 +1446,7 @@ describe("formState", () => {
     // And a bound field that wants a FieldState<any, Address> (even though technically `ObjectState`
     // turns this into a nested `ObjectState` (instead of "just a `FieldState`"), because it can't
     // "see" the `{ type: value }`, until we pass the config as a generic to `ObjectState`.
-    let field: FieldState<any, AuthorAddress | null | undefined>;
+    let field: FieldState<AuthorAddress | null | undefined>;
     // Then we can assign the value
     field = a.address;
     // And treat it as a value object

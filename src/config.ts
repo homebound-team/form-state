@@ -41,7 +41,7 @@ export type FragmentFieldConfig = {
 /** Field configuration for primitive values, i.e. strings/numbers/Dates/user-defined types. */
 export type ValueFieldConfig<T, V> = {
   type: "value";
-  rules?: Rule<T, V | null | undefined>[];
+  rules?: Rule<V | null | undefined>[];
   /**
    * If true, marks this field as the id, which will be used for things like "always include in changedValue".
    *
@@ -70,7 +70,7 @@ export type ValueFieldConfig<T, V> = {
 export type ListFieldConfig<T, U> = {
   type: "list";
   /** Rules that can run on the full list of children. */
-  rules?: Rule<T, readonly ObjectState<U>[]>[];
+  rules?: Rule<readonly ObjectState<U>[]>[];
   /** Config for each child's form state, i.e. each book. */
   config: ObjectConfig<U>;
   /**
