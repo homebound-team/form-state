@@ -61,7 +61,7 @@ type FieldStates<T> = {
     : T[K] extends Array<infer U> | null | undefined
     ? [U] extends [Builtin]
       ? FieldState<T[K]>
-      : ListFieldState<T, U>
+      : ListFieldState<U>
     : T[K] extends Builtin | null | undefined
     ? FieldState<T[K]>
     : ObjectState<T[K], T>;
@@ -109,7 +109,7 @@ export function newObjectState<T, P = any>(
       | ObjectFieldConfig<any>
       | ListFieldConfig<T, any>
       | FragmentFieldConfig;
-    let field: FieldState<any> | ListFieldState<T, any> | ObjectState<T, P> | FragmentField<any>;
+    let field: FieldState<any> | ListFieldState<any> | ObjectState<T, P> | FragmentField<any>;
     if (config.type === "value") {
       field = newValueFieldState(
         instance,
