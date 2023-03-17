@@ -6,7 +6,7 @@ import { required, Rule } from "src/rules";
 import { fail, isNotUndefined } from "src/utils";
 
 /** Form state for list of children, i.e. `U` is a `Book` in a form with a `books: Book[]`. */
-export interface ListFieldState<T, U> extends Omit<FieldState<U[]>, "originalValue"> {
+export interface ListFieldState<U> extends Omit<FieldState<U[]>, "originalValue"> {
   readonly rows: ReadonlyArray<ObjectState<U>>;
 
   add(value: U, index?: number): void;
@@ -22,7 +22,7 @@ export function newListFieldState<T, K extends keyof T, U>(
   listConfig: ListFieldConfig<T, U>,
   config: ObjectConfig<U>,
   maybeAutoSave: () => void,
-): ListFieldState<T, U> {
+): ListFieldState<U> {
   // Keep a map of "item in the parent list" -> "that item's ObjectState"
   const rowMap = new Map<U, ObjectStateInternal<U>>();
   const _tick = observable({ value: 1 });

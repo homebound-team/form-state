@@ -16,7 +16,7 @@ import { Builtin, fail } from "src/utils";
  * have exactly the on-the-wire type `T` that they need to submit to the backend, without doing the
  * manual mapping of "data that was in the form controls" into "data that the backend wants".
  *
- * Note that this can be hierarchical by having by having a field of `ListFieldState` that
+ * Note that this can be hierarchical by having a field of `ListFieldState` that
  * themselves each wrap an `ObjectState`, i.e.:
  *
  * ```
@@ -30,7 +30,7 @@ import { Builtin, fail } from "src/utils";
  *       - title: FieldState
  * ```
  */
-export type ObjectState<T, P = any> =
+export type ObjectState<T> =
   // Add state.field1, state.field2 for each key in T
   FieldStates<T> &
     // Pull in the touched, blur, dirty, etc
@@ -42,8 +42,8 @@ export type ObjectState<T, P = any> =
       canSave(): boolean;
     };
 
-export type ObjectStateInternal<T, P = any> = ObjectState<T, P> & {
-  set(value: P, opts?: InternalSetOpts): void;
+export type ObjectStateInternal<T> = ObjectState<T> & {
+  set(value: T, opts?: InternalSetOpts): void;
 };
 
 const fragmentSym = Symbol("fragment");
@@ -61,10 +61,10 @@ type FieldStates<T> = {
     : T[K] extends Array<infer U> | null | undefined
     ? [U] extends [Builtin]
       ? FieldState<T[K]>
-      : ListFieldState<T, U>
+      : ListFieldState<U>
     : T[K] extends Builtin | null | undefined
     ? FieldState<T[K]>
-    : ObjectState<T[K], T>;
+    : ObjectState<T[K]>;
 };
 
 /**
@@ -90,12 +90,12 @@ export function newObjectState<T, P = any>(
   instance: T,
   key: keyof T | undefined,
   maybeAutoSave: () => void,
-): ObjectState<T, P> {
+): ObjectState<T> {
   // This is what we return, but we only know it's value until we call `observable`, so
   // we create a mutable variable to capture it so that we can create fields/call their
   // constructors and give them a way to access it later.
-  let proxy: ObjectState<T, P> | undefined = undefined;
-  function getObjectState(): ObjectState<T, P> {
+  let proxy: ObjectState<T> | undefined = undefined;
+  function getObjectState(): ObjectState<T> {
     if (!proxy) {
       throw new Error("Race condition");
     }
@@ -109,7 +109,7 @@ export function newObjectState<T, P = any>(
       | ObjectFieldConfig<any>
       | ListFieldConfig<T, any>
       | FragmentFieldConfig;
-    let field: FieldState<any> | ListFieldState<T, any> | ObjectState<T, P> | FragmentField<any>;
+    let field: FieldState<any> | ListFieldState<any> | ObjectState<T> | FragmentField<any>;
     if (config.type === "value") {
       field = newValueFieldState(
         instance,
