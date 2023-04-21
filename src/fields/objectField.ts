@@ -132,6 +132,7 @@ export function newObjectState<T, P = any>(
         config.rules || [],
         config,
         config.config,
+        config.strictOrder ?? true,
         maybeAutoSave,
       );
     } else if (config.type === "object") {

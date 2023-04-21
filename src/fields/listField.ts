@@ -21,6 +21,7 @@ export function newListFieldState<T, K extends keyof T, U>(
   rules: Rule<readonly ObjectState<U>[]>[],
   listConfig: ListFieldConfig<T, U>,
   config: ObjectConfig<U>,
+  strictOrder: boolean,
   maybeAutoSave: () => void,
 ): ListFieldState<U> {
   // Keep a map of "item in the parent list" -> "that item's ObjectState"
@@ -64,7 +65,7 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
 
     get dirty(): boolean {
-      return this.rows.some((r) => r.dirty) || this.hasNewItems();
+      return this.rows.some((r) => r.dirty) || this.hasChanged();
     },
 
     get required(): boolean {
@@ -76,21 +77,25 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
 
     // private
-    hasNewItems(): boolean {
+    hasChanged(): boolean {
       const [current, original] = [this.value || [], originalCopy || []];
-      // Instead of relying on just object identities, we look up each child's state
-      // in rowMap, because we already dedup/check object identity (i.e. look for id fields)
-      // when create object states.
-      const a = current.every((e: any) => {
-        const state = rowMap.get(e);
-        return original.some((e) => rowMap.get(e) === state);
-      });
-      const b = original.every((e: any) => {
+
+      if (current.length !== original.length) {
+        return true;
+      }
+
+      if (strictOrder) {
+        return original.some((e: any, idx) => {
+          const originalState = rowMap.get(e);
+          const currentState = rowMap.get(current[idx]);
+          return originalState !== currentState;
+        });
+      }
+
+      return !original.every((e: any) => {
         const state = rowMap.get(e);
         return current.some((e) => rowMap.get(e) === state);
       });
-      const isSame = a && b;
-      return !isSame;
     },
 
     // And we can derive each value's ObjectState wrapper as needed from the rowMap cache
@@ -120,7 +125,7 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     // TODO Should this be true when all rows are touched?
     get touched() {
-      return this.rows.some((r) => r.touched) || this.hasNewItems();
+      return this.rows.some((r) => r.touched) || this.hasChanged();
     },
 
     set touched(touched: boolean) {

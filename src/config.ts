@@ -85,6 +85,8 @@ export type ListFieldConfig<T, U> = {
    * default behavior.
    */
   update?: "exhaustive" | "incremental";
+  /** Set to not consider the order of the list when evaluating changed/dirty states. */
+  strictOrder?: false;
 };
 
 export type ObjectFieldConfig<U> = {

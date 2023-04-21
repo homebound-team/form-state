@@ -1531,6 +1531,47 @@ describe("formState", () => {
     expect(a1.books.dirty).toBeTruthy();
   });
 
+  it("can properly evaluate dirty lists when order changes", () => {
+    // Given a list state in a specific order
+    const a = createAuthorInputState({ books: [{ title: "t1" }, { title: "t2" }] });
+    expect(a.books.dirty).toBeFalsy();
+    // When changing that order
+    const book1 = a.books.rows[0].value;
+    a.books.remove(book1);
+    a.books.add(book1);
+    // Then the list state is considered dirty.
+    expect(a.books.dirty).toBeTruthy();
+    // When putting the books back in the original order
+    a.books.remove(book1);
+    a.books.add(book1, 0);
+    // Then the list state is no longer dirty
+    expect(a.books.dirty).toBeFalsy();
+  });
+
+  it("can optionally ignore the order of list state rows when determining dirty state", () => {
+    // Given a list state in a specific order, and the `strictOrder` option set to `false`
+    const a = createObjectState<AuthorInput>(
+      {
+        books: {
+          type: "list",
+          strictOrder: false,
+          config: {
+            title: { type: "value", rules: [required] },
+          },
+        },
+      },
+      { books: [{ title: "t1" }, { title: "t2" }] },
+    );
+
+    expect(a.books.dirty).toBeFalsy();
+    // When changing that order
+    const book1 = a.books.rows[0].value;
+    a.books.remove(book1);
+    a.books.add(book1);
+    // Then the list state is still not considered dirty.
+    expect(a.books.dirty).toBeFalsy();
+  });
+
   describe("fragments", () => {
     type BookWithFragment = BookInput & { data: Fragment<{ foo: string }> };
 
