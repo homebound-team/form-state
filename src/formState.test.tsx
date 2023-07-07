@@ -1620,6 +1620,19 @@ describe("formState", () => {
       `);
     });
   });
+
+  it("sets id key correctly", () => {
+    // Given an author
+    const a = createObjectState<AuthorInput>(
+      {
+        id: { type: "value" },
+        otherId: { type: "value", isIdKey: true },
+      },
+      {},
+    );
+    expect((a.id as any)._isIdKey).toBe(false);
+    expect((a.otherId as any)._isIdKey).toBe(true);
+  });
 });
 
 class ObservableObject {

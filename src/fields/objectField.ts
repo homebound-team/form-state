@@ -102,6 +102,7 @@ export function newObjectState<T, P = any>(
     return proxy;
   }
 
+  const objectConfig = config as ObjectConfig<T>;
   const fieldStates = Object.entries(config).map(([_key, _config]) => {
     const key = _key as keyof T;
     const config = _config as
@@ -116,7 +117,12 @@ export function newObjectState<T, P = any>(
         getObjectState,
         key,
         config.rules || [],
-        config.isIdKey || key === "id",
+        config.isIdKey ||
+          // Default the id key to "id" unless some other field has isIdKey set
+          (key === "id" &&
+            !((Object.entries(objectConfig) as any) as [string, ValueFieldConfig<any, any>][]).some(
+              ([other, c]) => other !== key && c.isIdKey,
+            )),
         config.isDeleteKey || false,
         config.isReadOnlyKey || false,
         config.computed || false,
