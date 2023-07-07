@@ -15,6 +15,7 @@ export enum Color {
 
 export interface AuthorInput {
   id?: string | null;
+  otherId?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   birthday?: Date | null;
