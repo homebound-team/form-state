@@ -1056,7 +1056,7 @@ describe("formState", () => {
     expect(formState.firstName.value).toEqual("first");
   });
 
-  it("can observe observable objects being mutated", () => {
+  it("can observe observable objects being mutated directly", () => {
     // Given a mobx class with a computed
     const instance = new ObservableObject();
     const formState = createObjectState(
