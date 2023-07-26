@@ -1056,6 +1056,40 @@ describe("formState", () => {
     expect(formState.firstName.value).toEqual("first");
   });
 
+  it("can observe observable objects being mutated", () => {
+    // Given a mobx class with a computed
+    const instance = new ObservableObject();
+    const formState = createObjectState(
+      {
+        firstName: { type: "value" },
+        lastName: { type: "value" },
+        fullName: { type: "value", computed: true },
+      },
+      instance,
+    );
+    expect(formState.firstName.value).toEqual("first");
+    expect(formState.fullName.value).toEqual("first last");
+
+    // And we hook up reactivity to the computed
+    let numCalcs = 0;
+    autorun(() => {
+      numCalcs++;
+      noop(formState.fullName.value);
+    });
+
+    // When the underlying mobx class is directly changed
+    instance.firstName = "change";
+    // Then our form-state computed re-run
+    expect(numCalcs).toBe(2);
+    expect(formState.fullName.value).toEqual("change last");
+
+    // And when the underlying mobx class has a field unset
+    instance.firstName = undefined;
+    // Then our fomr-state computed re-runs again
+    expect(numCalcs).toBe(3);
+    expect(formState.fullName.value).toEqual("undefined last");
+  });
+
   it("can set computeds that have setters", () => {
     const formState = createObjectState(
       {
@@ -1636,8 +1670,8 @@ describe("formState", () => {
 });
 
 class ObservableObject {
-  firstName: string = "first";
-  lastName: string = "last";
+  firstName: string | undefined = "first";
+  lastName: string | undefined = "last";
 
   constructor() {
     makeAutoObservable(this);
@@ -1653,7 +1687,7 @@ class ObservableObject {
     this.lastName = parts[1];
   }
 
-  toInput(): { firstName: string } {
+  toInput(): { firstName: string | undefined } {
     return { firstName: this.firstName };
   }
 }
