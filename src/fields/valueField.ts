@@ -105,6 +105,7 @@ export function newValueFieldState<T, K extends keyof T>(
     rules,
 
     get value(): V {
+      // If we're wrapping a mobx store, then we'll get reactivity from parentInstance[key]
       const value = _tick.value > 0 ? parentInstance[key] : fail();
       // Re-create the `keepNull` logic on sets but for our initial read where our
       // originalValue is null (empty) but we want to expose it as undefined for
