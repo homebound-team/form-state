@@ -2,7 +2,6 @@ import { useCallback, useMemo, useRef } from "react";
 import { ObjectConfig } from "src/config";
 import { createObjectState, ObjectState, ObjectStateInternal } from "src/fields/objectField";
 import { initValue } from "src/utils";
-import { useAutoSaveStatus } from "./AutoSaveStatus";
 
 export type ObjectStateCache<T, I> = Record<string, [ObjectState<T>, I]>;
 
@@ -72,7 +71,6 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
   // Use a ref b/c we're memod
   const readOnlyRef = useRef<boolean>(readOnly);
   readOnlyRef.current = readOnly;
-  const autoSaveStatusContext = useAutoSaveStatus();
 
   const getFormState = useCallback<UseFormStatesHook<T, I>["getFormState"]>(
     (input, opts = {}) => {
@@ -90,7 +88,6 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
           let maybeError: undefined | string;
           try {
             isAutoSaving = true;
-            autoSaveStatusContext.triggerAutoSave();
             // See if we have any reactions that want to run (i.e. added by addRules hooks)
             await new Promise((resolve) => setTimeout(resolve, 0));
             // If a reaction re-queued our form during the ^ wait, remove it
@@ -101,7 +98,6 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             throw e;
           } finally {
             isAutoSaving = false;
-            autoSaveStatusContext.resolveAutoSave(maybeError);
             if (pending.size > 0) {
               const first = pending.values().next().value!;
               pending.delete(first);
