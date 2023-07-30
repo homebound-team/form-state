@@ -1,11 +1,52 @@
-import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
+import { autorun, isObservable, makeAutoObservable, observable, ObservableMap, reaction, runInAction } from "mobx";
 import { ObjectConfig } from "src/config";
 import { createObjectState, fragment, Fragment, ObjectState } from "src/fields/objectField";
 import { FieldState } from "src/fields/valueField";
 import { AuthorAddress, AuthorInput, BookInput, Color, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
 import { required } from "src/rules";
 
-describe("formState", () => {
+describe("mobx behavior", () => {
+  it("mobx batches if in actions", () => {
+    const a = observable({ name: "a1" });
+    const b = observable({ name: "b1" });
+    const map = new ObservableMap<string, { name: string }>();
+    map.set("a", a);
+    map.set("b", b);
+
+    let runs = 0;
+    autorun(() => {
+      noop([...map.values()].filter((v) => v.name.includes("1")));
+      runs++;
+    });
+
+    expect(runs).toBe(1);
+    // When we change both a and b
+    runInAction(() => {
+      a.name = "a11";
+      b.name = "b2";
+    });
+    // Then the reaction waited and only ran once
+    expect(runs).toBe(2);
+  });
+
+  it("mobx can watch undefined keys", () => {
+    const a = new ObservableObject();
+    const b = new ObservableObject();
+    const map = new ObservableMap<string, ObservableObject>();
+    map.set("a", a);
+    map.set("b", b);
+
+    let runs = 0;
+    autorun(() => {
+      noop([...map.values()].map((a) => a.age));
+      runs++;
+    });
+
+    expect(runs).toBe(1);
+    b.age = 1;
+    expect(runs).toBe(2);
+  });
+
   it("mobx lists maintain observable identity", () => {
     // given a parent observable
     const a = observable({ list: [] as {}[] });
@@ -15,7 +56,9 @@ describe("formState", () => {
     // then we get identify equality on the list lookups
     expect(a.list[0] === c1).toEqual(true);
   });
+});
 
+describe("formState", () => {
   it("can create a simple object", () => {
     const a = createObjectState<BookInput>({ title: { type: "value", rules: [required] } }, {});
     expect(a.valid).toBeFalsy();
@@ -1672,6 +1715,7 @@ describe("formState", () => {
 class ObservableObject {
   firstName: string | undefined = "first";
   lastName: string | undefined = "last";
+  age?: number | undefined = undefined;
 
   constructor() {
     makeAutoObservable(this);
