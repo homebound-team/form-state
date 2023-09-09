@@ -47,7 +47,6 @@
     "@semantic-release/exec": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
     "@storybook/addon-essentials": "^7.4.0",
-    "@storybook/addon-info": "^5.3.21",
     "@storybook/addon-links": "^7.4.0",
     "@storybook/addons": "^7.4.0",
     "@storybook/react": "^7.4.0",
