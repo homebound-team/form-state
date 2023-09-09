@@ -184,7 +184,7 @@ export function newValueFieldState<T, K extends keyof T>(
 
     set(value: V | null | undefined, opts: InternalSetOpts = {}) {
       if (this.readOnly && !opts.resetting && !opts.refreshing) {
-        throw new Error(`${key} is currently readOnly`);
+        throw new Error(`${String(key)} is currently readOnly`);
       }
 
       if (opts.refreshing && this.dirty && this.value !== value) {

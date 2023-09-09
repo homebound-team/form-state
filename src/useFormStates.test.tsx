@@ -33,7 +33,7 @@ describe("useFormStates", () => {
     }
     const r = await render(<TestComponent />);
     // And the child component has defined state
-    expect(r.firstName()).toHaveTextContent("Brandon");
+    expect(r.firstName).toHaveTextContent("Brandon");
   });
 
   it("can update existing object state from cache with new values", async () => {
@@ -63,14 +63,14 @@ describe("useFormStates", () => {
 
     const r = await render(<TestComponent />);
     // And the initial values for the form state display
-    expect(r.firstName()).toHaveTextContent("Brandon");
-    expect(r.statesEqual()).toHaveTextContent("true");
+    expect(r.firstName).toHaveTextContent("Brandon");
+    expect(r.statesEqual).toHaveTextContent("true");
     // When updating the API data
-    await clickAndWait(r.updateApiData());
+    await clickAndWait(r.updateApiData);
     // Then the new value is shown in the component
-    expect(r.firstName()).toHaveTextContent("Bob");
+    expect(r.firstName).toHaveTextContent("Bob");
     // And the two states are using the same reference
-    expect(r.statesEqual()).toHaveTextContent("true");
+    expect(r.statesEqual).toHaveTextContent("true");
   });
 
   it("can queue up changes for auto save if a save is already in progress - works across multiple states", async () => {
@@ -135,9 +135,9 @@ describe("useFormStates", () => {
 
     const r = await render(<TestComponent />);
     // And triggering the auto save behavior before awaiting the initial promise to resolve so we have pending changes.
-    click(r.focusSetAndSaveField());
-    click(r.focusSetAndSaveFieldLastName());
-    click(r.focusSetAndSaveField2());
+    click(r.focusSetAndSaveField);
+    click(r.focusSetAndSaveFieldLastName);
+    click(r.focusSetAndSaveField2);
     // Awaits the promises for all methods triggered above
     await wait();
     // Then expect the auto save to only have been called two times. Once with each set of changedValues.
@@ -177,11 +177,11 @@ describe("useFormStates", () => {
     // When rendered with the original configuration
     const r = await render(<TestComponent />);
     // Then the two form-states generated are equal
-    expect(r.statesEqual()).toHaveTextContent("true");
+    expect(r.statesEqual).toHaveTextContent("true");
     // When updating the configuration object
     click(r.updateConfig);
     // Then the two form-states are no longer equal.
-    expect(r.statesEqual()).toHaveTextContent("false");
+    expect(r.statesEqual).toHaveTextContent("false");
   });
 
   it("calls addRules once per form state", async () => {
@@ -235,7 +235,7 @@ describe("useFormStates", () => {
     // When we render
     const r = await render(<TestComponent />);
     // And update the firstName
-    await typeAndWait(r.firstName(), "first");
+    await typeAndWait(r.firstName, "first");
     // Then autoSave was called once with both input+calc'd values
     expect(autoSave).toHaveBeenCalledTimes(1);
     expect(autoSave).toHaveBeenCalledWith({ id: "a:1", firstName: "first", lastName: "first" });
@@ -255,11 +255,11 @@ describe("useFormStates", () => {
     // When we render
     const r = await render(<TestComponent readOnly={true} />);
     // Then it's read only
-    expect(r.firstName()).toHaveAttribute("data-readonly", "true");
+    expect(r.firstName).toHaveAttribute("data-readonly", "true");
     // And when we rerender
     await r.rerender(<TestComponent readOnly={false} />);
     // Then it's not read only
-    expect(r.firstName()).toHaveAttribute("data-readonly", "false");
+    expect(r.firstName).toHaveAttribute("data-readonly", "false");
   });
 
   it("can set readOnly via the getFormState function", async () => {
@@ -275,11 +275,11 @@ describe("useFormStates", () => {
     // When we render
     const r = await render(<TestComponent readOnly={true} />);
     // Then it's read only
-    expect(r.firstName()).toHaveAttribute("data-readonly", "true");
+    expect(r.firstName).toHaveAttribute("data-readonly", "true");
     // And when we rerender
     await r.rerender(<TestComponent readOnly={false} />);
     // Then it's not read only
-    expect(r.firstName()).toHaveAttribute("data-readonly", "false");
+    expect(r.firstName).toHaveAttribute("data-readonly", "false");
   });
 });
 

@@ -120,7 +120,7 @@ export function newObjectState<T, P = any>(
         config.isIdKey ||
           // Default the id key to "id" unless some other field has isIdKey set
           (key === "id" &&
-            !((Object.entries(objectConfig) as any) as [string, ValueFieldConfig<any, any>][]).some(
+            !(Object.entries(objectConfig) as any as [string, ValueFieldConfig<any, any>][]).some(
               ([other, c]) => other !== key && c.isIdKey,
             )),
         config.isDeleteKey || false,
@@ -250,10 +250,10 @@ export function newObjectState<T, P = any>(
     // Accepts new values in bulk, i.e. when setting the form initial state from the backend.
     set(value: T, opts: InternalSetOpts = {}) {
       if (this.readOnly && !opts.resetting && !opts.refreshing) {
-        throw new Error(`${key || "formState"} is currently readOnly`);
+        throw new Error(`${String(key) || "formState"} is currently readOnly`);
       }
       getFields(this).forEach((field) => {
-        if (field.key in value) {
+        if (value && typeof value === "object" && field.key in value) {
           field.set((value as any)[field.key], opts);
         }
       });

@@ -41,11 +41,11 @@ export function initValue<T>(config: ObjectConfig<T>, init: any): T {
 }
 
 export function isInput<T, I>(init: UseFormStateOpts<T, I>["init"]): init is InputAndMap<T, I> {
-  return !!init && "input" in init && "map" in init;
+  return !!init && typeof init === "object" && "input" in init && "map" in init;
 }
 
 export function isQuery<T, I>(init: UseFormStateOpts<T, I>["init"]): init is QueryAndMap<T, I> {
-  return !!init && "query" in init && "map" in init;
+  return !!init && typeof init === "object" && "query" in init && "map" in init;
 }
 
 /**
@@ -67,7 +67,7 @@ export function pickFields<T, I>(
   }
   return Object.fromEntries(
     Object.entries(formConfig).map(([key, _keyConfig]) => {
-      const keyConfig = (_keyConfig as any) as
+      const keyConfig = _keyConfig as any as
         | ObjectFieldConfig<any>
         | ListFieldConfig<any, any>
         | ValueFieldConfig<any, any>;

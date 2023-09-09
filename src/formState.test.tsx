@@ -1,6 +1,6 @@
 import { autorun, isObservable, makeAutoObservable, observable, ObservableMap, reaction, runInAction } from "mobx";
 import { ObjectConfig } from "src/config";
-import { createObjectState, fragment, Fragment, ObjectState } from "src/fields/objectField";
+import { createObjectState, Fragment, fragment, ObjectState } from "src/fields/objectField";
 import { FieldState } from "src/fields/valueField";
 import { AuthorAddress, AuthorInput, BookInput, Color, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
 import { required } from "src/rules";
@@ -1038,13 +1038,13 @@ describe("formState", () => {
     a.address.city.value = "b1";
     expect(a.address.city.value).toEqual("b1");
     expect(a.address.value).toMatchInlineSnapshot(`
-      Object {
+      {
         "city": "b1",
       }
     `);
     expect(a.value).toMatchInlineSnapshot(`
-      Object {
-        "address": Object {
+      {
+        "address": {
           "city": "b1",
         },
       }
@@ -1679,7 +1679,7 @@ describe("formState", () => {
       a.title.value = "b2";
       a.data.value = fragment({ foo: "2" });
       expect(a.changedValue).toMatchInlineSnapshot(`
-        Object {
+        {
           "title": "b2",
         }
       `);
@@ -1691,7 +1691,7 @@ describe("formState", () => {
         { title: "b1", data: fragment({ foo: "1" }) },
       );
       expect(a.value).toMatchInlineSnapshot(`
-        Object {
+        {
           "title": "b1",
         }
       `);
