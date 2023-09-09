@@ -1,8 +1,8 @@
 import { computed, makeAutoObservable, observable, reaction } from "mobx";
 import { ListFieldConfig, ObjectConfig } from "src/config";
-import { createObjectState, newObjectState, ObjectState, ObjectStateInternal } from "src/fields/objectField";
+import { ObjectState, ObjectStateInternal, createObjectState, newObjectState } from "src/fields/objectField";
 import { FieldState, InternalSetOpts } from "src/fields/valueField";
-import { required, Rule } from "src/rules";
+import { Rule, required } from "src/rules";
 import { fail, isNotUndefined } from "src/utils";
 
 /** Form state for list of children, i.e. `U` is a `Book` in a form with a `books: Book[]`. */
@@ -37,7 +37,7 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     // Our fundamental state of wrapped Us
     get value() {
-      return _tick.value > 0 && _childTick.value > 0 ? ((parentInstance[key] as any) as U[]) : fail();
+      return _tick.value > 0 && _childTick.value > 0 ? (parentInstance[key] as any as U[]) : fail();
     },
 
     _focused: false,
@@ -104,7 +104,7 @@ export function newListFieldState<T, K extends keyof T, U>(
       // transitively register us as a dependency on it
       if (_tick.value < 0) fail();
       // Avoid using `this.value` to avoid registering `_childTick` as a dependency
-      const value = (parentInstance[key] as any) as U[];
+      const value = parentInstance[key] as any as U[];
       return (value || []).map((child) => {
         // Because we're reading from this.value, child will be the proxy version
         let childState = rowMap.get(child);
@@ -112,7 +112,7 @@ export function newListFieldState<T, K extends keyof T, U>(
           childState = newObjectState<U>(
             config,
             parentState as any,
-            (list as any) as FieldState<any>,
+            list as any as FieldState<any>,
             child,
             undefined,
             maybeAutoSave,
@@ -187,10 +187,10 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     set(values: U[], opts: InternalSetOpts = {}) {
       if (this.readOnly && !opts.resetting && !opts.refreshing) {
-        throw new Error(`${key} is currently readOnly`);
+        throw new Error(`${String(key)} is currently readOnly`);
       }
       // We should be passed values that are non-proxies.
-      parentInstance[key] = (values.map((value) => {
+      parentInstance[key] = values.map((value) => {
         let childState = rowMap.get(value);
         if (!childState) {
           // Look for an existing child (requires having an id key configured)
@@ -208,7 +208,7 @@ export function newListFieldState<T, K extends keyof T, U>(
         }
         // Return the already-observable'd value so that our `parent.value[key] = values` doesn't re-proxy things
         return childState.value;
-      }) as any) as T[K];
+      }) as any as T[K];
       // Reset originalCopy so that our dirty checks have the right # of rows.
       if (opts.refreshing) {
         originalCopy = [...((parentInstance[key] as any) || [])];

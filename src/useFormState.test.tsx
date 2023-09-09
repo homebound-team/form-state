@@ -3,10 +3,10 @@ import { act } from "@testing-library/react";
 import { reaction } from "mobx";
 import { Observer } from "mobx-react";
 import { useMemo, useState } from "react";
+import { TextField } from "src/FormStateApp";
 import { ObjectConfig } from "src/config";
 import { ObjectState } from "src/fields/objectField";
 import { FieldState } from "src/fields/valueField";
-import { TextField } from "src/FormStateApp";
 import { AuthorInput } from "src/formStateDomain";
 import { required } from "src/rules";
 import { useFormState } from "./useFormState";
@@ -49,9 +49,9 @@ describe("useFormState", () => {
       );
     }
     const r = await render(<TestComponent />);
-    expect(r.firstName()).toHaveTextContent("ab");
+    expect(r.firstName).toHaveTextContent("ab");
     click(r.change);
-    expect(r.firstName()).toHaveTextContent("fred");
+    expect(r.firstName).toHaveTextContent("fred");
   });
 
   it("uses default if init.input is undefined", async () => {
@@ -133,10 +133,10 @@ describe("useFormState", () => {
       );
     }
     const r = await render(<TestComponent />);
-    expect(r.firstName()).toHaveTextContent("bob");
+    expect(r.firstName).toHaveTextContent("bob");
     click(r.change);
     // Then the change didn't get dropped due to init being unstable
-    expect(r.firstName()).toHaveTextContent("fred");
+    expect(r.firstName).toHaveTextContent("fred");
   });
 
   it("doesn't required an init value", async () => {
@@ -220,17 +220,17 @@ describe("useFormState", () => {
 
     // And we start out with the initial query data
     const r = await render(<TestComponent />);
-    expect(r.firstName().textContent).toEqual("f1");
-    expect(r.street().textContent).toEqual("s1");
-    expect(r.title1().textContent).toEqual("a1");
+    expect(r.firstName.textContent).toEqual("f1");
+    expect(r.street.textContent).toEqual("s1");
+    expect(r.title1.textContent).toEqual("a1");
 
     // When we make some local changes
     click(r.makeLocalChanges);
     // Then we see them
-    expect(r.firstName().textContent).toEqual("local");
-    expect(r.street().textContent).toEqual("local");
-    expect(r.title1().textContent).toEqual("local");
-    expect(JSON.parse(r.changedValue().textContent)).toEqual({
+    expect(r.firstName.textContent).toEqual("local");
+    expect(r.street.textContent).toEqual("local");
+    expect(r.title1.textContent).toEqual("local");
+    expect(JSON.parse(r.changedValue.textContent!)).toEqual({
       id: "a:1",
       address: { id: "address:1", street: "local" },
       books: [{ id: "b:1", title: "local" }, { id: "b:2" }],
@@ -241,15 +241,15 @@ describe("useFormState", () => {
     click(r.refreshData);
 
     // Then we kept our local changes
-    expect(r.firstName().textContent).toEqual("local");
-    expect(r.street().textContent).toEqual("local");
-    expect(r.title1().textContent).toEqual("local");
+    expect(r.firstName.textContent).toEqual("local");
+    expect(r.street.textContent).toEqual("local");
+    expect(r.title1.textContent).toEqual("local");
     // But we also see the new data for fields we have not changed
-    expect(r.lastName().textContent).toEqual("l2");
-    expect(r.city().textContent).toEqual("c2");
-    expect(r.title2().textContent).toEqual("b2");
-    expect(r.booksLength().textContent).toEqual("3");
-    expect(JSON.parse(r.changedValue().textContent)).toEqual({
+    expect(r.lastName.textContent).toEqual("l2");
+    expect(r.city.textContent).toEqual("c2");
+    expect(r.title2.textContent).toEqual("b2");
+    expect(r.booksLength.textContent).toEqual("3");
+    expect(JSON.parse(r.changedValue.textContent!)).toEqual({
       id: "a:1",
       address: { id: "address:1", street: "local" },
       books: [{ id: "b:1", title: "local" }, { id: "b:2" }, { id: "b:3" }],
@@ -259,7 +259,7 @@ describe("useFormState", () => {
     // And then when our mutation results come back
     click(r.saveData);
     // Then changedValue doesn't show our local changes anymore
-    expect(JSON.parse(r.changedValue().textContent)).toEqual({
+    expect(JSON.parse(r.changedValue.textContent!)).toEqual({
       id: "a:1",
     });
   });
@@ -303,17 +303,17 @@ describe("useFormState", () => {
     }
     // And we start out with the initial query data
     const r = await render(<TestComponent />);
-    expect(r.firstName().textContent).toEqual("f1");
-    expect(r.street().textContent).toEqual("s1");
-    expect(r.title1().textContent).toEqual("a1");
+    expect(r.firstName.textContent).toEqual("f1");
+    expect(r.street.textContent).toEqual("s1");
+    expect(r.title1.textContent).toEqual("a1");
 
     // When the new query is ran i.e. due to a cache refresh
     click(r.refreshData);
 
     // Then we see the latest data
-    expect(r.firstName().textContent).toEqual("f2");
-    expect(r.street().textContent).toEqual("s2");
-    expect(r.title1().textContent).toEqual("a2");
+    expect(r.firstName.textContent).toEqual("f2");
+    expect(r.street.textContent).toEqual("s2");
+    expect(r.title1.textContent).toEqual("a2");
   });
 
   it("useFormState can accept new data with computed fields", async () => {
@@ -355,12 +355,12 @@ describe("useFormState", () => {
     }
     // And we start out with the initial query data
     const r = await render(<TestComponent />);
-    expect(r.firstName().textContent).toEqual("f1");
-    expect(r.fullName().textContent).toEqual("f1 l1");
+    expect(r.firstName.textContent).toEqual("f1");
+    expect(r.fullName.textContent).toEqual("f1 l1");
     // When the new query is ran i.e. due to a cache refresh
     click(r.refreshData);
-    expect(r.firstName().textContent).toEqual("f2");
-    expect(r.fullName().textContent).toEqual("f2 l2");
+    expect(r.firstName.textContent).toEqual("f2");
+    expect(r.fullName.textContent).toEqual("f2 l2");
   });
 
   it("can trigger auto save for fields in list that were initially undefined", async () => {
@@ -521,17 +521,17 @@ describe("useFormState", () => {
     const r = await render(<TestComponent />);
     // And triggering the auto save behavior before awaiting the initial promise to
     // resolve so we have pending changes.
-    click(r.focusSetAndSaveField(), { allowAsync: true });
+    click(r.focusSetAndSaveField, { allowAsync: true });
     // Let the initial autoSave be called
     act(() => {
       jest.runOnlyPendingTimers();
     });
-    expect(r.name()).toHaveTextContent("Brandon Dow");
+    expect(r.name).toHaveTextContent("Brandon Dow");
     expect(autoSaveStub).toBeCalledTimes(1);
     expect(autoSaveStub).toBeCalledWith({ id: "a:1", firstName: "Foo" });
 
     // And while that is in flight, trigger another user action
-    click(r.focusSetAndSaveFieldLastName(), { allowAsync: true });
+    click(r.focusSetAndSaveFieldLastName, { allowAsync: true });
     // (Use `wait` so that our timer flushes before the Promise.resolve(1) is ran)
     await wait();
 
@@ -586,11 +586,11 @@ describe("useFormState", () => {
     // And we initially pass in `init.query.loading: true`
     const r = await render(<TestComponent loading={true} />);
     // Then the form is marked as loading
-    expect(r.loading()).toHaveTextContent("true");
+    expect(r.loading).toHaveTextContent("true");
     // And when the query is not loading
     await r.rerender(<TestComponent loading={false} />);
     // Then the form is marked as not loading
-    expect(r.loading()).toHaveTextContent("false");
+    expect(r.loading).toHaveTextContent("false");
   });
 
   it("sets loading if input.data is undefined", async () => {
@@ -604,11 +604,11 @@ describe("useFormState", () => {
     // And we initially pass in `init.input: undefined`
     const r = await render(<TestComponent data={undefined} />);
     // Then the form is marked as loading
-    expect(r.loading()).toHaveTextContent("true");
+    expect(r.loading).toHaveTextContent("true");
     // And when the data is no longer undefined
     await r.rerender(<TestComponent data={{ firstName: "first" }} />);
     // Then the form is marked as not loading
-    expect(r.loading()).toHaveTextContent("false");
+    expect(r.loading).toHaveTextContent("false");
   });
 
   it("sets loading if query.loading is true", async () => {
@@ -622,11 +622,11 @@ describe("useFormState", () => {
     // And we initially pass in `init.query.loading: true`
     const r = await render(<TestComponent loading={true} data={undefined} />);
     // Then the form is marked as loading
-    expect(r.loading()).toHaveTextContent("true");
+    expect(r.loading).toHaveTextContent("true");
     // And when the query is not loading
     await r.rerender(<TestComponent loading={false} data={{ firstName: "first" }} />);
     // Then the form is marked as not loading
-    expect(r.loading()).toHaveTextContent("false");
+    expect(r.loading).toHaveTextContent("false");
   });
 
   it("treats the id changing as a whole new entity instead of a delete", async () => {
@@ -653,25 +653,25 @@ describe("useFormState", () => {
     }
     const r = await render(<TestComponent />);
     // And the value is initially a1/and not dirty
-    expect(r.value()).toHaveTextContent("a1");
-    expect(r.dirty()).toHaveTextContent("false");
-    expect(r.originalValue()).toHaveTextContent("a1");
-    expect(r.objectValue()).toHaveTextContent("a1");
+    expect(r.value).toHaveTextContent("a1");
+    expect(r.dirty).toHaveTextContent("false");
+    expect(r.originalValue).toHaveTextContent("a1");
+    expect(r.objectValue).toHaveTextContent("a1");
     // When we switch to a completely separate author
     click(r.a2);
     // Then it switches to the next author
-    expect(r.value()).toHaveTextContent("undefined");
+    expect(r.value).toHaveTextContent("undefined");
     // And the field is not dirty (which had been the case before this bug fix)
-    expect(r.dirty()).toHaveTextContent("false");
-    expect(r.originalValue()).toHaveTextContent("undefined");
-    expect(r.objectValue()).toHaveTextContent("undefined");
+    expect(r.dirty).toHaveTextContent("false");
+    expect(r.originalValue).toHaveTextContent("undefined");
+    expect(r.objectValue).toHaveTextContent("undefined");
     // And when we switch back to the original author
     click(r.a1);
     // It again restores the value and does not think an edit was WIP
-    expect(r.value()).toHaveTextContent("a1");
-    expect(r.dirty()).toHaveTextContent("false");
-    expect(r.originalValue()).toHaveTextContent("a1");
-    expect(r.objectValue()).toHaveTextContent("a1");
+    expect(r.value).toHaveTextContent("a1");
+    expect(r.dirty).toHaveTextContent("false");
+    expect(r.originalValue).toHaveTextContent("a1");
+    expect(r.objectValue).toHaveTextContent("a1");
   });
 });
 

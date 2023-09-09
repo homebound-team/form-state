@@ -5,7 +5,7 @@ import { configure } from "mobx";
 configure({ enforceActions: "never" });
 
 beforeEach(() => {
-  jest.useFakeTimers("modern");
+  jest.useFakeTimers();
 });
 afterEach(() => {
   jest.runOnlyPendingTimers();

@@ -13,67 +13,67 @@ describe("utils", () => {
         { firstName: "a", b: "ignored" },
       );
       expect(a).toMatchInlineSnapshot(`
-      Object {
-        "firstName": "a",
-      }
-    `);
+        {
+          "firstName": "a",
+        }
+      `);
     });
 
     it("can pick an unset object fields", () => {
       const a = pickFields(authorWithAddressConfig, { firstName: "a", b: "ignored" });
       expect(a).toMatchInlineSnapshot(`
-      Object {
-        "address": undefined,
-        "firstName": "a",
-        "id": undefined,
-        "lastName": undefined,
-      }
-    `);
+        {
+          "address": undefined,
+          "firstName": "a",
+          "id": undefined,
+          "lastName": undefined,
+        }
+      `);
     });
 
     it("can pick a set object field", () => {
       const a = pickFields(authorWithAddressConfig, { firstName: "a", b: "ignored", address: {} });
       expect(a).toMatchInlineSnapshot(`
-      Object {
-        "address": Object {
-          "city": undefined,
-          "street": undefined,
-        },
-        "firstName": "a",
-        "id": undefined,
-        "lastName": undefined,
-      }
-    `);
+        {
+          "address": {
+            "city": undefined,
+            "street": undefined,
+          },
+          "firstName": "a",
+          "id": undefined,
+          "lastName": undefined,
+        }
+      `);
     });
 
     it("can pick an unset list field", () => {
       const a = pickFields(authorWithBooksConfig, { firstName: "a", b: "ignored" });
       expect(a).toMatchInlineSnapshot(`
-      Object {
-        "books": undefined,
-        "firstName": "a",
-        "id": undefined,
-        "lastName": undefined,
-      }
-    `);
+        {
+          "books": undefined,
+          "firstName": "a",
+          "id": undefined,
+          "lastName": undefined,
+        }
+      `);
     });
 
     it("can pick a set list field", () => {
       const a = pickFields(authorWithBooksConfig, { firstName: "a", b: "ignored", books: [{}] });
       expect(a).toMatchInlineSnapshot(`
-      Object {
-        "books": Array [
-          Object {
-            "classification": undefined,
-            "id": undefined,
-            "title": undefined,
-          },
-        ],
-        "firstName": "a",
-        "id": undefined,
-        "lastName": undefined,
-      }
-    `);
+        {
+          "books": [
+            {
+              "classification": undefined,
+              "id": undefined,
+              "title": undefined,
+            },
+          ],
+          "firstName": "a",
+          "id": undefined,
+          "lastName": undefined,
+        }
+      `);
     });
 
     it("can pick a set observable list field", () => {
