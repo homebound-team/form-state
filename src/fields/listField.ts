@@ -19,7 +19,7 @@ export function newListFieldState<T, K extends keyof T, U>(
   parentState: () => ObjectState<T>,
   key: K,
   rules: Rule<readonly ObjectState<U>[]>[],
-  listConfig: ListFieldConfig<T, U>,
+  listConfig: ListFieldConfig<U>,
   config: ObjectConfig<U>,
   strictOrder: boolean,
   maybeAutoSave: () => void,

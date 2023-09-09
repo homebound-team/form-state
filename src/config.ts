@@ -1,6 +1,6 @@
 import { Fragment, ObjectState } from "src/fields/objectField";
 import { Rule } from "src/rules";
-import { Builtin } from "src/utils";
+import { Builtin, OmitIf } from "src/utils";
 
 /**
  * Config rules for each field in `T` that we're editing in a form.
@@ -20,18 +20,10 @@ export type ObjectConfig<T> = {
     ? FragmentFieldConfig
     : T[P] extends Array<infer U> | null | undefined
     ? U extends Builtin
-      ? ValueFieldConfig<T, T[P]>
-      : ListFieldConfig<T, U>
-    : ValueFieldConfig<T, T[P]> | ObjectFieldConfig<T[P]>;
+      ? ValueFieldConfig<T[P]>
+      : ListFieldConfig<U>
+    : ValueFieldConfig<T[P]> | ObjectFieldConfig<T[P]>;
 };
-
-// Inverse of SubType: https://medium.com/dailyjs/typescript-create-a-condition-based-subset-types-9d902cea5b8c
-type OmitIf<Base, Condition> = Pick<
-  Base,
-  {
-    [Key in keyof Base]: Base[Key] extends Condition ? never : Key;
-  }[keyof Base]
->;
 
 /** Field configuration for an opaque value that we don't actually want to include. */
 export type FragmentFieldConfig = {
@@ -39,7 +31,7 @@ export type FragmentFieldConfig = {
 };
 
 /** Field configuration for primitive values, i.e. strings/numbers/Dates/user-defined types. */
-export type ValueFieldConfig<T, V> = {
+export type ValueFieldConfig<V> = {
   type: "value";
   rules?: Rule<V | null | undefined>[];
   /**
@@ -67,7 +59,7 @@ export type ValueFieldConfig<T, V> = {
 };
 
 /** Field configuration for list values, i.e. `U` is `Book` in a form with `books: Book[]`. */
-export type ListFieldConfig<T, U> = {
+export type ListFieldConfig<U> = {
   type: "list";
   /** Rules that can run on the full list of children. */
   rules?: Rule<readonly ObjectState<U>[]>[];

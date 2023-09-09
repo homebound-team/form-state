@@ -1,6 +1,6 @@
 import { Observer } from "mobx-react";
-import { AuthorInput } from "src/formStateDomain";
-import { FieldState, ObjectConfig, required, useFormState } from "src/index";
+import { AuthorInput, BookInput } from "src/formStateDomain";
+import { FieldState, f, useFormState } from "src/index";
 
 export function FormStateApp() {
   const formState = useFormState({
@@ -113,17 +113,15 @@ export function FormStateApp() {
 }
 
 // Configure the fields/behavior for AuthorInput's fields
-const formConfig: ObjectConfig<AuthorInput> = {
-  firstName: { type: "value", rules: [required] },
-  lastName: { type: "value", rules: [required], readOnly: true },
-  books: {
-    type: "list",
-    rules: [({ value: list }) => ((list || []).length === 0 ? "Empty" : undefined)],
-    config: {
-      title: { type: "value", rules: [required] },
-    },
-  },
-};
+const formConfig = f.config<AuthorInput>({
+  firstName: f.value().req(),
+  lastName: f.value().readOnly(),
+  books: f
+    .list<BookInput>({
+      title: f.value().req(),
+    })
+    .rule(({ value }) => (value.length === 0 ? "Empty" : undefined)),
+});
 
 export function TextField(props: { field: FieldState<string | null | undefined> }) {
   const { field } = props;
