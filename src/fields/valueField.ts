@@ -50,7 +50,7 @@ export interface FieldState<V> {
  *
  * Or doing unit of measure conversions within the same type, like from meters to feet.
  */
-export interface ValueAdapter<V, V2> {
+export interface ValueAdapter<V, V2 = V> {
   /** Converts the original FieldState's value `V` into new `V2` type. */
   toValue(value: V): V2;
   /** Converts the adapted FieldState's value `V2` back into the original `V` type. */
