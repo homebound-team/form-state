@@ -282,6 +282,13 @@ export function newValueFieldState<T, K extends keyof T>(
   return field as any;
 }
 
+/**
+ * Returns a proxy that looks exactly like the original `field`, in terms of valid/touched/errors/etc., but
+ * has any methods that use `V` overridden to use be `V2`.
+ *
+ * Note that `V2` can be a new type, like string -> number, or just a transformation on the same
+ * type, i.e. feet -> inches where both are `number`s.
+ */
 function adapt<V, V2>(field: FieldState<V>, adapter: ValueAdapter<V, V2>): FieldState<V2> {
   return newDelegateProxy(field, {
     rules: [],
