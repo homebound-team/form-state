@@ -153,6 +153,39 @@ describe("formState", () => {
     expect(a.address.city.value).toEqual("b1");
   });
 
+  it("can adapt values", () => {
+    // Given an author where `delete` is normally a boolean
+    const a = createObjectState<BookInput>(
+      {
+        delete: { type: "value" },
+      },
+      { delete: true },
+    );
+    const boolField = a.delete;
+    // But we adapt it to a string
+    const stringField = a.delete.adapt({
+      toValue: (b) => String(b),
+      fromValue: (s) => Boolean(s),
+    });
+    // Then we can read it as a string
+    expect(stringField.value).toEqual("true");
+    // And we can set it as a string
+    stringField.value = "";
+    expect(boolField.value).toBe(false);
+    // And the originalValue is maintained
+    expect(boolField.originalValue).toBe(true);
+    expect(stringField.originalValue).toBe("true");
+    // As well as the dirty.
+    expect(boolField.dirty).toBe(true);
+    expect(stringField.dirty).toBe(true);
+    // And reverting works
+    stringField.revertChanges();
+    expect(boolField.dirty).toBe(false);
+    expect(stringField.dirty).toBe(false);
+    expect(boolField.value).toBe(true);
+    expect(stringField.value).toBe("true");
+  });
+
   it("maintains object identity", () => {
     const a1: AuthorInput = { firstName: "a1" };
     const state = createAuthorInputState(a1);

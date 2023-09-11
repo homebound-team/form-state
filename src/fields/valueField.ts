@@ -1,7 +1,8 @@
 import { isPlainObject } from "is-plain-object";
 import { observable, toJS } from "mobx";
 import { ObjectState } from "src/fields/objectField";
-import { required, Rule } from "src/rules";
+import { newDelegateProxy } from "src/proxies";
+import { Rule, required } from "src/rules";
 import { areEqual, fail, isEmpty, isNotUndefined } from "src/utils";
 
 /**
@@ -40,6 +41,20 @@ export interface FieldState<V> {
   revertChanges(): void;
   /** Accepts the current changed value (if any) as the original and resets dirty/touched. */
   commitChanges(): void;
+  /** Creates a new FieldState with a transformation of the value, i.e. string to int, or feet to inches. */
+  adapt<V2>(adapter: ValueAdapter<V, V2>): FieldState<V2>;
+}
+
+/**
+ * Allows changing a type in the formState (like a string) to a different type in the UI (like a number).
+ *
+ * Or doing unit of measure conversions within the same type, like from meters to feet.
+ */
+export interface ValueAdapter<V, V2 = V> {
+  /** Converts the original FieldState's value `V` into new `V2` type. */
+  toValue(value: V): V2;
+  /** Converts the adapted FieldState's value `V2` back into the original `V` type. */
+  fromValue(value: V2): V;
 }
 
 /** Public options for our `set` command. */
@@ -89,7 +104,7 @@ export function newValueFieldState<T, K extends keyof T>(
   const _originalValueTick = observable({ value: 1 });
 
   const field = {
-    key,
+    key: key as string,
 
     touched: false,
 
@@ -210,13 +225,17 @@ export function newValueFieldState<T, K extends keyof T>(
       _tick.value++;
 
       if (opts.refreshing) {
-        this.originalValue = newValue;
+        this.originalValue = newValue as any;
       }
       // If we're being set programmatically, i.e. we don't currently have focus,
       // call blur to trigger any auto-saves.
       if (!this._focused && !opts.refreshing && !opts.resetting && this.dirty && changed && opts.autoSave !== false) {
         this.maybeAutoSave();
       }
+    },
+
+    adapt<V2>(adapter: ValueAdapter<V, V2>): FieldState<V2> {
+      return adapt(this, adapter);
     },
 
     revertChanges() {
@@ -235,14 +254,14 @@ export function newValueFieldState<T, K extends keyof T>(
       this.touched = false;
     },
 
-    get originalValue(): V | null | undefined {
+    get originalValue(): V {
       // A dummy check to for reactivity around our non-proxy value
       const value = _originalValueTick.value > -1 ? _originalValue : _originalValue;
       // Re-create the `keepNull` logic so that `.value` === `.originalValue`
       return value === null ? (undefined as any) : value;
     },
 
-    set originalValue(v: V | null | undefined) {
+    set originalValue(v: V) {
       _originalValue = v;
       _originalValueTick.value++;
     },
@@ -261,4 +280,35 @@ export function newValueFieldState<T, K extends keyof T>(
   };
 
   return field as any;
+}
+
+/**
+ * Returns a proxy that looks exactly like the original `field`, in terms of valid/touched/errors/etc., but
+ * has any methods that use `V` overridden to use be `V2`.
+ *
+ * Note that `V2` can be a new type, like string -> number, or just a transformation on the same
+ * type, i.e. feet -> inches where both are `number`s.
+ */
+function adapt<V, V2>(field: FieldState<V>, adapter: ValueAdapter<V, V2>): FieldState<V2> {
+  return newDelegateProxy(field, {
+    rules: [],
+    get value(): V2 {
+      return adapter.toValue(field.value);
+    },
+    set value(v: V2) {
+      field.value = adapter.fromValue(v);
+    },
+    set: (v: V2) => {
+      field.value = adapter.fromValue(v);
+    },
+    get changedValue(): V2 {
+      return this.value;
+    },
+    adapt<V3>(adapter: ValueAdapter<V2, V3>) {
+      return adapt(this, adapter);
+    },
+    get originalValue(): V2 {
+      return adapter.toValue(field.originalValue);
+    },
+  });
 }
