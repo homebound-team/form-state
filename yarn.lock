@@ -1875,6 +1875,7 @@ __metadata:
     typescript: ^5.2.2
     typescript-transform-paths: ^3.4.6
   peerDependencies:
+    mobx: ">=6"
     react: ">=16"
   languageName: unknown
   linkType: soft
