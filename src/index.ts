@@ -1,4 +1,5 @@
 export { ObjectConfig } from "src/config";
+export { f } from "src/configBuilders";
 export { ListFieldState } from "src/fields/listField";
 export { ObjectState, createObjectState } from "src/fields/objectField";
 export { FieldState, ValueAdapter } from "src/fields/valueField";
