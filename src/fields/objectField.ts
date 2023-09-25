@@ -1,4 +1,4 @@
-import { computed, makeAutoObservable, observable, reaction } from "mobx";
+import { computed, isObservable, makeAutoObservable, observable, reaction } from "mobx";
 import { FragmentFieldConfig, ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
 import { FragmentField, newFragmentField } from "src/fields/fragmentField";
 import { ListFieldState, newListFieldState } from "src/fields/listField";
@@ -131,7 +131,10 @@ export function newObjectState<T, P = any>(
             )),
         config.isDeleteKey || false,
         config.isReadOnlyKey || false,
-        config.computed || false,
+        config.computed ||
+          // If instance is a mobx class, we can detect computeds as they won't be enumerable
+          (isObservable(instance) && !Object.keys(originalInstance).includes(key as string)) ||
+          false,
         config.readOnly || false,
         config.strictOrder ?? true,
         maybeAutoSave,
