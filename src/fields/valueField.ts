@@ -80,6 +80,7 @@ export interface FieldStateInternal<T, V> extends FieldState<V> {
 }
 
 export function newValueFieldState<T, K extends keyof T>(
+  parentOriginal: T,
   parentInstance: T,
   parentState: () => ObjectState<T>,
   key: K,
@@ -93,10 +94,6 @@ export function newValueFieldState<T, K extends keyof T>(
   maybeAutoSave: () => void,
 ): FieldState<T[K] | null | undefined> {
   type V = T[K];
-
-  // keep a copy here for reference equality
-  const value = parentInstance[key] as V;
-  let _originalValue: V | null | undefined = value === null ? undefined : isPlainObject(value) ? toJS(value) : value;
 
   // Because we read/write the value directly back into parentInstance[key],
   // which itself is not a proxy, we use this as our "value changed" trigger.
@@ -125,7 +122,7 @@ export function newValueFieldState<T, K extends keyof T>(
       // Re-create the `keepNull` logic on sets but for our initial read where our
       // originalValue is null (empty) but we want to expose it as undefined for
       // consistency of "empty-ness" to our UI components.
-      return value === null && isEmpty(_originalValue) ? (undefined as any) : value;
+      return value === null && isEmpty(parentOriginal[key]) ? (undefined as any) : value;
     },
 
     set value(v: V) {
@@ -205,7 +202,7 @@ export function newValueFieldState<T, K extends keyof T>(
       if (opts.refreshing && this.dirty && this.value !== value) {
         // Ignore incoming values if we have changes (this.dirty) unless our latest change (this.value)
         // matches the incoming value (value), b/c if it does we should accept it and reset originalValue
-        // so that we're not longer dirty.
+        // so that we're no longer dirty.
         return;
       } else if (computed && (opts.resetting || opts.refreshing)) {
         // Computeds can't be either reset or refreshed
@@ -256,13 +253,13 @@ export function newValueFieldState<T, K extends keyof T>(
 
     get originalValue(): V {
       // A dummy check to for reactivity around our non-proxy value
-      const value = _originalValueTick.value > -1 ? _originalValue : _originalValue;
+      const value = _originalValueTick.value > -1 ? parentOriginal[key] : parentOriginal[key];
       // Re-create the `keepNull` logic so that `.value` === `.originalValue`
       return value === null ? (undefined as any) : value;
     },
 
     set originalValue(v: V) {
-      _originalValue = v;
+      parentOriginal[key] = v;
       _originalValueTick.value++;
     },
 

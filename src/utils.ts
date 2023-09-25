@@ -136,3 +136,16 @@ export function areEqual<T>(a?: T, b?: T, strictOrder?: boolean): boolean {
 export function hasToJSON(o?: unknown): o is { toJSON(): void } {
   return !!(o && typeof o === "object" && "toJSON" in o);
 }
+
+/** Make a clone of `obj`, but only recurse into POJOs and Arrays...and stores. */
+export function deepClone<T>(obj: T, map = new WeakMap()): T {
+  if (obj && typeof obj === "object" && (isPlainObject(obj) || Array.isArray(obj) || isObservable(obj))) {
+    if (map.has(obj)) return map.get(obj);
+    const result = Array.isArray(obj) ? [] : {};
+    map.set(obj, result);
+    Object.assign(result, ...Object.keys(obj).map((key) => ({ [key]: deepClone((obj as any)[key], map) })));
+    return result as T;
+  } else {
+    return obj;
+  }
+}

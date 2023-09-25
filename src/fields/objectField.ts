@@ -2,8 +2,8 @@ import { computed, makeAutoObservable, observable, reaction } from "mobx";
 import { FragmentFieldConfig, ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
 import { FragmentField, newFragmentField } from "src/fields/fragmentField";
 import { ListFieldState, newListFieldState } from "src/fields/listField";
-import { FieldState, FieldStateInternal, InternalSetOpts, newValueFieldState, SetOpts } from "src/fields/valueField";
-import { Builtin, fail } from "src/utils";
+import { FieldState, FieldStateInternal, InternalSetOpts, SetOpts, newValueFieldState } from "src/fields/valueField";
+import { Builtin, deepClone, fail } from "src/utils";
 
 /**
  * Wraps a given input/on-the-wire type `T` for editing in a form.
@@ -102,6 +102,11 @@ export function newObjectState<T, P = any>(
     return proxy;
   }
 
+  // We directly mutate `instance` as the user edits the form, so keep a deep copy of the POJO.
+  // If the user passed us `instance` that was a mobx store/class, this originalValue won't really
+  // be a true match (i.e. pass instanceof), but it should be good enough
+  const originalInstance: any = deepClone(instance);
+
   const objectConfig = config as ObjectConfig<T>;
   const fieldStates = Object.entries(config).map(([_key, _config]) => {
     const key = _key as keyof T;
@@ -113,6 +118,7 @@ export function newObjectState<T, P = any>(
     let field: FieldState<any> | ListFieldState<any> | ObjectState<T> | FragmentField<any>;
     if (config.type === "value") {
       field = newValueFieldState(
+        originalInstance,
         instance,
         getObjectState,
         key,
@@ -295,7 +301,8 @@ export function newObjectState<T, P = any>(
     },
 
     get originalValue(): T | undefined {
-      return instance;
+      _tick.value > 0 || fail();
+      return originalInstance;
     },
 
     // An internal helper method to see if `other` is for "the same entity" as our current row
