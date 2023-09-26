@@ -31,7 +31,9 @@ export function newListFieldState<T, K extends keyof T, U>(
   const _originalValueTick = observable({ value: 1 });
   const _childTick = observable({ value: 1 });
 
-  // When child rows don't have ids (i.e. for new rows), we need an id-less "clone <-> current" map
+  // When child rows don't have ids (i.e. for new rows that aren't saved yet), we need an id-less
+  // "clone <-> current" map to tell if we're dirty or not, i.e. whether `parentInstance[key]` has
+  // drifted from `parentCopy[key]`
   const copyMap = new Map<U, U>();
   ((parentCopy[key] ?? []) as U[]).forEach((copy, i) => {
     copyMap.set(copy, (parentInstance[key] as any)[i]);
@@ -83,23 +85,16 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
 
     // private
+    /** Returns whether a row has been added/removed. */
     hasChanged(): boolean {
       const [current, original] = [this.value || [], this.originalValue];
       if (current.length !== original.length) return true;
       if (strictOrder) {
         // With strict order, every copy[i] === original[i] must be true
-        return original.some((e: any, idx) => {
-          const isExactSame = this.value[idx] === copyMap.get(e);
-          const isSameEntity = (this.rows[idx] as ObjectStateInternal<U>)?.isSameEntity(e);
-          // console.log({ idx, isExactSame, isSameEntity });
-          return !(isExactSame || isSameEntity);
-        });
+        return original.some((e, idx) => current[idx] !== copyMap.get(e));
       } else {
-        return !original.every((e: any) => {
-          const foundSameEntity = this.rows.some((r) => (r as ObjectStateInternal<U>).isSameEntity(e));
-          const foundExactSame = this.value.some((v) => v === copyMap.get(e));
-          return foundSameEntity || foundExactSame;
-        });
+        // With loose order, we just want every copy to still have its original somewhere
+        return !original.every((e) => current.includes(copyMap.get(e)!));
       }
     },
 
