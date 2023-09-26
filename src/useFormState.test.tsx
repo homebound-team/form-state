@@ -373,7 +373,9 @@ describe("useFormState", () => {
       const form = useFormState({
         config: authorWithBooksConfig,
         init: { input: data, map: (d) => d, ifUndefined: { books: [] } },
-        autoSave,
+        autoSave: async () => {
+          return autoSave();
+        },
       });
       return (
         <Observer>

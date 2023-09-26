@@ -44,6 +44,7 @@ export type ObjectState<T> =
 
 export type ObjectStateInternal<T> = ObjectState<T> & {
   set(value: T, opts?: InternalSetOpts): void;
+  isSameEntity(other: T): boolean;
 };
 
 const fragmentSym = Symbol("fragment");
@@ -105,7 +106,7 @@ export function newObjectState<T, P = any>(
   // We directly mutate `instance` as the user edits the form, so keep a deep copy of the POJO.
   // If the user passed us `instance` that was a mobx store/class, this originalValue won't really
   // be a true match (i.e. pass instanceof), but it should be good enough
-  const originalInstance: any = deepClone(instance);
+  const originalCopy: any = deepClone(instance);
 
   const objectConfig = config as ObjectConfig<T>;
   const fieldStates = Object.entries(config).map(([_key, _config]) => {
@@ -118,7 +119,7 @@ export function newObjectState<T, P = any>(
     let field: FieldState<any> | ListFieldState<any> | ObjectState<T> | FragmentField<any>;
     if (config.type === "value") {
       field = newValueFieldState(
-        originalInstance,
+        originalCopy,
         instance,
         getObjectState,
         key,
@@ -131,16 +132,16 @@ export function newObjectState<T, P = any>(
             )),
         config.isDeleteKey || false,
         config.isReadOnlyKey || false,
-        config.computed ||
+        config.computed ??
           // If instance is a mobx class, we can detect computeds as they won't be enumerable
-          (isObservable(instance) && !Object.keys(originalInstance).includes(key as string)) ||
-          false,
+          ((isObservable(instance) && !(key in originalCopy)) || false),
         config.readOnly || false,
         config.strictOrder ?? true,
         maybeAutoSave,
       );
     } else if (config.type === "list") {
       field = newListFieldState(
+        originalCopy,
         instance,
         getObjectState,
         key,
@@ -305,7 +306,7 @@ export function newObjectState<T, P = any>(
 
     get originalValue(): T | undefined {
       _tick.value > 0 || fail();
-      return originalInstance;
+      return originalCopy;
     },
 
     // An internal helper method to see if `other` is for "the same entity" as our current row
@@ -314,7 +315,8 @@ export function newObjectState<T, P = any>(
       if (!idField) {
         return false;
       }
-      return this[idField.key].value === (other as any)[idField.key];
+      const otherIdValue = (other as any)[idField.key];
+      return otherIdValue !== undefined && otherIdValue === this[idField.key].value;
     },
   };
 
@@ -328,8 +330,10 @@ export function newObjectState<T, P = any>(
 
   // Any time a field changes, percolate that change up to us
   reaction(
-    () => getFields(proxy).map((f) => f.value),
-    () => _tick.value++,
+    () => getFields(proxy).flatMap((f) => [f.value, f.originalValue]),
+    (newV, oldV) => {
+      _tick.value++;
+    },
   );
 
   return proxy!;

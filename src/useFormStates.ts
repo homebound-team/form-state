@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef } from "react";
 import { ObjectConfig } from "src/config";
-import { createObjectState, ObjectState, ObjectStateInternal } from "src/fields/objectField";
+import { ObjectState, ObjectStateInternal, createObjectState } from "src/fields/objectField";
 import { initValue } from "src/utils";
 
 export type ObjectStateCache<T, I> = Record<string, [ObjectState<T>, I]>;
@@ -120,7 +120,9 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
 
       // If the source of truth changed, then update the existing state and return it.
       if (existing && existing[1] !== input) {
-        (form as ObjectStateInternal<any>).set(initValue(config, map ? { map, input } : input), { refreshing: true });
+        (form as any as ObjectStateInternal<any>).set(initValue(config, map ? { map, input } : input), {
+          refreshing: true,
+        });
         existing[1] = input;
       }
 

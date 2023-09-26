@@ -80,7 +80,7 @@ export interface FieldStateInternal<T, V> extends FieldState<V> {
 }
 
 export function newValueFieldState<T, K extends keyof T>(
-  parentOriginal: T,
+  parentCopy: T,
   parentInstance: T,
   parentState: () => ObjectState<T>,
   key: K,
@@ -122,7 +122,7 @@ export function newValueFieldState<T, K extends keyof T>(
       // Re-create the `keepNull` logic on sets but for our initial read where our
       // originalValue is null (empty) but we want to expose it as undefined for
       // consistency of "empty-ness" to our UI components.
-      return value === null && isEmpty(parentOriginal[key]) ? (undefined as any) : value;
+      return value === null && isEmpty(parentCopy[key]) ? (undefined as any) : value;
     },
 
     set value(v: V) {
@@ -253,13 +253,13 @@ export function newValueFieldState<T, K extends keyof T>(
 
     get originalValue(): V {
       // A dummy check to for reactivity around our non-proxy value
-      const value = _originalValueTick.value > -1 ? parentOriginal[key] : parentOriginal[key];
+      const value = _originalValueTick.value > -1 ? parentCopy[key] : parentCopy[key];
       // Re-create the `keepNull` logic so that `.value` === `.originalValue`
       return value === null ? (undefined as any) : value;
     },
 
     set originalValue(v: V) {
-      parentOriginal[key] = v;
+      parentCopy[key] = v;
       _originalValueTick.value++;
     },
 

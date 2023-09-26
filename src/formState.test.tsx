@@ -702,8 +702,8 @@ describe("formState", () => {
       firstName: "a1",
       lastName: "aL1",
       books: [
-        { title: "b1", classification: dd100 },
-        { title: "b2", classification: dd100 },
+        { id: "b:1", title: "b1", classification: dd100 },
+        { id: "b:2", title: "b2", classification: dd100 },
       ],
     });
 
@@ -736,8 +736,8 @@ describe("formState", () => {
       firstName: "a1",
       lastName: "aL1",
       books: [
-        { title: "b1", classification: dd100 },
-        { title: "b2", classification: dd100 },
+        { id: "b:1", title: "b1", classification: dd100 },
+        { id: "b:2", title: "b2", classification: dd100 },
       ],
     });
     // And some values have been changed
@@ -772,7 +772,7 @@ describe("formState", () => {
     const a1 = createAuthorInputState({
       firstName: "a1",
       lastName: "aL1",
-      books: [{ title: "b1", classification: dd100 }],
+      books: [{ id: "b:1", title: "b1", classification: dd100 }],
     });
     expect(a1.dirty).toBeFalsy();
 
@@ -780,7 +780,7 @@ describe("formState", () => {
     a1.firstName.set("a2");
     a1.lastName.set("aL2");
     a1.books.rows[0].set({ title: "b2" });
-    a1.books.add({ title: "bb2" });
+    a1.books.add({ id: undefined, title: "bb2" });
     // Set book 2 to an different value. Ensures our save can traverse all rows
     a1.books.rows[1].set({ title: "bb3" });
 
