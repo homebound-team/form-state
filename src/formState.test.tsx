@@ -1,62 +1,10 @@
-import { autorun, isObservable, makeAutoObservable, observable, ObservableMap, reaction, runInAction } from "mobx";
+import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
 import { ObjectConfig } from "src/config";
-import { createObjectState, Fragment, fragment, ObjectState } from "src/fields/objectField";
+import { f } from "src/configBuilders";
+import { Fragment, ObjectState, createObjectState, fragment } from "src/fields/objectField";
 import { FieldState } from "src/fields/valueField";
 import { AuthorAddress, AuthorInput, BookInput, Color, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
 import { required } from "src/rules";
-
-describe("mobx behavior", () => {
-  it("mobx batches if in actions", () => {
-    const a = observable({ name: "a1" });
-    const b = observable({ name: "b1" });
-    const map = new ObservableMap<string, { name: string }>();
-    map.set("a", a);
-    map.set("b", b);
-
-    let runs = 0;
-    autorun(() => {
-      noop([...map.values()].filter((v) => v.name.includes("1")));
-      runs++;
-    });
-
-    expect(runs).toBe(1);
-    // When we change both a and b
-    runInAction(() => {
-      a.name = "a11";
-      b.name = "b2";
-    });
-    // Then the reaction waited and only ran once
-    expect(runs).toBe(2);
-  });
-
-  it("mobx can watch undefined keys", () => {
-    const a = new ObservableObject();
-    const b = new ObservableObject();
-    const map = new ObservableMap<string, ObservableObject>();
-    map.set("a", a);
-    map.set("b", b);
-
-    let runs = 0;
-    autorun(() => {
-      noop([...map.values()].map((a) => a.age));
-      runs++;
-    });
-
-    expect(runs).toBe(1);
-    b.age = 1;
-    expect(runs).toBe(2);
-  });
-
-  it("mobx lists maintain observable identity", () => {
-    // given a parent observable
-    const a = observable({ list: [] as {}[] });
-    // if we observable-ize a value being pushing it on the list
-    const c1 = observable({});
-    a.list.push(c1);
-    // then we get identify equality on the list lookups
-    expect(a.list[0] === c1).toEqual(true);
-  });
-});
 
 describe("formState", () => {
   it("can create a simple object", () => {
@@ -1142,6 +1090,16 @@ describe("formState", () => {
     expect(config).toBeDefined();
   });
 
+  it("supports observable objects with helper methods in the config DSL", () => {
+    const config = f.config({
+      firstName: f.value(),
+      lastName: f.value(),
+      fullName: f.computed(),
+    });
+    // Throw away assertion, test is making sure ^ line compiles
+    expect(config).toBeDefined();
+  });
+
   it("can reset observable objects with computeds", () => {
     const formState = createObjectState(
       {
@@ -1814,7 +1772,7 @@ describe("formState", () => {
   });
 });
 
-class ObservableObject {
+export class ObservableObject {
   firstName: string | undefined = "first";
   lastName: string | undefined = "last";
   age?: number | undefined = undefined;
@@ -1838,19 +1796,16 @@ class ObservableObject {
   }
 }
 
-const authorWithBooksConfig: ObjectConfig<AuthorInput> = {
-  id: { type: "value" },
-  firstName: { type: "value" },
-  lastName: { type: "value" },
-  books: {
-    type: "list",
-    config: {
-      id: { type: "value" },
-      title: { type: "value", rules: [required] },
-      classification: { type: "value" },
-    },
-  },
-};
+const authorWithBooksConfig = f.config<AuthorInput>({
+  id: f.value(),
+  firstName: f.value(),
+  lastName: f.value(),
+  books: f.list({
+    id: f.value(),
+    title: f.value().req(),
+    classification: f.value(),
+  }),
+});
 
 function createAuthorInputState(input: AuthorInput, maybeAutoSave?: () => void) {
   return createObjectState<AuthorInput>(authorWithBooksConfig, input, { maybeAutoSave });
@@ -1869,27 +1824,43 @@ const authorWithAddressConfig: ObjectConfig<AuthorInput> = {
   },
 };
 
-const authorWithAddressAndBooksConfig: ObjectConfig<AuthorInput> = {
-  id: { type: "value" },
-  firstName: { type: "value" },
-  lastName: { type: "value" },
-  address: {
-    type: "object",
-    config: {
-      id: { type: "value" },
-      street: { type: "value", rules: [required] },
-      city: { type: "value" },
-    },
-  },
-  books: {
-    type: "list",
-    config: {
-      id: { type: "value" },
-      title: { type: "value", rules: [required] },
-      classification: { type: "value" },
-    },
-  },
-};
+const authorWithAddressAndBooksConfig = f.config<AuthorInput>({
+  id: f.value(),
+  firstName: f.value(),
+  lastName: f.value(),
+  address: f.object({
+    id: f.value(),
+    street: f.value().rules([required]),
+    city: f.value(),
+  }),
+  books: f.list({
+    id: f.value(),
+    title: f.value(),
+    classification: f.value(),
+  }),
+});
+
+// const authorWithAddressAndBooksConfig: ObjectConfig<AuthorInput> = {
+//   id: { type: "value" },
+//   firstName: { type: "value" },
+//   lastName: { type: "value" },
+//   address: {
+//     type: "object",
+//     config: {
+//       id: { type: "value" },
+//       street: { type: "value", rules: [required] },
+//       city: { type: "value" },
+//     },
+//   },
+//   books: {
+//     type: "list",
+//     config: {
+//       id: { type: "value" },
+//       title: { type: "value", rules: [required] },
+//       classification: { type: "value" },
+//     },
+//   },
+// };
 
 function createAuthorWithAddressInputState(input: AuthorInput) {
   return createObjectState<AuthorInput>(authorWithAddressConfig, input);

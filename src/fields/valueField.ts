@@ -16,7 +16,9 @@ import { areEqual, fail, isEmpty, isNotUndefined } from "src/utils";
  * i.e. text boxes, can always be cleared out/deleted.
  */
 export interface FieldState<V> {
+  /** The key in the parent object, i.e. `firstName` in `author: { firstName: string }`. */
   readonly key: string;
+  /** The current value of the field. */
   value: V;
   readonly originalValue: V;
   touched: boolean;

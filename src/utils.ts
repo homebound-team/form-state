@@ -19,6 +19,14 @@ export type DeepRequired<T> = T extends Primitive
         : DeepRequired<T[P]>;
     };
 
+// Inverse of SubType: https://medium.com/dailyjs/typescript-create-a-condition-based-subset-types-9d902cea5b8c
+export type OmitIf<Base, Condition> = Pick<
+  Base,
+  {
+    [Key in keyof Base]: Base[Key] extends Condition ? never : Key;
+  }[keyof Base]
+>;
+
 export function fail(message?: string): never {
   throw new Error(message || "Failed");
 }
@@ -67,10 +75,7 @@ export function pickFields<T, I>(
   }
   return Object.fromEntries(
     Object.entries(formConfig).map(([key, _keyConfig]) => {
-      const keyConfig = _keyConfig as any as
-        | ObjectFieldConfig<any>
-        | ListFieldConfig<any, any>
-        | ValueFieldConfig<any, any>;
+      const keyConfig = _keyConfig as any as ObjectFieldConfig<any> | ListFieldConfig<any> | ValueFieldConfig<any>;
       const value = (instance as any)[key];
       if (keyConfig.type === "object") {
         if (value) {

@@ -5,7 +5,7 @@
 
 form-state is a headless form state management library, built on top of mobx.
 
-It acts as a buffer between the canonical data (i.e. the server-side data, or your app's GraphQL/Redux/etc. global store) and the user's WIP data that is being actively mutated in form fields (which is "too chatty"/WIP to store in the global store).
+It acts as a buffer between the canonical data (i.e. the server-side data, or your app's GraphQL/Redux/etc. global store) and the user's WIP data that is being actively mutated in form fields (which is "too chatty"/WIP to push back into global stores).
 
 It also keeps track of low-level form UX details like:
 
@@ -21,7 +21,7 @@ It also keeps track of low-level form UX details like:
 - Building a wire payload that has only changed fields
   - `form.changedValue` will return the entity `id` + only changed fields to faciliate doing partial update APIs
   - Supports collections of children, i.e. a `author: { books: [...} }` will include only changed books if necessary
-  - Child collections can be either exhausive (if any child changes, submit them all) or incremental (only include changed children), to match the backend endpoint's semantics
+  - Child collections can be either exhaustive (if any child changes, submit them all) or incremental (only include changed children), to match the backend endpoint's semantics
 
 # Main Features
 
@@ -37,16 +37,17 @@ The core abstraction that `form-state` provides is a `FieldState` interface that
 ```ts
 // Very simplified example
 interface FieldState {
-  value: V
-  errors: string[]
-  valid: boolean
-  touched: boolean
+  // Can be used to read & write the value bound into the form field
+  value: V;
+  errors: string[];
+  valid: boolean;
+  touched: boolean;
 }
 ```
 
 Which combines all the logical aspects of "a single form field" into a single object/prop.
 
-This facilitates the "gold standard" of form libraries, which is "one line per form field", i.e:
+This facilitates the "gold standard" of form DX, which is "one line per form field", i.e:
 
 ```tsx
 function AuthorEditorComponent() {
@@ -124,14 +125,14 @@ type AuthorFragment = { firstName: string; miscOtherData: {} };
 // For your page's form state, add-in the "extra data"
 type AuthorForm = AuthorInput & {
   // The `Fragment` type tells form-state this is not a regular form field
-  data: Fragment<AuthorFragment >
+  data: Fragment<AuthorFragment>;
 };
 
 // Tell the form config the "fragment" is not a real field
 const config: ObjectConfig<AuthorForm> = {
   firstName: { type: "value", rules: [require] },
   data: { type: "fragment" },
-}
+};
 
 // Now in the component...
 const data = useGraphQLQuery();
@@ -146,7 +147,6 @@ const form = useFormState({
   },
 });
 ```
-
 
 # Internal Implementation Notes
 

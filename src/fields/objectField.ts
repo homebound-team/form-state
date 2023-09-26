@@ -112,9 +112,9 @@ export function newObjectState<T, P = any>(
   const fieldStates = Object.entries(config).map(([_key, _config]) => {
     const key = _key as keyof T;
     const config = _config as
-      | ValueFieldConfig<T, any>
+      | ValueFieldConfig<any>
       | ObjectFieldConfig<any>
-      | ListFieldConfig<T, any>
+      | ListFieldConfig<any>
       | FragmentFieldConfig;
     let field: FieldState<any> | ListFieldState<any> | ObjectState<T> | FragmentField<any>;
     if (config.type === "value") {
@@ -127,7 +127,7 @@ export function newObjectState<T, P = any>(
         config.isIdKey ||
           // Default the id key to "id" unless some other field has isIdKey set
           (key === "id" &&
-            !(Object.entries(objectConfig) as any as [string, ValueFieldConfig<any, any>][]).some(
+            !(Object.entries(objectConfig) as any as [string, ValueFieldConfig<any>][]).some(
               ([other, c]) => other !== key && c.isIdKey,
             )),
         config.isDeleteKey || false,
