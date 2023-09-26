@@ -1,6 +1,6 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
 import { act } from "@testing-library/react";
-import { reaction } from "mobx";
+import { makeAutoObservable, reaction } from "mobx";
 import { Observer } from "mobx-react";
 import { useMemo, useState } from "react";
 import { TextField } from "src/FormStateApp";
@@ -320,23 +320,26 @@ describe("useFormState", () => {
     // Given a component
     // And it's using a class/mobx proxy as the basis for the data
     class AuthorRow {
-      constructor(public firstName: string, public lastName: string) {}
+      constructor(public firstName: string, public lastName: string, public books: { title: string }[]) {
+        makeAutoObservable(this);
+      }
       get fullName() {
         return this.firstName + " " + this.lastName;
       }
     }
     function TestComponent() {
       // And we have two sets of data
-      const data1 = { firstName: "f1", lastName: "l1" };
-      const data2 = { firstName: "f2", lastName: "l2" };
+      const data1 = { firstName: "f1", lastName: "l1", books: [] as { title: string }[] };
+      const data2 = { firstName: "f2", lastName: "l2", books: [{ title: "t1" }] };
       // And we start out with data1
       const [data, setData] = useState<typeof data1>(data1);
-      const author = useMemo(() => new AuthorRow(data.firstName, data.lastName), [data]);
+      const author = useMemo(() => new AuthorRow(data.firstName, data.lastName, data.books), [data]);
       const config: ObjectConfig<AuthorRow> = useMemo(
         () => ({
           firstName: { type: "value" },
           lastName: { type: "value" },
           fullName: { type: "value", computed: true },
+          books: { type: "list", config: { title: { type: "value" } } },
         }),
         [],
       );
@@ -347,6 +350,8 @@ describe("useFormState", () => {
             <div>
               <div data-testid="firstName">{form.firstName.value}</div>
               <div data-testid="fullName">{form.fullName.value}</div>
+              <div data-testid="booksLength">{form.books.rows.length}</div>
+              <div data-testid="booksDirty">{String(form.books.touched)}</div>
               <button data-testid="refreshData" onClick={() => setData(data2)} />
             </div>
           )}
@@ -357,10 +362,14 @@ describe("useFormState", () => {
     const r = await render(<TestComponent />);
     expect(r.firstName.textContent).toEqual("f1");
     expect(r.fullName.textContent).toEqual("f1 l1");
+    expect(r.booksLength.textContent).toEqual("0");
+    expect(r.booksDirty.textContent).toEqual("false");
     // When the new query is ran i.e. due to a cache refresh
     click(r.refreshData);
     expect(r.firstName.textContent).toEqual("f2");
     expect(r.fullName.textContent).toEqual("f2 l2");
+    expect(r.booksLength.textContent).toEqual("1");
+    expect(r.booksDirty.textContent).toEqual("false");
   });
 
   it("can trigger auto save for fields in list that were initially undefined", async () => {

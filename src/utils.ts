@@ -148,9 +148,17 @@ export function deepClone<T>(obj: T, map = new WeakMap()): T {
     if (map.has(obj)) return map.get(obj);
     const result = Array.isArray(obj) ? [] : {};
     map.set(obj, result);
-    Object.assign(result, ...Object.keys(obj).map((key) => ({ [key]: deepClone((obj as any)[key], map) })));
+    Object.assign(result, ...getAllPropertyNames(obj).map((key) => ({ [key]: deepClone((obj as any)[key], map) })));
     return result as T;
   } else {
     return obj;
   }
+}
+
+/** Returns all property names, including mobx computeds (non-enumerable) & inherited. */
+function getAllPropertyNames(obj: unknown): string[] {
+  const proto = Object.getPrototypeOf(obj);
+  // Don't crawl up into Object.prototype, or into arrays/observable arrays
+  const inherited = proto && proto !== Object.prototype && !Array.isArray(obj) ? getAllPropertyNames(proto) : [];
+  return [...new Set(Object.getOwnPropertyNames(obj).concat(inherited))];
 }
