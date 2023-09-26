@@ -1105,16 +1105,18 @@ describe("formState", () => {
       {
         firstName: { type: "value" },
         lastName: { type: "value" },
-        fullName: { type: "value", computed: true },
+        fullName: { type: "value" },
       },
       new ObservableObject(),
     );
 
     expect(formState.firstName.value).toEqual("first");
     expect(formState.fullName.value).toEqual("first last");
+    expect(formState.fullName.dirty).toEqual(false);
 
     formState.firstName.value = "change";
     expect(formState.fullName.value).toEqual("change last");
+    expect(formState.fullName.dirty).toEqual(true);
 
     formState.revertChanges();
     expect(formState.firstName.value).toEqual("first");
