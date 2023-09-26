@@ -138,7 +138,8 @@ describe("formState", () => {
     const a1: AuthorInput = { firstName: "a1" };
     const state = createAuthorInputState(a1);
     state.firstName.set("a2");
-    expect(state.originalValue === a1).toEqual(true);
+    expect(state.value === a1).toEqual(true);
+    expect(state.originalValue !== a1).toEqual(true);
     expect(a1.firstName).toEqual("a2");
   });
 
@@ -148,11 +149,11 @@ describe("formState", () => {
     const state = createAuthorInputState(a1);
     const b2 = { title: "t2" };
     state.books.add(b2);
-    expect(state.originalValue.books === a1.books).toEqual(true);
+    expect(state.value.books === a1.books).toEqual(true);
     expect(state.books.value.length).toEqual(2);
     expect(a1.books?.length).toEqual(2);
-    expect(state.books.rows[0].originalValue === b1).toEqual(true);
-    expect(state.books.rows[1].originalValue === b2).toEqual(true);
+    expect(state.books.rows[0].value === b1).toEqual(true);
+    expect(state.books.rows[1].value === b2).toEqual(true);
     expect(a1.books![1] === b2).toEqual(true);
   });
 
@@ -169,15 +170,15 @@ describe("formState", () => {
 
     const b2 = { title: "t2" };
     state.books.add(b2, 0);
-    expect(state.books.rows[0].originalValue === b2).toEqual(true);
-    expect(state.books.rows[1].originalValue === b1).toEqual(true);
+    expect(state.books.rows[0].value === b2).toEqual(true);
+    expect(state.books.rows[1].value === b1).toEqual(true);
     expect(ticks).toEqual(2);
 
     const b3 = { title: "t3" };
     state.books.add(b3, 1);
-    expect(state.books.rows[0].originalValue === b2).toEqual(true);
-    expect(state.books.rows[1].originalValue === b3).toEqual(true);
-    expect(state.books.rows[2].originalValue === b1).toEqual(true);
+    expect(state.books.rows[0].value === b2).toEqual(true);
+    expect(state.books.rows[1].value === b3).toEqual(true);
+    expect(state.books.rows[2].value === b1).toEqual(true);
     expect(ticks).toEqual(3);
   });
 
@@ -195,6 +196,36 @@ describe("formState", () => {
     expect(ticks).toEqual(2);
   });
 
+  it("list originalValue can observe changes", () => {
+    const b1: BookInput = { title: "t1" };
+    const a1: AuthorInput = { firstName: "a1", books: [b1] };
+    const state = createAuthorInputState(a1);
+    let books: any;
+    let ticks = 0;
+    autorun(() => {
+      books = state.books.originalValue;
+      ticks++;
+    });
+    state.books.add({ title: "t2" }, 0);
+    expect(ticks).toEqual(1);
+    state.commitChanges();
+    expect(ticks).toEqual(2);
+  });
+
+  it("state originalValue can observe changes", () => {
+    const a1: AuthorInput = { firstName: "a1", books: [] };
+    const state = createAuthorInputState(a1);
+    let ticks = 0;
+    autorun(() => {
+      noop(state.originalValue);
+      ticks++;
+    });
+    state.books.add({ title: "t2" }, 0);
+    expect(ticks).toEqual(1);
+    state.commitChanges();
+    expect(ticks).toEqual(2);
+  });
+
   it("maintains unknown fields", () => {
     // Given the form is not directly editing id fields
     const config: ObjectConfig<AuthorInput> = {
@@ -208,9 +239,8 @@ describe("formState", () => {
     state.firstName.set("a2");
     state.books.add({ title: "t2" });
     // When we get back the originalValue
-    const a2 = state.originalValue;
     // Then it has the ids and the new values
-    expect(a2).toMatchObject({
+    expect(state.value).toMatchObject({
       id: "1",
       books: [{ id: "2", title: "t1" }, { title: "t2" }],
     });
@@ -684,8 +714,8 @@ describe("formState", () => {
       firstName: "a1",
       lastName: "aL1",
       books: [
-        { title: "b1", classification: dd100 },
-        { title: "b2", classification: dd100 },
+        { id: "b:1", title: "b1", classification: dd100 },
+        { id: "b:2", title: "b2", classification: dd100 },
       ],
     });
     // And some values have been changed
@@ -771,7 +801,7 @@ describe("formState", () => {
     a1.firstName.value = "";
     // Then we keep it as null
     expect(a1.firstName.value).toBeNull();
-    expect(a1.originalValue.firstName).toBeNull();
+    expect(a1.originalValue.firstName).toBe("asdf");
     expect(a1.firstName.dirty).toBeTruthy();
   });
 
@@ -1242,6 +1272,45 @@ describe("formState", () => {
       id: "a:1",
       books: [{ id: "b:1", title: "t1b" }, { id: "b:2" }],
     });
+    // And add a 3rd new book
+    formState.books.add({ title: "t3" });
+    // Then we get the author id (for updates) and all 3 books
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      books: [{ id: "b:1", title: "t1b" }, { id: "b:2" }, { title: "t3" }],
+    });
+    // And we can still get the original value
+    expect(formState.originalValue).toEqual({
+      id: "a:1",
+      firstName: "f",
+      books: [
+        { id: "b:1", title: "t1" },
+        { id: "b:2", title: "t2" },
+      ],
+    });
+    // And the books.originalValue as well
+    expect(formState.books.originalValue).toEqual([
+      { id: "b:1", title: "t1" },
+      { id: "b:2", title: "t2" },
+    ]);
+    // And when we commit changes
+    formState.commitChanges();
+    // Then our originalValue reflects the commit
+    expect(formState.originalValue).toEqual({
+      id: "a:1",
+      firstName: "f",
+      books: [
+        { id: "b:1", title: "t1b" },
+        { id: "b:2", title: "t2" },
+        { id: undefined, title: "t3" },
+      ],
+    });
+    // And the books.originalValue as well
+    expect(formState.books.originalValue).toEqual([
+      { id: "b:1", title: "t1b" },
+      { id: "b:2", title: "t2" },
+      { title: "t3" },
+    ]);
   });
 
   it("can return only changed but incremental list fields", () => {
