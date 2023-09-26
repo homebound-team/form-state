@@ -305,7 +305,7 @@ export function newObjectState<T, P = any>(
     },
 
     get originalValue(): T | undefined {
-      _tick.value > 0 || fail();
+      getFields(proxy).map((f) => f.originalValue);
       return originalCopy;
     },
 
@@ -326,14 +326,13 @@ export function newObjectState<T, P = any>(
     // to mobx this looks like the value never changes, and it will never invoke observers
     // even with our tick-based hacks.
     value: computed({ equals: () => false }),
+    originalValue: computed({ equals: () => false }),
   });
 
   // Any time a field changes, percolate that change up to us
   reaction(
-    () => getFields(proxy).flatMap((f) => [f.value, f.originalValue]),
-    (newV, oldV) => {
-      _tick.value++;
-    },
+    () => getFields(proxy).map((f) => f.value),
+    () => _tick.value++,
   );
 
   return proxy!;
