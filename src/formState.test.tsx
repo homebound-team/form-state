@@ -702,8 +702,8 @@ describe("formState", () => {
       firstName: "a1",
       lastName: "aL1",
       books: [
-        { id: "b:1", title: "b1", classification: dd100 },
-        { id: "b:2", title: "b2", classification: dd100 },
+        { title: "b1", classification: dd100 },
+        { title: "b2", classification: dd100 },
       ],
     });
 

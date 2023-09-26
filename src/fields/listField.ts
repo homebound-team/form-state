@@ -70,6 +70,7 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
 
     get dirty(): boolean {
+      // console.log({ key: this.key, hasChanged: this.hasChanged() });
       return this.rows.some((r) => r.dirty) || this.hasChanged();
     },
 
@@ -90,6 +91,7 @@ export function newListFieldState<T, K extends keyof T, U>(
         return original.some((e: any, idx) => {
           const isExactSame = this.value[idx] === copyMap.get(e);
           const isSameEntity = (this.rows[idx] as ObjectStateInternal<U>)?.isSameEntity(e);
+          // console.log({ idx, isExactSame, isSameEntity });
           return !(isExactSame || isSameEntity);
         });
       } else {
@@ -130,7 +132,7 @@ export function newListFieldState<T, K extends keyof T, U>(
     get touched() {
       const someTouched = this.rows.some((r) => r.touched);
       const hasChanged = this.hasChanged();
-      // console.log({ someTouched, hasChanged });
+      // console.log({ key: this.key, someTouched, hasChanged });
       return someTouched || hasChanged;
     },
 
@@ -198,6 +200,11 @@ export function newListFieldState<T, K extends keyof T, U>(
       // We should be passed values that are non-proxies.
       parentInstance[key] = values.map((value) => {
         let childState = rowMap.get(value);
+        // If we're being reverted to our originalValue, i.e. values is actually
+        // a list of copies, use the copyMap to recover our child states
+        if (!childState && copyMap.has(value)) {
+          childState = rowMap.get(copyMap.get(value)!);
+        }
         if (!childState) {
           // Look for an existing child (requires having an id key configured)
           for (const [, otherState] of rowMap.entries()) {
@@ -214,11 +221,12 @@ export function newListFieldState<T, K extends keyof T, U>(
         // Return the already-observable'd value so that our `parent.value[key] = values` doesn't re-proxy things
         return childState.value;
       }) as any as T[K];
+      // Make sure to tick first so that `setOriginalValue` sees the latest `rows`
+      _tick.value++;
       // Reset originalCopy so that our dirty checks have the right # of rows.
       if (opts.refreshing) {
-        this.originalValue = [...((parentInstance[key] as any) || [])];
+        this.setOriginalValue();
       }
-      _tick.value++;
     },
 
     add(value: U, spliceIndex?: number): void {
@@ -252,8 +260,9 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
 
     commitChanges() {
+      // Tell each child ObjectState to have its fields commit into its parentCopy
       this.rows.forEach((r) => r.commitChanges());
-      this.originalValue = this.value;
+      this.setOriginalValue();
       this.touched = false;
       _tick.value++;
     },
@@ -265,10 +274,10 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
 
     // This should only be called when value === originalValue
-    set originalValue(v: U[]) {
-      // We should probably clone this...
-      parentCopy[key] = v as any;
-      ((parentCopy[key] ?? []) as U[]).forEach((copy, i) => {
+    setOriginalValue() {
+      // Use the rows' originalValues to update the parentCopy
+      parentCopy[key] = this.rows.map((r) => r.originalValue) as any;
+      (parentCopy[key] as U[]).forEach((copy, i) => {
         copyMap.set(copy, (parentInstance[key] as any)[i]);
       });
       _originalValueTick.value++;
