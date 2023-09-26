@@ -772,7 +772,7 @@ describe("formState", () => {
     const a1 = createAuthorInputState({
       firstName: "a1",
       lastName: "aL1",
-      books: [{ id: "b:1", title: "b1", classification: dd100 }],
+      books: [{ title: "b1", classification: dd100 }],
     });
     expect(a1.dirty).toBeFalsy();
 
@@ -780,7 +780,7 @@ describe("formState", () => {
     a1.firstName.set("a2");
     a1.lastName.set("aL2");
     a1.books.rows[0].set({ title: "b2" });
-    a1.books.add({ id: undefined, title: "bb2" });
+    a1.books.add({ title: "bb2" });
     // Set book 2 to an different value. Ensures our save can traverse all rows
     a1.books.rows[1].set({ title: "bb3" });
 
@@ -1284,6 +1284,13 @@ describe("formState", () => {
       id: "a:1",
       books: [{ id: "b:1", title: "t1b" }, { id: "b:2" }],
     });
+    // And add a 3rd new book
+    formState.books.add({ title: "t3" });
+    // Then we get the author id (for updates) and all 3 books
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      books: [{ id: "b:1", title: "t1b" }, { id: "b:2" }, { title: "t3" }],
+    });
     // And we can still get the original value
     expect(formState.originalValue).toEqual({
       id: "a:1",
@@ -1293,6 +1300,11 @@ describe("formState", () => {
         { id: "b:2", title: "t2" },
       ],
     });
+    // And the books.originalValue as well
+    expect(formState.books.originalValue).toEqual([
+      { id: "b:1", title: "t1" },
+      { id: "b:2", title: "t2" },
+    ]);
     // And when we commit changes
     formState.commitChanges();
     // Then our originalValue reflects the commit
@@ -1302,8 +1314,15 @@ describe("formState", () => {
       books: [
         { id: "b:1", title: "t1b" },
         { id: "b:2", title: "t2" },
+        { id: undefined, title: "t3" },
       ],
     });
+    // And the books.originalValue as well
+    expect(formState.books.originalValue).toEqual([
+      { id: "b:1", title: "t1b" },
+      { id: "b:2", title: "t2" },
+      { title: "t3" },
+    ]);
   });
 
   it("can return only changed but incremental list fields", () => {

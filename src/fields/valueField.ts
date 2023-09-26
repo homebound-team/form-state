@@ -259,7 +259,8 @@ export function newValueFieldState<T, K extends keyof T>(
     },
 
     set originalValue(v: V) {
-      parentCopy[key] = v;
+      const canSkip = v === undefined && !(key in (parentCopy as any));
+      if (!canSkip) parentCopy[key] = v;
       _originalValueTick.value++;
     },
 

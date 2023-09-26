@@ -72,7 +72,6 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
 
     get dirty(): boolean {
-      // console.log({ key: this.key, hasChanged: this.hasChanged() });
       return this.rows.some((r) => r.dirty) || this.hasChanged();
     },
 
@@ -125,10 +124,7 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     // TODO Should this be true when all rows are touched?
     get touched() {
-      const someTouched = this.rows.some((r) => r.touched);
-      const hasChanged = this.hasChanged();
-      // console.log({ key: this.key, someTouched, hasChanged });
-      return someTouched || hasChanged;
+      return this.rows.some((r) => r.touched) || this.hasChanged();
     },
 
     set touched(touched: boolean) {

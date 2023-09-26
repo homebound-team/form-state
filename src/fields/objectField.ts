@@ -134,8 +134,8 @@ export function newObjectState<T, P = any>(
         config.isReadOnlyKey || false,
         config.computed ??
           // If instance is a mobx class, we can detect computeds as they won't be enumerable
-          ((isObservable(instance) && !(key in originalCopy)) || false),
-        config.readOnly || false,
+          (isObservable(instance) ? !(key in originalCopy) : false),
+        config.readOnly ?? false,
         config.strictOrder ?? true,
         maybeAutoSave,
       );
