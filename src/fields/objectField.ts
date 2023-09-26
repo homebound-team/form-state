@@ -315,6 +315,7 @@ export function newObjectState<T, P = any>(
       if (!idField) {
         return false;
       }
+      // If the otherIdValue is undefined, it's a new entity so can't be the same as us
       const otherIdValue = (other as any)[idField.key];
       return otherIdValue !== undefined && otherIdValue === this[idField.key].value;
     },
