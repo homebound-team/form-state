@@ -312,12 +312,11 @@ export function newObjectState<T, P = any>(
     // An internal helper method to see if `other` is for "the same entity" as our current row
     isSameEntity(other: T): boolean {
       const idField = getFields(this).find((f) => f._isIdKey);
-      if (!idField) {
-        return false;
-      }
-      // If the otherIdValue is undefined, it's a new entity so can't be the same as us
+      if (!idField) return false;
+      const ourIdValue = idField.value;
       const otherIdValue = (other as any)[idField.key];
-      return otherIdValue !== undefined && otherIdValue === this[idField.key].value;
+      // If the otherIdValue is undefined, it's a new entity so can't be the same as us
+      return otherIdValue !== undefined && otherIdValue === ourIdValue;
     },
   };
 

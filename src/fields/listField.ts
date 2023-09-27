@@ -39,6 +39,39 @@ export function newListFieldState<T, K extends keyof T, U>(
     copyMap.set(copy, (parentInstance[key] as any)[i]);
   });
 
+  // Given a child POJO (or a copy/clone of a child POJO), return its ObjectState wrapper.
+  function getOrCreateChildState(child: U, opts?: InternalSetOpts): ObjectState<U> {
+    let childState = rowMap.get(child);
+    // If we're being reverted to our originalValue, i.e. values is actually
+    // a list of copies, use the copyMap to recover the non-copy original value
+    if (!childState && copyMap.has(child)) {
+      childState = rowMap.get(copyMap.get(child)!);
+    }
+    // Look for an existing child (requires having an id key configured)
+    if (!childState) {
+      for (const [, otherState] of rowMap.entries()) {
+        if (otherState.isSameEntity(child)) {
+          otherState.set(child, opts);
+          rowMap.set(child, otherState);
+          return otherState;
+        }
+      }
+    }
+    // If we didn't have an existing child, just make a new object state
+    if (!childState) {
+      childState = newObjectState<U>(
+        config,
+        parentState as any,
+        list as any as FieldState<any>,
+        child,
+        undefined,
+        maybeAutoSave,
+      ) as ObjectStateInternal<U>;
+      rowMap.set(child, childState);
+    }
+    return childState;
+  }
+
   const list = {
     key: key as string,
 
@@ -104,22 +137,7 @@ export function newListFieldState<T, K extends keyof T, U>(
       if (_tick.value < 0) fail();
       // Avoid using `this.value` to avoid registering `_childTick` as a dependency
       const value = parentInstance[key] as any as U[];
-      return (value || []).map((child) => {
-        // Because we're reading from this.value, child will be the proxy version
-        let childState = rowMap.get(child);
-        if (!childState) {
-          childState = newObjectState<U>(
-            config,
-            parentState as any,
-            list as any as FieldState<any>,
-            child,
-            undefined,
-            maybeAutoSave,
-          ) as ObjectStateInternal<U>;
-          rowMap.set(child, childState);
-        }
-        return childState;
-      });
+      return (value || []).map((child) => getOrCreateChildState(child));
     },
 
     // TODO Should this be true when all rows are touched?
@@ -188,30 +206,12 @@ export function newListFieldState<T, K extends keyof T, U>(
       if (this.readOnly && !opts.resetting && !opts.refreshing) {
         throw new Error(`${String(key)} is currently readOnly`);
       }
-      // We should be passed values that are non-proxies.
-      parentInstance[key] = values.map((value) => {
-        let childState = rowMap.get(value);
-        // If we're being reverted to our originalValue, i.e. values is actually
-        // a list of copies, use the copyMap to recover our child states
-        if (!childState && copyMap.has(value)) {
-          childState = rowMap.get(copyMap.get(value)!);
-        }
-        if (!childState) {
-          // Look for an existing child (requires having an id key configured)
-          for (const [, otherState] of rowMap.entries()) {
-            if (otherState.isSameEntity(value)) {
-              otherState.set(value, opts);
-              rowMap.set(value, otherState);
-              return otherState.value;
-            }
-          }
-          // If we didn't have an existing child, just make a new object state
-          childState = createObjectState(config, value, { maybeAutoSave }) as ObjectStateInternal<U>;
-          rowMap.set(value, childState);
-        }
-        // Return the already-observable'd value so that our `parent.value[key] = values` doesn't re-proxy things
-        return childState.value;
-      }) as any as T[K];
+      // Given the values, see if we've got existing child states, and use their
+      // value if so. I.e. this covers revertChanges doing `set(originalValue)` and
+      // passing us cloned rows from the parentCopy, but `getOrCreateChildState` will
+      // use the `copyMap` to recover the non-cloned rows, to avoid promoting the clone
+      // into a real row.
+      parentInstance[key] = values.map((child) => getOrCreateChildState(child, opts).value) as any as T[K];
       // Make sure to tick first so that `setOriginalValue` sees the latest `rows`
       _tick.value++;
       // Reset originalCopy so that our dirty checks have the right # of rows.
