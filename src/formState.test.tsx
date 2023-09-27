@@ -1772,6 +1772,29 @@ describe("formState", () => {
     expect((a.id as any)._isIdKey).toBe(false);
     expect((a.otherId as any)._isIdKey).toBe(true);
   });
+
+  it("uses id key to recognize same entities", () => {
+    // With b1 having an id
+    const b1 = createObjectState<BookInput>({ id: { type: "value" } }, { id: "b:1" });
+    expect((b1 as any).isSameEntity({ id: "b:1" })).toBe(true);
+    expect((b1 as any).isSameEntity({ id: "b:2" })).toBe(false);
+    expect((b1 as any).isSameEntity({ id: undefined })).toBe(false);
+    expect((b1 as any).isSameEntity({})).toBe(false);
+
+    // With b2 having no id
+    const b2 = createObjectState<BookInput>({ id: { type: "value" } }, {});
+    expect((b2 as any).isSameEntity({ id: "b:1" })).toBe(false);
+    expect((b2 as any).isSameEntity({ id: undefined })).toBe(false);
+    expect((b2 as any).isSameEntity({})).toBe(false);
+
+    // With b3 having no id key
+    const b3 = createObjectState<BookInput>({ title: { type: "value" } }, { title: "b3" });
+    expect((b3 as any).isSameEntity({ title: "b3" })).toBe(false);
+
+    // With b4 having a different id key
+    const b4 = createObjectState<BookInput>({ title: { type: "value", isIdKey: true } }, { title: "b4" });
+    expect((b4 as any).isSameEntity({ title: "b4" })).toBe(true);
+  });
 });
 
 export class ObservableObject {
