@@ -40,7 +40,7 @@ export function newListFieldState<T, K extends keyof T, U>(
   });
 
   // Given a child POJO (or a copy/clone of a child POJO), return its ObjectState wrapper.
-  function getOrCreateChildState(child: U, opts?: InternalSetOpts): ObjectState<U> {
+  function getOrCreateChildState(child: U, opts?: InternalSetOpts & { skipSet?: boolean }): ObjectState<U> {
     let childState = rowMap.get(child);
     // If we're being reverted to our originalValue, i.e. values is actually
     // a list of copies, use the copyMap to recover the non-copy original value
@@ -51,7 +51,8 @@ export function newListFieldState<T, K extends keyof T, U>(
     if (!childState) {
       for (const [, otherState] of rowMap.entries()) {
         if (otherState.isSameEntity(child)) {
-          otherState.set(child, opts);
+          // If we're being called from `list.rows`, we should be careful to not trigger mutations
+          if (!opts?.skipSet) otherState.set(child, opts);
           rowMap.set(child, otherState);
           return otherState;
         }
@@ -137,7 +138,7 @@ export function newListFieldState<T, K extends keyof T, U>(
       if (_tick.value < 0) fail();
       // Avoid using `this.value` to avoid registering `_childTick` as a dependency
       const value = parentInstance[key] as any as U[];
-      return (value || []).map((child) => getOrCreateChildState(child));
+      return (value || []).map((child) => getOrCreateChildState(child, { skipSet: true }));
     },
 
     // TODO Should this be true when all rows are touched?
