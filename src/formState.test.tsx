@@ -1125,14 +1125,7 @@ describe("formState", () => {
   it("can observe observable objects being mutated directly", () => {
     // Given a mobx class with a computed
     const instance = new ObservableObject();
-    const formState = createObjectState(
-      {
-        firstName: { type: "value" },
-        lastName: { type: "value" },
-        fullName: { type: "value", computed: true },
-      },
-      instance,
-    );
+    const formState = createObjectState(authorWithFullName, instance);
     expect(formState.firstName.value).toEqual("first");
     expect(formState.fullName.value).toEqual("first last");
 
@@ -1151,9 +1144,11 @@ describe("formState", () => {
 
     // And when the underlying mobx class has a field unset
     instance.firstName = undefined;
-    // Then our fomr-state computed re-runs again
+    // Then our form-state computed re-runs again
     expect(numCalcs).toBe(3);
     expect(formState.fullName.value).toEqual("undefined last");
+    // And knows the field should be sent as null
+    expect(formState.changedValue).toEqual({ firstName: null });
   });
 
   it("can set computeds that have setters", () => {
@@ -1252,6 +1247,19 @@ describe("formState", () => {
     // Then we don't include an empty address in the output,
     // because this might trigger creating a throw-away entity
     expect(formState.changedValue).toEqual({ firstName: "f" });
+  });
+
+  it("changedValue skips computeds", () => {
+    // Given a new author that calls full name
+    const formState = createObjectState(authorWithFullName, new ObservableObject());
+    expect(formState.fullName.value).toEqual("first last");
+    // When the firstName changes
+    formState.firstName.value = "First";
+    // Then the fullName changes
+    expect(formState.fullName.value).toBe("First last");
+    expect(formState.fullName.dirty).toBe(true);
+    // And we don't include it in the changedValue
+    expect(formState.changedValue).toEqual({ firstName: "First" });
   });
 
   it("can return only changed list fields", () => {
@@ -1835,6 +1843,12 @@ const authorWithBooksConfig = f.config<AuthorInput>({
 function createAuthorInputState(input: AuthorInput, maybeAutoSave?: () => void) {
   return createObjectState<AuthorInput>(authorWithBooksConfig, input, { maybeAutoSave });
 }
+
+const authorWithFullName: ObjectConfig<ObservableObject> = {
+  firstName: { type: "value" },
+  lastName: { type: "value" },
+  fullName: { type: "value", computed: true },
+};
 
 const authorWithAddressConfig: ObjectConfig<AuthorInput> = {
   id: { type: "value" },
