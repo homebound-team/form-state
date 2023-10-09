@@ -111,6 +111,8 @@ export function newValueFieldState<T, K extends keyof T>(
     _readOnly: readOnly || false,
     _loading: false,
     _focused: false,
+    // Expose so computed can be skipped in changedValue
+    _computed: computed,
 
     _isIdKey: isIdKey,
     _isDeleteKey: isDeleteKey,
@@ -157,6 +159,11 @@ export function newValueFieldState<T, K extends keyof T>(
 
     // For primitive fields, the changed value is just the value.
     get changedValue() {
+      // Usually if we see a field being unset, we set `parent[key] = null`, but if we're wrapping
+      // a mobx observable object, it might have changed to `undefined` without us being able to
+      // tell it to be `null` (and potentially break the type contract of `string | undefined`).
+      // So detect un-set-ness here and return `null`.
+      if (this.value === undefined && this.originalValue !== undefined) return null;
       return this.value;
     },
 

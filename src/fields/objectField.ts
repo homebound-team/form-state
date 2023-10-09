@@ -283,6 +283,7 @@ export function newObjectState<T, P = any>(
     get changedValue() {
       const result: any = {};
       getFields(this).forEach((f) => {
+        if ((f as any)._computed) return;
         if (
           f.dirty ||
           // If the caller used useFormState.ifUndefined to provide some default values, then those keys may not
