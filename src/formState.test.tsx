@@ -505,6 +505,21 @@ describe("formState", () => {
     expect(a1.dirty).toBeFalsy();
   });
 
+  it("handles list fields with duplicate ids", () => {
+    // Given an author that incorrectly has duplicate books
+    const a1 = createAuthorInputState({
+      books: [
+        { id: "b:1", title: "b1" },
+        { id: "b:1", title: "b2" },
+      ],
+    });
+    // Then it didn't blow up
+    expect(a1.books.dirty).toBeFalsy();
+    // And the 1st book won
+    expect(a1.books.rows[0].title.value).toBe("b1");
+    expect(a1.books.rows[1].title.value).toBe("b1");
+  });
+
   it("calls maybeAutoSave when adding or removing to a list", () => {
     const maybeAutoSave = jest.fn();
     const a1 = createAuthorInputState({ books: [] }, maybeAutoSave);
