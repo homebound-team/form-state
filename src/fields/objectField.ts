@@ -201,6 +201,10 @@ export function newObjectState<T, P = any>(
       return !!readOnlyField?.value;
     },
 
+    get focused(): boolean {
+      return getFields(this).some((f) => f.focused);
+    },
+
     get touched(): boolean {
       return getFields(this).some((f) => f.touched);
     },

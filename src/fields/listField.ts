@@ -109,6 +109,10 @@ export function newListFieldState<T, K extends keyof T, U>(
       return this.rows.some((r) => r.dirty) || this.hasChanged();
     },
 
+    get focused(): boolean {
+      return this.rows.some((r) => r.focused);
+    },
+
     get required(): boolean {
       return this.rules.some((rule) => rule === required);
     },
