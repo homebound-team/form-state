@@ -372,6 +372,37 @@ describe("useFormState", () => {
     expect(r.booksDirty.textContent).toEqual("false");
   });
 
+  it("can trigger auto-save when underlying observable is changed", async () => {
+    // Given a component
+    // And it's using a class/mobx proxy as the basis for the data
+    class AuthorRow {
+      constructor(public firstName: string | undefined) {
+        makeAutoObservable(this);
+      }
+    }
+    const autoSave = jest.fn();
+    function TestComponent() {
+      // And the author starts out with f1
+      const author = useMemo(() => new AuthorRow("f1"), []);
+      const config: ObjectConfig<AuthorRow> = useMemo(() => ({ firstName: { type: "value" } }), []);
+      const form = useFormState({ config, init: { input: author, map: (a) => a }, autoSave });
+      return (
+        <div>
+          <button data-testid="changeFirstName" onClick={() => (author.firstName = "f2")} />
+          <button data-testid="clearFirstName" onClick={() => (author.firstName = undefined)} />
+        </div>
+      );
+    }
+    // When we change the underlying observable
+    const r = await render(<TestComponent />);
+    expect(autoSave).toBeCalledTimes(0);
+    await clickAndWait(r.changeFirstName);
+    // Then auto save is triggered
+    expect(autoSave).toBeCalledTimes(1);
+    await clickAndWait(r.clearFirstName);
+    expect(autoSave).toBeCalledTimes(2);
+  });
+
   it("can trigger auto save for fields in list that were initially undefined", async () => {
     const autoSave = jest.fn();
     // Given a component

@@ -1,5 +1,5 @@
 import { isPlainObject } from "is-plain-object";
-import { observable, toJS } from "mobx";
+import { isObservable, observable, reaction, toJS } from "mobx";
 import { ObjectState } from "src/fields/objectField";
 import { newDelegateProxy } from "src/proxies";
 import { Rule, required } from "src/rules";
@@ -27,6 +27,7 @@ export interface FieldState<V> {
   readonly required: boolean;
   readonly dirty: boolean;
   readonly valid: boolean;
+  readonly focused: boolean;
   readonly isNewEntity: boolean;
   rules: Rule<V>[];
   readonly errors: string[];
@@ -78,7 +79,6 @@ export interface FieldStateInternal<T, V> extends FieldState<V> {
   _isIdKey: boolean;
   _isDeleteKey: boolean;
   _isReadOnlyKey: boolean;
-  _focused: boolean;
 }
 
 export function newValueFieldState<T, K extends keyof T>(
@@ -110,9 +110,9 @@ export function newValueFieldState<T, K extends keyof T>(
     /** Current readOnly value. */
     _readOnly: readOnly || false,
     _loading: false,
-    _focused: false,
     // Expose so computed can be skipped in changedValue
     _computed: computed,
+    _focused: false,
 
     _isIdKey: isIdKey,
     _isDeleteKey: isDeleteKey,
@@ -131,6 +131,10 @@ export function newValueFieldState<T, K extends keyof T>(
 
     set value(v: V) {
       this.set(v);
+    },
+
+    get focused(): boolean {
+      return this._focused;
     },
 
     get dirty(): boolean {
@@ -285,6 +289,19 @@ export function newValueFieldState<T, K extends keyof T>(
       }
     },
   };
+
+  // If we're wrapping a mobx observer, watching for external mutations, i.e. from callers not
+  // going through our FieldState.set/FieldState.value setters.
+  if (isObservable(parentInstance)) {
+    reaction(
+      () => parentInstance[key],
+      () => {
+        // Don't auto-save on maybe-external mutation if our field, or another other field (potentially a computed),
+        // is currently focused, because then it's probably just us doing the writes through `Bound...Field` components.
+        if (!parentState().focused) maybeAutoSave();
+      },
+    );
+  }
 
   return field as any;
 }
