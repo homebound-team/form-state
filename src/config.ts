@@ -83,6 +83,8 @@ export type ListFieldConfig<U> = {
 
 export type ObjectFieldConfig<U> = {
   type: "object";
+  /** Marks an object as a reference, which means we'll only include it's `id` in `changedValue` output. */
+  reference?: boolean;
   /** Config for the child's form state, i.e. each book. */
   config: ObjectConfig<U>;
 };

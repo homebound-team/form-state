@@ -1,4 +1,4 @@
-import { FragmentFieldConfig, ListFieldConfig, ObjectConfig, ValueFieldConfig } from "src/config";
+import { FragmentFieldConfig, ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
 import { Fragment, ObjectState } from "src/fields/objectField";
 import { Rule, required } from "src/rules";
 import { Builtin, OmitIf } from "src/utils";
@@ -9,7 +9,7 @@ import { Builtin, OmitIf } from "src/utils";
 export const f = {
   /** Creates the top-level config for a form, like an author or book. */
   config<T>(fields: ObjectConfigBuilderFields<T>): ObjectConfig<T> {
-    return new ObjectConfigBuilder<T>(fields).build();
+    return new ObjectConfigBuilder<T>(fields).build().config;
   },
 
   /** Creates the config DSL for an object, like an author or book. */
@@ -25,6 +25,11 @@ export const f = {
   /** Creates the config DSL for a primitive value, like a first name or phone number. */
   value<V>(): ValueFieldConfigBuilder<V> {
     return new ValueFieldConfigBuilder<V>();
+  },
+
+  /** A shortcut for creating a child object with a single `id` key. */
+  reference<V extends { id?: unknown }>(fields?: ObjectConfigBuilderFields<V>): ObjectConfigBuilder<V> {
+    return f.object<V>({ id: f.value(), ...fields } as any).ref();
   },
 
   /** A shorthand for creating a computed value. */
@@ -55,16 +60,20 @@ export interface FragmentFieldConfigBuilder {
 
 /** Provides a fluent DSL for building up an object's config. */
 export class ObjectConfigBuilder<T> {
-  private config: ObjectConfig<T>;
+  private config: ObjectFieldConfig<T> = { type: "object", config: {} as ObjectConfig<T> };
 
   constructor(fields: ObjectConfigBuilderFields<T>) {
-    this.config = {} as any;
     for (const [key, value] of Object.entries(fields)) {
-      (this.config as any)[key] = (value as any).build();
+      (this.config.config as any)[key] = (value as any).build();
     }
   }
 
-  build(): ObjectConfig<T> {
+  ref(): this {
+    this.config.reference = true;
+    return this;
+  }
+
+  build(): ObjectFieldConfig<T> {
     return this.config;
   }
 }

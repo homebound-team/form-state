@@ -81,11 +81,20 @@ export function createObjectState<T>(
   opts: { maybeAutoSave?: () => void } = {},
 ): ObjectState<T> {
   const noop = () => {};
-  return newObjectState(config, undefined, undefined, undefined, instance, undefined, opts.maybeAutoSave || noop);
+  return newObjectState(
+    { type: "object", config },
+    undefined,
+    undefined,
+    undefined,
+    instance,
+    undefined,
+    opts.maybeAutoSave || noop,
+  );
 }
 
+/** A more internal version of `createObjectState`. */
 export function newObjectState<T, P = any>(
-  config: ObjectConfig<T>,
+  config: ObjectFieldConfig<T>,
   parentState: (() => ObjectState<P>) | undefined,
   parentInstance: P | undefined,
   parentListState: FieldState<any> | undefined,
@@ -109,8 +118,8 @@ export function newObjectState<T, P = any>(
   // be a true match (i.e. pass instanceof), but it should be good enough
   const originalCopy: any = deepClone(instance);
 
-  const objectConfig = config as ObjectConfig<T>;
-  const fieldStates = Object.entries(config).map(([_key, _config]) => {
+  const objectConfig = config.config;
+  const fieldStates = Object.entries(objectConfig).map(([_key, _config]) => {
     const key = _key as keyof T;
     const config = _config as
       | ValueFieldConfig<any>
@@ -148,7 +157,7 @@ export function newObjectState<T, P = any>(
         key,
         config.rules || [],
         config,
-        config.config,
+        { type: "object", config: config.config },
         config.strictOrder ?? true,
         maybeAutoSave,
       );
@@ -157,7 +166,7 @@ export function newObjectState<T, P = any>(
         instance[key] = {} as any;
       }
       field = newObjectState(
-        config.config,
+        config,
         getObjectState,
         instance,
         undefined,
@@ -177,7 +186,7 @@ export function newObjectState<T, P = any>(
   // we want to pretend that it's observable, so use a tick to force it.
   const _tick = observable({ value: 1 });
 
-  const fieldNames = Object.keys(config);
+  const fieldNames = Object.keys(objectConfig);
   function getFields(proxyThis: any): FieldStateInternal<T, any>[] {
     return fieldNames.map((name) => proxyThis[name]) as FieldStateInternal<T, any>[];
   }
@@ -301,11 +310,18 @@ export function newObjectState<T, P = any>(
     // Create a result that is only populated with changed keys
     get changedValue() {
       const result: any = {};
+      // If we're a child, like `author.address` that was unset, return null
       if (this.isUnset()) {
+        // If we're a reference, always return `{ id: ... }` for easy binding
+        const idField = getFields(this).find((f) => f._isIdKey);
+        if (idField && config.reference) return { id: null };
+        // Otherwise mark the whole child as gone
         return null;
       }
       getFields(this).forEach((f) => {
         if ((f as any)._computed) return;
+        // References only include the id key below
+        if (config.reference) return;
         if (
           f.dirty ||
           // If the caller used useFormState.ifUndefined to provide some default values, then those keys may not
