@@ -63,6 +63,7 @@ export function newListFieldState<T, K extends keyof T, U>(
       childState = newObjectState<U>(
         config,
         parentState as any,
+        undefined,
         list as any as FieldState<any>,
         child,
         undefined,

@@ -1252,6 +1252,48 @@ describe("formState", () => {
     expect(formState.changedValue).toEqual({ firstName: "f" });
   });
 
+  it("changedValue includes new entity nested fields", () => {
+    // Given a new author with an address FK
+    const formState = createObjectState(authorWithAddressFkConfig, {
+      firstName: "f",
+      address: { id: "add:1" },
+    });
+    // Then changedValue includes the refernece to the FK
+    expect(formState.changedValue).toEqual({
+      firstName: "f",
+      address: { id: "add:1" },
+    });
+  });
+
+  it("changedValue includes deleted nested fields", () => {
+    // Given a new author with an address FK
+    const formState = createObjectState(authorWithAddressFkConfig, {
+      id: "a:1",
+      firstName: "f",
+      address: { id: "add:1" },
+    });
+    // When the address is unset
+    formState.address.set(undefined);
+    // Then the field is dirty and will be removed in changedValue
+    expect(formState.address.dirty).toBe(true);
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      // maybe we want `address: { id: null }`? Maybe if there is only a single id key...
+      address: null,
+    });
+    // And when we're restored to the same value
+    formState.address.set({ id: "add:1" });
+    // Then we're back
+    expect(formState.address.dirty).toBe(false);
+    // And when we're changed to a different address
+    formState.address.set({ id: "add:2" });
+    // Then we're dirty again
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      address: { id: "add:2" },
+    });
+  });
+
   it("changedValue skips effectively empty nested fields", () => {
     // Given a new author with an address object
     const formState = createObjectState(authorWithAddressConfig, {
@@ -1872,6 +1914,20 @@ const authorWithAddressConfig: ObjectConfig<AuthorInput> = {
   address: {
     type: "object",
     config: {
+      street: { type: "value", rules: [required] },
+      city: { type: "value" },
+    },
+  },
+};
+
+const authorWithAddressFkConfig: ObjectConfig<AuthorInput> = {
+  id: { type: "value" },
+  firstName: { type: "value" },
+  lastName: { type: "value" },
+  address: {
+    type: "object",
+    config: {
+      id: { type: "value" },
       street: { type: "value", rules: [required] },
       city: { type: "value" },
     },

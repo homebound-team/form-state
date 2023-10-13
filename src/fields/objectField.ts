@@ -81,12 +81,13 @@ export function createObjectState<T>(
   opts: { maybeAutoSave?: () => void } = {},
 ): ObjectState<T> {
   const noop = () => {};
-  return newObjectState(config, undefined, undefined, instance, undefined, opts.maybeAutoSave || noop);
+  return newObjectState(config, undefined, undefined, undefined, instance, undefined, opts.maybeAutoSave || noop);
 }
 
 export function newObjectState<T, P = any>(
   config: ObjectConfig<T>,
   parentState: (() => ObjectState<P>) | undefined,
+  parentInstance: P | undefined,
   parentListState: FieldState<any> | undefined,
   instance: T,
   key: keyof T | undefined,
@@ -155,11 +156,19 @@ export function newObjectState<T, P = any>(
       if (!instance[key]) {
         instance[key] = {} as any;
       }
-      field = newObjectState(config.config, getObjectState, undefined, instance[key] as any, key, maybeAutoSave) as any;
+      field = newObjectState(
+        config.config,
+        getObjectState,
+        instance,
+        undefined,
+        instance[key] as any,
+        key,
+        maybeAutoSave,
+      ) as any;
     } else if (config.type === "fragment") {
       field = newFragmentField(instance, key);
     } else {
-      throw new Error("Unsupported");
+      throw new Error(`Invalid type value ${(config as any).type}`);
     }
     return [key, field];
   });
@@ -188,6 +197,7 @@ export function newObjectState<T, P = any>(
     },
 
     // private
+    _kind: "object",
     _readOnly: false,
     _loading: false,
 
@@ -243,7 +253,7 @@ export function newObjectState<T, P = any>(
     },
 
     get dirty(): boolean {
-      return getFields(this).some((f) => f.dirty);
+      return getFields(this).some((f) => f.dirty) || this.isUnset();
     },
 
     get isNewEntity(): boolean {
@@ -266,6 +276,11 @@ export function newObjectState<T, P = any>(
       if (this.readOnly && !opts.resetting && !opts.refreshing) {
         throw new Error(`${String(key) || "formState"} is currently readOnly`);
       }
+      // Restore our instance if we're being reset
+      if (value && this.isUnset()) (parentInstance as any)[key] = instance;
+      // Delete our instance if we're being unset
+      if (!value && parentInstance) (parentInstance as any)[key] = undefined;
+      // Otherwise just copy over the fields
       getFields(this).forEach((field) => {
         if (value && typeof value === "object" && field.key in value) {
           field.set((value as any)[field.key], opts);
@@ -286,17 +301,18 @@ export function newObjectState<T, P = any>(
     // Create a result that is only populated with changed keys
     get changedValue() {
       const result: any = {};
+      if (this.isUnset()) {
+        return null;
+      }
       getFields(this).forEach((f) => {
         if ((f as any)._computed) return;
         if (
           f.dirty ||
           // If the caller used useFormState.ifUndefined to provide some default values, then those keys may not
           // look dirty, but if we're new we should include them anyway.
-          (this.isNewEntity &&
-            // Unless they're undefined anyway
-            f.value !== undefined &&
-            // And unless they're empty sub-objects
-            !(f.value instanceof Object && Object.entries(f.changedValue).length === 0))
+          (this.isNewEntity && (f as any)._kind === "value" && f.value !== undefined) ||
+          // And unless they're empty sub-objects
+          (this.isNewEntity && (f as any)._kind === "object" && Object.entries(f.changedValue).length > 0)
         ) {
           result[f.key] = f.changedValue;
         }
@@ -322,6 +338,10 @@ export function newObjectState<T, P = any>(
       const otherIdValue = (other as any)[idField.key];
       // If the otherIdValue is undefined, it's a new entity so can't be the same as us
       return otherIdValue !== undefined && otherIdValue === ourIdValue;
+    },
+
+    isUnset(): boolean {
+      return !!parentInstance && (parentInstance as any)[key] === undefined;
     },
   };
 
