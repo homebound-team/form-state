@@ -25,6 +25,7 @@ export interface AuthorInput {
 }
 
 export interface AuthorAddress {
+  id?: string | null;
   street?: string | null;
   city?: string | null;
 }

@@ -110,6 +110,7 @@ export function newValueFieldState<T, K extends keyof T>(
     /** Current readOnly value. */
     _readOnly: readOnly || false,
     _loading: false,
+    _kind: "value",
     // Expose so computed can be skipped in changedValue
     _computed: computed,
     _focused: false,

@@ -1095,26 +1095,6 @@ describe("formState", () => {
     expect(lastLength).toEqual(2);
   });
 
-  it("supports observable objects with helper methods", () => {
-    const config: ObjectConfig<ObservableObject> = {
-      firstName: { type: "value" },
-      lastName: { type: "value" },
-      fullName: { type: "value", computed: true },
-    };
-    // Throw away assertion, test is making sure ^ line compiles
-    expect(config).toBeDefined();
-  });
-
-  it("supports observable objects with helper methods in the config DSL", () => {
-    const config = f.config({
-      firstName: f.value(),
-      lastName: f.value(),
-      fullName: f.computed(),
-    });
-    // Throw away assertion, test is making sure ^ line compiles
-    expect(config).toBeDefined();
-  });
-
   it("can reset observable objects with computeds", () => {
     const formState = createObjectState(
       {
@@ -1250,6 +1230,98 @@ describe("formState", () => {
     // Then we don't include an empty address in the output,
     // because this might trigger creating a throw-away entity
     expect(formState.changedValue).toEqual({ firstName: "f" });
+  });
+
+  it("changedValue includes new entity nested fields", () => {
+    // Given a new author with an address FK
+    const formState = createObjectState(authorWithAddressFkConfig, {
+      firstName: "f",
+      address: { id: "add:1" },
+    });
+    // Then changedValue includes the reference to the FK
+    expect(formState.changedValue).toEqual({
+      firstName: "f",
+      address: { id: "add:1" },
+    });
+  });
+
+  it("changedValue includes new entity nested fields with multiple keys", () => {
+    // Given a new author with an address FK
+    const formState = createObjectState(authorWithAddressFkConfig, { firstName: "f" });
+    formState.address.set({ id: "add:1", street: "Main St" });
+    // Then changedValue includes the reference to the FK
+    expect(formState.changedValue).toEqual({
+      firstName: "f",
+      address: { id: "add:1", street: "Main St" },
+    });
+  });
+
+  it("changedValue includes deleted nested fields", () => {
+    // Given a new author with an address FK
+    const formState = createObjectState(
+      f.config<AuthorInput>({
+        id: f.value(),
+        firstName: f.value(),
+        // And address is a reference
+        address: f.reference(),
+      }),
+      { id: "a:1", firstName: "f", address: { id: "add:1" } },
+    );
+    // When the address is unset
+    formState.address.set(undefined);
+    // Then the field is dirty and will be removed in changedValue
+    expect(formState.address.dirty).toBe(true);
+    expect(formState.dirty).toBe(true);
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      address: { id: null },
+    });
+    // So that we can do a binding like
+    const addressId = formState.changedValue.address?.id;
+    expect(addressId).toBeNull();
+    // And when we're restored to the same value
+    formState.address.set({ id: "add:1" });
+    // Then it's back to not being dirty
+    expect(formState.address.dirty).toBe(false);
+    expect(formState.dirty).toBe(false);
+    // And when we're changed to a different address
+    formState.address.set({ id: "add:2" });
+    // Then we're dirty again
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      address: { id: "add:2" },
+    });
+  });
+
+  it("changedValue includes deleted nested fields with a name", () => {
+    // Given a new author with an address FK
+    const formState = createObjectState(
+      f.config<AuthorInput>({
+        id: f.value(),
+        firstName: f.value(),
+        address: f.reference<AuthorAddress>({ street: f.value() }),
+      }),
+      { id: "a:1", firstName: "f", address: { id: "add:1", street: "Main St" } },
+    );
+    // Initially both id and street can be bound to the UI
+    expect(formState.address.id.value).toBe("add:1");
+    expect(formState.address.street.value).toBe("Main St");
+    // When the address is unset
+    formState.address.set(undefined);
+    // Then the field is dirty and will be removed in changedValue
+    expect(formState.address.dirty).toBe(true);
+    // And our changedValue only includes the id
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      address: { id: null },
+    });
+    // And when we're changed to a new address
+    formState.address.set({ id: "add:2", street: "Side St" });
+    // Then we see oly the id come back in changedValue
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      address: { id: "add:2" },
+    });
   });
 
   it("changedValue skips effectively empty nested fields", () => {
@@ -1872,6 +1944,20 @@ const authorWithAddressConfig: ObjectConfig<AuthorInput> = {
   address: {
     type: "object",
     config: {
+      street: { type: "value", rules: [required] },
+      city: { type: "value" },
+    },
+  },
+};
+
+const authorWithAddressFkConfig: ObjectConfig<AuthorInput> = {
+  id: { type: "value" },
+  firstName: { type: "value" },
+  lastName: { type: "value" },
+  address: {
+    type: "object",
+    config: {
+      id: { type: "value" },
       street: { type: "value", rules: [required] },
       city: { type: "value" },
     },

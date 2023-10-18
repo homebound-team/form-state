@@ -1,6 +1,6 @@
 import { computed, makeAutoObservable, observable, reaction } from "mobx";
-import { ListFieldConfig, ObjectConfig } from "src/config";
-import { ObjectState, ObjectStateInternal, createObjectState, newObjectState } from "src/fields/objectField";
+import { ListFieldConfig, ObjectFieldConfig } from "src/config";
+import { ObjectState, ObjectStateInternal, newObjectState } from "src/fields/objectField";
 import { FieldState, InternalSetOpts } from "src/fields/valueField";
 import { Rule, required } from "src/rules";
 import { fail, isNotUndefined } from "src/utils";
@@ -21,7 +21,7 @@ export function newListFieldState<T, K extends keyof T, U>(
   key: K,
   rules: Rule<readonly ObjectState<U>[]>[],
   listConfig: ListFieldConfig<U>,
-  config: ObjectConfig<U>,
+  config: ObjectFieldConfig<U>,
   strictOrder: boolean,
   maybeAutoSave: () => void,
 ): ListFieldState<U> {
@@ -63,6 +63,7 @@ export function newListFieldState<T, K extends keyof T, U>(
       childState = newObjectState<U>(
         config,
         parentState as any,
+        undefined,
         list as any as FieldState<any>,
         child,
         undefined,
@@ -227,7 +228,8 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     add(value: U, spliceIndex?: number): void {
       // This is called by the user, so value should be a non-proxy value we should keep
-      const childState = createObjectState(config, value, { maybeAutoSave }) as ObjectStateInternal<U>;
+      const childState = getOrCreateChildState(value) as ObjectStateInternal<U>;
+      // const childState = createObjectState(config, value, { maybeAutoSave }) as ObjectStateInternal<U>;
       rowMap.set(value, childState);
       this.ensureSet();
       this.value.splice(typeof spliceIndex === "number" ? spliceIndex : this.value.length, 0, childState.value);
