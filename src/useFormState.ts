@@ -1,7 +1,7 @@
 import { isPlainObject } from "is-plain-object";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ObjectConfig } from "src/config";
-import { createObjectState, ObjectState } from "src/fields/objectField";
+import { ObjectState, createObjectState } from "src/fields/objectField";
 import { initValue, isInput, isQuery } from "./utils";
 
 // A structural match for useQuery
@@ -100,6 +100,10 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
         if (isAutoSaving === "in-flight") {
           pendingAutoSave = true;
         } else if (isAutoSaving === "queued") {
+          // If we've queued up an auto-save, that means we haven't called the `autoSave(...)` function yet, so
+          // we assume that the scheduled-but-not-yet-invoked invocation will find both it's original change, and
+          // also this potentially new change, and put them both onto the wire as a single operation.
+          // So we can just ignore this call.
           return;
         }
 
