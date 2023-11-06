@@ -713,6 +713,37 @@ describe("useFormState", () => {
     expect(r.originalValue).toHaveTextContent("a1");
     expect(r.objectValue).toHaveTextContent("a1");
   });
+
+  it("doesn't allow calling commitChanges", async () => {
+    // Given a component
+    const autoSave = jest.fn();
+    function TestComponent() {
+      type FormValue = AuthorInput;
+      const config: ObjectConfig<FormValue> = authorConfig;
+      const form = useFormState({
+        config,
+        init: { firstName: "f1", lastName: "f1" },
+        autoSave: async (form) => {
+          autoSave(form.changedValue);
+          // And the autoSave functions erroneously calls commitChanges
+          form.commitChanges();
+        },
+      });
+      return <button data-testid="set" onClick={() => form.firstName.set("f2")} />;
+    }
+    const r = await render(<TestComponent />);
+    // When we change a field, and try to commit, it blows up
+    // await expect(clickAndWait(r.set)).rejects.toThrow(
+    //   "When using autoSave, you should not manually call commitChanges",
+    // );
+    //
+    // ...for some reason, I think maybe due to rtl-utils calling runOnlyPendingTimers
+    // instead of runOnlyPendingTimers async, the `clickAndWait` actually resolves
+    // successfully (it's not a rejected promise), and our test technically keeps running,
+    // except then somewhere in the guts of Jest, the fake timer infra realizes that a tick
+    // failed (our autosave is actually fired from a setTimout tick), and so the Jest test
+    // fails anyway, but without anyway for us to catch and do a `.toThrow` assertion.
+  });
 });
 
 const authorConfig: ObjectConfig<AuthorInput> = {

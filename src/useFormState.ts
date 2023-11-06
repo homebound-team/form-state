@@ -114,8 +114,12 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
           // We use setTimeout as a cheap way to wait until the end of the current event listener
           setTimeout(async () => {
             try {
+              // Tell commitChanges to blow up.
+              (form as any)._isAutoSaving = true;
               // We technically don't flip to in-flight until after the call in case the
-              // user's autoSave function itself wants to call a .set.
+              // user's autoSave function itself wants to call a .set (which would call `maybeAutoSave`,
+              // and we don't want it to see `isAutoSaving=in-flight` and think it "missed the boat",
+              // and so schedule an unnecessary follow-up autosave.)
               const promise = autoSaveRef.current!(form);
               isAutoSaving = "in-flight";
               await promise;
@@ -124,6 +128,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
               throw e;
             } finally {
               isAutoSaving = false;
+              (form as any)._isAutoSaving = false;
               if (pendingAutoSave) {
                 pendingAutoSave = false;
                 // Push out the follow-up by 1 tick to allow refreshes to happen to potentially

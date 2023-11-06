@@ -209,6 +209,7 @@ export function newObjectState<T, P = any>(
     _kind: "object",
     _readOnly: false,
     _loading: false,
+    _isAutoSaving: false,
 
     _considerDeleted(): boolean {
       const deleteField = getFields(this).find((f) => f._isDeleteKey);
@@ -304,6 +305,19 @@ export function newObjectState<T, P = any>(
 
     // Saves all current values into _originalValue
     commitChanges() {
+      if (this._isAutoSaving) {
+        // `commitChanges` will mark all WIP changes as committed, which might drop changes if there
+        // is an auto-save in-flight, and the user made more changes, that are waiting for their turn
+        // on the next auto-save request.
+        //
+        // Instead of doing a form-wide "all changes are committed", instead autosave forms should use
+        // init.map/input to have the server's latest results updated within the form, which will then
+        // selectively "un-dirty"/commit the just-saved data, but keep the "still-dirty" WIP data alone.
+        throw new Error(
+          "When using autoSave, you should not manually call commitChanges, instead have init.map/input update the form state",
+        );
+      }
+      // asdf
       getFields(this).forEach((f) => f.commitChanges());
     },
 
