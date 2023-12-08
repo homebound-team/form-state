@@ -9,7 +9,7 @@ export type Query<I> = { data: I; loading: boolean; error?: any };
 
 export type InputAndMap<T, I> = {
   input: I;
-  map: (input: Exclude<I, null | undefined>) => T;
+  map?: (input: Exclude<I, null | undefined>) => T;
   ifUndefined?: T;
 };
 
@@ -19,6 +19,12 @@ export type QueryAndMap<T, I> = {
   ifUndefined?: T;
 };
 
+/**
+ * The opts has for `useFormState`.
+ *
+ * @typeparam T the form type, which is usually as close as possible to your *GraphQL input*
+ * @typeparam I the *form input* type, which is usually the *GraphQL output* type, i.e. the type of the response from your GraphQL query
+ */
 export type UseFormStateOpts<T, I> = {
   /** The form configuration, should be a module-level const or useMemo'd. */
   config: ObjectConfig<T>;
@@ -40,7 +46,7 @@ export type UseFormStateOpts<T, I> = {
    * only call `init.map` if it's set, otherwise we'll use `init.ifDefined` or `{}`, saving you
    * from having to null check within your `init.map` function.
    */
-  init?: T | InputAndMap<T, I> | QueryAndMap<T, I>;
+  init?: InputAndMap<T, I> | QueryAndMap<T, I>;
 
   /**
    * A hook to add custom, cross-field validation rules that can be difficult to setup directly in the config DSL.

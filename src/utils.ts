@@ -39,17 +39,19 @@ export function assertNever(x: never): never {
 export function initValue<T>(config: ObjectConfig<T>, init: any): T {
   let value: any;
   if (isInput(init)) {
-    value = init.input ? init.map(init.input) : init.ifUndefined;
+    value = init.input ? (init.map ? init.map(init.input) : init.input) : init.ifUndefined;
   } else if (isQuery(init)) {
     value = init.query.data ? init.map(init.query.data) : init.ifUndefined;
+  } else if (init === undefined) {
+    // allow completely undefined init
   } else {
-    value = init;
+    throw new Error("init must have an input or query key");
   }
   return pickFields(config, value ?? {}) as T;
 }
 
 export function isInput<T, I>(init: UseFormStateOpts<T, I>["init"]): init is InputAndMap<T, I> {
-  return !!init && typeof init === "object" && "input" in init && "map" in init;
+  return !!init && typeof init === "object" && "input" in init;
 }
 
 export function isQuery<T, I>(init: UseFormStateOpts<T, I>["init"]): init is QueryAndMap<T, I> {

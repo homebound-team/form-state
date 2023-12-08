@@ -106,39 +106,6 @@ describe("useFormState", () => {
     expect(r.changedValue.textContent).toEqual(JSON.stringify({ firstName: "default" }));
   });
 
-  it("uses init if set as a value", async () => {
-    // Given a component
-    type FormValue = Pick<AuthorInput, "firstName">;
-    const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
-    function TestComponent() {
-      const [, setTick] = useState(0);
-      const form = useFormState({
-        config,
-        // That's using a raw init value
-        init: { firstName: "bob" },
-      });
-      return (
-        <div>
-          <button
-            data-testid="change"
-            onClick={() => {
-              // When that value changes
-              form.firstName.set("fred");
-              // And also we re-render the component
-              setTick(1);
-            }}
-          />
-          <div data-testid="firstName">{form.firstName.value}</div>
-        </div>
-      );
-    }
-    const r = await render(<TestComponent />);
-    expect(r.firstName).toHaveTextContent("bob");
-    click(r.change);
-    // Then the change didn't get dropped due to init being unstable
-    expect(r.firstName).toHaveTextContent("fred");
-  });
-
   it("doesn't required an init value", async () => {
     function TestComponent() {
       type FormValue = Pick<AuthorInput, "firstName">;
@@ -284,7 +251,7 @@ describe("useFormState", () => {
       const [data, setData] = useState<FormValue>(data1);
       const form = useFormState({
         config,
-        init: { input: data, map: (d) => d },
+        init: { input: data },
         // And the form is read only
         readOnly: true,
       });
@@ -458,7 +425,7 @@ describe("useFormState", () => {
       const data = { firstName: "f1", lastName: "f1" };
       const form = useFormState({
         config,
-        init: data,
+        init: { input: data, map: (d) => d },
         // And there is reactive business logic in the `autoSave` method
         async autoSave(state) {
           state.lastName.set("l2");
@@ -487,7 +454,7 @@ describe("useFormState", () => {
       const data = { firstName: "f1", lastName: "f1" };
       const form = useFormState({
         config,
-        init: data,
+        init: { input: data, map: (d) => d },
         autoSave: (form) => autoSave(form.changedValue),
       });
       return (
@@ -602,7 +569,7 @@ describe("useFormState", () => {
           );
         },
         autoSave: (fs) => autoSaveStub(fs.changedValue),
-        init: { id: "a:1" },
+        init: { input: { id: "a:1" }, map: (d) => d },
       });
       return <TextField field={fs.firstName} />;
     }
