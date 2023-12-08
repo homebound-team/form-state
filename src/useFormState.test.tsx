@@ -158,7 +158,7 @@ describe("useFormState", () => {
       };
       // And we start out with data1
       const [data, setData] = useState<FormValue>(data1);
-      const form = useFormState({ config, init: { input: data, map: (d) => d } });
+      const form = useFormState({ config, init: { input: data } });
       function makeLocalChanges() {
         form.firstName.value = "local";
         form.address.street.value = "local";
@@ -379,7 +379,7 @@ describe("useFormState", () => {
       const data2 = { books: [{ title: "Title 1" }] };
       const form = useFormState({
         config: authorWithBooksConfig,
-        init: { input: data, map: (d) => d, ifUndefined: { books: [] } },
+        init: { input: data, ifUndefined: { books: [] } },
         autoSave,
       });
       return (
@@ -425,7 +425,7 @@ describe("useFormState", () => {
       const data = { firstName: "f1", lastName: "f1" };
       const form = useFormState({
         config,
-        init: { input: data, map: (d) => d },
+        init: { input: data },
         // And there is reactive business logic in the `autoSave` method
         async autoSave(state) {
           state.lastName.set("l2");
@@ -454,7 +454,7 @@ describe("useFormState", () => {
       const data = { firstName: "f1", lastName: "f1" };
       const form = useFormState({
         config,
-        init: { input: data, map: (d) => d },
+        init: { input: data },
         autoSave: (form) => autoSave(form.changedValue),
       });
       return (
@@ -569,7 +569,7 @@ describe("useFormState", () => {
           );
         },
         autoSave: (fs) => autoSaveStub(fs.changedValue),
-        init: { input: { id: "a:1" }, map: (d) => d },
+        init: { input: { id: "a:1" } },
       });
       return <TextField field={fs.firstName} />;
     }
@@ -605,7 +605,7 @@ describe("useFormState", () => {
     type FormValue = Pick<AuthorInput, "firstName">;
     const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
     function TestComponent({ data }: { data: AuthorInput | undefined }) {
-      const form = useFormState({ config, init: { input: data, map: (d) => d } });
+      const form = useFormState({ config, init: { input: data } });
       return <Observer>{() => <div data-testid="loading">{String(form.loading)}</div>}</Observer>;
     }
     // And we initially pass in `init.input: undefined`
@@ -689,7 +689,7 @@ describe("useFormState", () => {
       const config: ObjectConfig<FormValue> = authorConfig;
       const form = useFormState({
         config,
-        init: { firstName: "f1", lastName: "f1" },
+        init: { input: { firstName: "f1", lastName: "f1" } },
         autoSave: async (form) => {
           autoSave(form.changedValue);
           // And the autoSave functions erroneously calls commitChanges
