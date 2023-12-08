@@ -109,7 +109,7 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
 
       // If it didn't exist, then add to the cache.
       if (!form) {
-        form = createObjectState(config, initValue(config, map ? { map, input } : input), {
+        form = createObjectState(config, initValue(config, { map, input }), {
           maybeAutoSave: () => maybeAutoSave(form),
         });
         if (addRules) {
@@ -120,7 +120,7 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
 
       // If the source of truth changed, then update the existing state and return it.
       if (existing && existing[1] !== input) {
-        (form as any as ObjectStateInternal<any>).set(initValue(config, map ? { map, input } : input), {
+        (form as any as ObjectStateInternal<any>).set(initValue(config, { map, input }), {
           refreshing: true,
         });
         existing[1] = input;

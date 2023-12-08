@@ -35,7 +35,7 @@ export function assertNever(x: never): never {
   throw new Error("Unexpected object: " + x);
 }
 
-/** Introspects the `init` prop to see if has a `map` function/etc. and returns the form value. */
+/** Introspects the `init` prop to see if it has a `map` function/etc. and returns the form value. */
 export function initValue<T>(config: ObjectConfig<T>, init: any): T {
   let value: any;
   if (isInput(init)) {
@@ -47,6 +47,7 @@ export function initValue<T>(config: ObjectConfig<T>, init: any): T {
   } else {
     throw new Error("init must have an input or query key");
   }
+  // Given our form config, pick out only the subset of fields out of `value` (unless it's a mobx class)
   return pickFields(config, value ?? {}) as T;
 }
 
