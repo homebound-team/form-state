@@ -5,6 +5,12 @@ import { initValue } from "src/utils";
 
 export type ObjectStateCache<T, I> = Record<string, [ObjectState<T>, I]>;
 
+/**
+ * The opts has for `useFormStates`.
+ *
+ * @typeparam T the form type, which is usually as close as possible to your *GraphQL input*
+ * @typeparam I the *form input* type, which is usually the *GraphQL output* type, i.e. the type of the response from your GraphQL query
+ */
 type UseFormStatesOpts<T, I> = {
   /**
    * The config to use for each form state.
@@ -54,6 +60,19 @@ type UseFormStatesHook<T, I> = {
   getFormState: (input: I, opts?: { readOnly?: boolean }) => ObjectState<T>;
 };
 
+/**
+ * A hook to manage many "mini-forms" on a single page, typically one form per row
+ * in a table.
+ *
+ * This hook basically provides the page/table with a cache, so each table row naively ask "what's
+ * the form state for this given row's data?" and get back a new-or-existing `ObjectState` instance
+ * that, if already existing, still has any of the user's WIP changes.
+ *
+ * Each mini-form/row can have its own autoSave calls, independent of the other rows.
+ *
+ * @typeparam T the form type, which is usually as close as possible to your *GraphQL input*
+ * @typeparam I the *form input* type, which is usually the *GraphQL output* type, i.e. the type of the response from your GraphQL query
+ */
 export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormStatesHook<T, I> {
   const { config, autoSave, getId, map, addRules, readOnly = false } = opts;
 
@@ -109,7 +128,7 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
 
       // If it didn't exist, then add to the cache.
       if (!form) {
-        form = createObjectState(config, initValue(config, map ? { map, input } : input), {
+        form = createObjectState(config, initValue(config, { map, input }), {
           maybeAutoSave: () => maybeAutoSave(form),
         });
         if (addRules) {
@@ -120,7 +139,7 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
 
       // If the source of truth changed, then update the existing state and return it.
       if (existing && existing[1] !== input) {
-        (form as any as ObjectStateInternal<any>).set(initValue(config, map ? { map, input } : input), {
+        (form as any as ObjectStateInternal<any>).set(initValue(config, { map, input }), {
           refreshing: true,
         });
         existing[1] = input;

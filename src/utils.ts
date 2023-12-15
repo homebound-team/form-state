@@ -35,21 +35,24 @@ export function assertNever(x: never): never {
   throw new Error("Unexpected object: " + x);
 }
 
-/** Introspects the `init` prop to see if has a `map` function/etc. and returns the form value. */
+/** Introspects the `init` prop to see if it has a `map` function/etc. and returns the form value. */
 export function initValue<T>(config: ObjectConfig<T>, init: any): T {
   let value: any;
   if (isInput(init)) {
-    value = init.input ? init.map(init.input) : init.ifUndefined;
+    value = init.input ? (init.map ? init.map(init.input) : init.input) : init.ifUndefined;
   } else if (isQuery(init)) {
     value = init.query.data ? init.map(init.query.data) : init.ifUndefined;
+  } else if (init === undefined) {
+    // allow completely undefined init
   } else {
-    value = init;
+    throw new Error("init must have an input or query key");
   }
+  // Given our form config, pick out only the subset of fields out of `value` (unless it's a mobx class)
   return pickFields(config, value ?? {}) as T;
 }
 
 export function isInput<T, I>(init: UseFormStateOpts<T, I>["init"]): init is InputAndMap<T, I> {
-  return !!init && typeof init === "object" && "input" in init && "map" in init;
+  return !!init && typeof init === "object" && "input" in init;
 }
 
 export function isQuery<T, I>(init: UseFormStateOpts<T, I>["init"]): init is QueryAndMap<T, I> {

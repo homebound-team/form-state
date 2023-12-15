@@ -7,11 +7,13 @@ export function FormStateApp() {
     config: formConfig,
     // Simulate getting the initial form state back from a server call
     init: {
-      firstName: "a1",
-      books: [...Array(2)].map((_, i) => ({
-        title: `b${i}`,
-        classification: { number: `10${i + 1}`, category: `Test Category ${i}` },
-      })),
+      input: {
+        firstName: "a1",
+        books: [...Array(2)].map((_, i) => ({
+          title: `b${i}`,
+          classification: { number: `10${i + 1}`, category: `Test Category ${i}` },
+        })),
+      },
     },
     addRules(state) {
       state.lastName.rules.push(() => {
