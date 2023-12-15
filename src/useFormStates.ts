@@ -97,8 +97,13 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
       let form = existing?.[0];
 
       async function maybeAutoSave(form: ObjectState<T>) {
-        // Don't use canSave() because we don't want to set touched for all the fields
-        if (autoSaveRef.current && form.dirty && form.valid) {
+        // Don't use form.canSave() because we don't want to set touched for all the fields
+        if (autoSaveRef.current && form.dirty) {
+          // It's very frustrating to not know why the form is savings, to go ahead and log these
+          if (!form.valid) {
+            console.debug("Skipping auto-save b/c form is invalid: ", form.errors);
+            return;
+          }
           const { current: pending } = pendingAutoSaves;
           if (isAutoSaving) {
             pending.add(form);

@@ -114,7 +114,12 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
         }
 
         // Don't use canSave() because we don't want to set touched for all the fields
-        if (autoSaveRef.current && form.dirty && form.valid && !isAutoSaving) {
+        if (autoSaveRef.current && form.dirty && !isAutoSaving) {
+          // It's very frustrating to not know why the form is savings, to go ahead and log these
+          if (!form.valid) {
+            console.debug("Skipping auto-save b/c form is invalid: ", form.errors);
+            return;
+          }
           isAutoSaving = "queued";
           let maybeError: undefined | string;
           // We use setTimeout as a cheap way to wait until the end of the current event listener
