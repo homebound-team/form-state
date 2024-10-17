@@ -1688,6 +1688,26 @@ describe("formState", () => {
     expect(a.value).toEqual({ address: { street: "123", city: "nyc" } });
   });
 
+  it("can have child object states with cycles", () => {
+    // Given an author with an address child
+    // And two addresses that are basically identical and both have cycles
+    const address1: AuthorAddress = { city: "city2" };
+    (address1 as any).someCycle = address1;
+    const address2: AuthorAddress = { city: "city2" };
+    (address2 as any).someCycle = address2;
+    const a = createObjectState<AuthorInput>(
+      {
+        id: { type: "value" },
+        address: { type: "value" },
+      },
+      { address: address1 },
+    );
+    // When we change the address
+    a.address.set(address2);
+    // Then it doesn't error on dirty checks
+    expect(a.address.dirty).toBe(false);
+  });
+
   it("provides isNewEntity", () => {
     // Given an author without an id
     const formState = createObjectState(authorWithAddressConfig, {

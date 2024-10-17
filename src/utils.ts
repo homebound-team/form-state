@@ -1,7 +1,7 @@
-import equal from "fast-deep-equal";
 import { isPlainObject } from "is-plain-object";
 import { isObservable, toJS } from "mobx";
 import { ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
+import { deepEquals } from "src/fields/deepEquals";
 import { InputAndMap, QueryAndMap, UseFormStateOpts } from "src/useFormState";
 
 export type Builtin = Date | Function | Uint8Array | string | number | boolean;
@@ -124,16 +124,16 @@ export function isEmpty(value: any): boolean {
  */
 export function areEqual<T>(a?: T, b?: T, strictOrder?: boolean): boolean {
   if (isPlainObject(a)) {
-    return equal(toJS(a), toJS(b));
+    return deepEquals(toJS(a), toJS(b));
   }
   if (hasToJSON(a) || hasToJSON(b)) {
     const a1 = hasToJSON(a) ? a.toJSON() : a;
     const b1 = hasToJSON(b) ? b.toJSON() : b;
-    return equal(a1, b1);
+    return deepEquals(a1, b1);
   }
   if (a && b && a instanceof Array && b instanceof Array) {
     if (strictOrder !== false) {
-      return equal(a, b);
+      return deepEquals(a, b);
     }
     if (a.length !== b.length) return false;
     return a.every((a1) => b.some((b1) => areEqual(a1, b1)));
