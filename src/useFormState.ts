@@ -11,6 +11,7 @@ export type InputAndMap<T, I> = {
   input: I;
   map?: (input: Exclude<I, null | undefined>) => T;
   ifUndefined?: T;
+  onlyOnce?: boolean;
 };
 
 export type QueryAndMap<T, I> = {
@@ -98,7 +99,13 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
   const [firstInitValue] = useState(() => initValue(config, init));
   const isWrappingMobxProxy = !isPlainObject(firstInitValue);
   // If they're using init.input, useMemo on it (and it might be an array), otherwise allow the identity of init be unstable
-  const dep = isInput(init) ? makeArray(init.input) : isQuery(init) ? [init.query.data, init.query.loading] : [];
+  const dep = isInput(init)
+    ? init.onlyOnce
+      ? []
+      : makeArray(init.input)
+    : isQuery(init)
+      ? [init.query.data, init.query.loading]
+      : [];
 
   const form = useMemo(
     () => {
