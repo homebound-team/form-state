@@ -1,8 +1,8 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
 import { act } from "@testing-library/react";
 import { makeAutoObservable, reaction } from "mobx";
-import { Observer } from "mobx-react";
-import { useMemo, useState } from "react";
+import { observer, Observer } from "mobx-react";
+import { useMemo, useRef, useState } from "react";
 import { TextField } from "src/FormStateApp";
 import { ObjectConfig } from "src/config";
 import { ObjectState } from "src/fields/objectField";
@@ -115,6 +115,31 @@ describe("useFormState", () => {
     }
     const r = await render(<TestComponent />);
     expect(r.baseElement.textContent).toEqual("");
+  });
+
+  it("uses init.onlyOnce to not react to identity changes", async () => {
+    // Given a component
+    type FormValue = Pick<AuthorInput, "firstName">;
+    const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+    const TestComponent = observer(() => {
+      // And we have an `init` value that is dynamic, so we can observe whether init reruns
+      const renderCount = useRef(0).current++;
+      const form = useFormState({
+        config,
+        init: { input: { firstName: `${renderCount}` }, onlyOnce: true },
+      });
+      const [, setTick] = useState(0);
+      return (
+        <div>
+          <button data-testid="change" onClick={() => setTick(1)} />
+          <div data-testid="firstName">{form.firstName.value}</div>
+        </div>
+      );
+    });
+    const r = await render(<TestComponent />);
+    expect(r.firstName).toHaveTextContent("0");
+    click(r.change);
+    expect(r.firstName).toHaveTextContent("0");
   });
 
   it("keeps local changed values when a query refreshes", async () => {
