@@ -804,7 +804,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@homebound/form-state@workspace:."
   dependencies:
-    "@homebound/rtl-utils": 2.66.0
+    "@homebound/rtl-utils": 2.66.1
     "@semantic-release/exec": ^6.0.3
     "@semantic-release/git": ^10.0.1
     "@storybook/addon-essentials": ^8.3.5
@@ -857,13 +857,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@homebound/rtl-utils@npm:2.66.0":
-  version: 2.66.0
-  resolution: "@homebound/rtl-utils@npm:2.66.0"
+"@homebound/rtl-utils@npm:2.66.1":
+  version: 2.66.1
+  resolution: "@homebound/rtl-utils@npm:2.66.1"
   peerDependencies:
     "@testing-library/react": ">=12 || >=13 || >=14"
     react: ">=16 || >=17 || >=18"
-  checksum: 6cde36cca1f30259a7a8d9abdbac16d10d87c44c72c5e1e661d797cc9d58131b2169a0a7c5f190e7880eb81aa0c03d06a4cbcd7fdae716f20c228f080a4a3aec
+  checksum: bb339d291fbf94f7f41e29cb009613ef4b1400245ec6b63161b4f209a9d269779cb8952646b32453553bd9522f1406813bdd79aa3f19f2d3188ac1d86ed35214
   languageName: node
   linkType: hard
 
