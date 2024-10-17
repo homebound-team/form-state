@@ -287,7 +287,11 @@ describe("useFormState", () => {
     // Given a component
     // And it's using a class/mobx proxy as the basis for the data
     class AuthorRow {
-      constructor(public firstName: string, public lastName: string, public books: { title: string }[]) {
+      constructor(
+        public firstName: string,
+        public lastName: string,
+        public books: { title: string }[],
+      ) {
         makeAutoObservable(this);
       }
       get fullName() {

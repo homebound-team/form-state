@@ -15,8 +15,8 @@ export type DeepRequired<T> = T extends Primitive
       [P in keyof Required<T>]: T[P] extends Array<infer U>
         ? Array<DeepRequired<U>>
         : T[P] extends ReadonlyArray<infer U2>
-        ? ReadonlyArray<DeepRequired<U2>>
-        : DeepRequired<T[P]>;
+          ? ReadonlyArray<DeepRequired<U2>>
+          : DeepRequired<T[P]>;
     };
 
 // Inverse of SubType: https://medium.com/dailyjs/typescript-create-a-condition-based-subset-types-9d902cea5b8c

@@ -48,10 +48,10 @@ export type ObjectConfigBuilderFields<T> = {
   [P in keyof OmitIf<T, Function>]: T[P] extends Fragment<infer V>
     ? FragmentFieldConfigBuilder
     : T[P] extends Array<infer U> | null | undefined
-    ? U extends Builtin
-      ? ValueFieldConfigBuilder<T[P]>
-      : ListFieldConfigBuilder<U>
-    : ValueFieldConfigBuilder<T[P]> | ObjectConfigBuilder<T[P]>;
+      ? U extends Builtin
+        ? ValueFieldConfigBuilder<T[P]>
+        : ListFieldConfigBuilder<U>
+      : ValueFieldConfigBuilder<T[P]> | ObjectConfigBuilder<T[P]>;
 };
 
 export interface FragmentFieldConfigBuilder {

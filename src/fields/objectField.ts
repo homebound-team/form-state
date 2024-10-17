@@ -60,12 +60,12 @@ type FieldStates<T> = {
   [K in keyof T]-?: T[K] extends Fragment<infer V>
     ? FragmentField<V>
     : T[K] extends Array<infer U> | null | undefined
-    ? [U] extends [Builtin]
-      ? FieldState<T[K]>
-      : ListFieldState<U>
-    : T[K] extends Builtin | null | undefined
-    ? FieldState<T[K]>
-    : ObjectState<T[K]>;
+      ? [U] extends [Builtin]
+        ? FieldState<T[K]>
+        : ListFieldState<U>
+      : T[K] extends Builtin | null | undefined
+        ? FieldState<T[K]>
+        : ObjectState<T[K]>;
 };
 
 /**

@@ -19,10 +19,10 @@ export type ObjectConfig<T> = {
   [P in keyof OmitIf<T, Function>]: T[P] extends Fragment<infer V>
     ? FragmentFieldConfig
     : T[P] extends Array<infer U> | null | undefined
-    ? U extends Builtin
-      ? ValueFieldConfig<T[P]>
-      : ListFieldConfig<U>
-    : ValueFieldConfig<T[P]> | ObjectFieldConfig<T[P]>;
+      ? U extends Builtin
+        ? ValueFieldConfig<T[P]>
+        : ListFieldConfig<U>
+      : ValueFieldConfig<T[P]> | ObjectFieldConfig<T[P]>;
 };
 
 /** Field configuration for an opaque value that we don't actually want to include. */
