@@ -455,11 +455,18 @@ describe("useFormState", () => {
         init: { input: undefined, map: (d) => d },
         autoSave,
       });
-      return <div data-testid="len">{form.books.value.length}</div>;
+      return (
+        <div>
+          <div data-testid="len">{form.books.value.length}</div>
+          <div data-testid="dirty">{String(form.books.dirty)}</div>
+        </div>
+      );
     }
+
     // Then we can still read it as empty
     const r = await render(<TestComponent />);
     expect(r.len).toHaveTextContent("0");
+    expect(r.dirty).toHaveTextContent("false");
   });
 
   it("does not infinite loop when calling set inside of auto-save", async () => {
