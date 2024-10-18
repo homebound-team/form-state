@@ -445,6 +445,23 @@ describe("useFormState", () => {
     expect(autoSave).toBeCalledTimes(2);
   });
 
+  it("returns empty lists even when inputs are undefined", async () => {
+    const autoSave = jest.fn();
+    // Given a component
+    function TestComponent() {
+      // And there is no initial data (i.e. we're creating the author)
+      const form = useFormState({
+        config: authorWithBooksConfig,
+        init: { input: undefined, map: (d) => d },
+        autoSave,
+      });
+      return <div data-testid="len">{form.books.value.length}</div>;
+    }
+    // Then we can still read it as empty
+    const r = await render(<TestComponent />);
+    expect(r.len).toHaveTextContent("0");
+  });
+
   it("does not infinite loop when calling set inside of auto-save", async () => {
     // Given a component
     let autoSaves = 0;
