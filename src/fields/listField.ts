@@ -79,7 +79,7 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     // Our fundamental state of wrapped Us
     get value() {
-      return _tick.value > 0 && _childTick.value > 0 ? (parentInstance[key] as any as U[]) : fail();
+      return _tick.value > 0 && _childTick.value > 0 ? ((parentInstance[key] ?? []) as any as U[]) : fail();
     },
 
     _focused: false,

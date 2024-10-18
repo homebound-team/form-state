@@ -54,7 +54,7 @@ export type ValueFieldConfig<V> = {
   computed?: boolean;
   /** Marks a field as being initially read-only, i.e. `field.readOnly = true/false` can change this default. */
   readOnly?: boolean;
-  /** Marks an array field to be order agnostic when determining changed/dirty states */
+  /** Marks an array field to be order agnostic when determining changed/dirty states, defaults true. */
   strictOrder?: false;
 };
 
@@ -77,7 +77,7 @@ export type ListFieldConfig<U> = {
    * default behavior.
    */
   update?: "exhaustive" | "incremental";
-  /** Set to not consider the order of the list when evaluating changed/dirty states. */
+  /** Set to not consider the order of the list when evaluating changed/dirty states, defaults true. */
   strictOrder?: false;
 };
 
