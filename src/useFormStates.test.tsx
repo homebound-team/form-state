@@ -1,13 +1,14 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
 import { act, renderHook, render as renderReact } from "@testing-library/react";
 import { getObserverTree, makeAutoObservable, reaction } from "mobx";
+import { observer } from "mobx-react";
 import { Activity, StrictMode, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { type ObjectConfig } from "src/config";
 import { type ObjectState } from "src/fields/objectField";
 import { TextField } from "src/FormStateApp";
 import { type AuthorInput } from "src/formStateDomain";
 import { required } from "src/rules";
-import { useFormStates } from "src/useFormStates";
+import { useFormStates, type FormStates } from "src/useFormStates";
 
 describe("useFormStates", () => {
   it("can lazily create form states", async () => {
@@ -883,6 +884,237 @@ describe("useFormStates", () => {
     // Then only the still-valid row saves
     expect(saved).toEqual([{ id: "a:2", firstName: "Sue" }]);
   });
+
+  it("refreshes an observed row without render-time update warnings", () => {
+    // Given a child observing a cached row's form
+    const view = renderReact(<CachedTable inputs={[{ id: "a:1", firstName: "Bob" }]} />);
+    // And React warnings are recorded
+    const errors: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((message) => errors.push(String(message)));
+    try {
+      // When the table receives a new server value for the observed row
+      view.rerender(<CachedTable inputs={[{ id: "a:1", firstName: "Fred" }]} />);
+      // Then refreshing the form does not update another component during render
+      expect(errors).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("displays refreshed values in an observed row", () => {
+    // Given an observed row using the cache's row hook
+    const view = renderReact(<CachedTable inputs={[{ id: "a:1", firstName: "Bob" }]} />);
+    // When the server refreshes that row
+    view.rerender(<CachedTable inputs={[{ id: "a:1", firstName: "Fred" }]} />);
+    // Then observers display the refreshed value
+    expect(view.getByTestId("firstName")).toHaveTextContent("Fred");
+  });
+
+  it("can change the number of rows without changing the table's hooks", () => {
+    // Given one cached row
+    const first = { id: "a:1", firstName: "Bob" };
+    const second = { id: "a:2", firstName: "Fred" };
+    const view = renderReact(<CachedTable inputs={[first]} />);
+    // When a second row is added and the first is removed
+    view.rerender(<CachedTable inputs={[first, second]} />);
+    view.rerender(<CachedTable inputs={[second]} />);
+    // Then the remaining row renders normally
+    expect(view.container.textContent).toEqual("Fred");
+  });
+
+  it("updates hook-level readOnly with an unchanged row input", () => {
+    // Given a row with a stable input object
+    const inputs = [{ id: "a:1", firstName: "Bob" }];
+    const view = renderReact(<CachedTable inputs={inputs} readOnly={false} />);
+    // When only the hook-level permissions change
+    view.rerender(<CachedTable inputs={inputs} readOnly={true} />);
+    // Then the row observes the new permissions
+    expect(view.getByTestId("firstName")).toHaveAttribute("data-readonly", "true");
+  });
+
+  it("updates row-level readOnly with an unchanged row input", () => {
+    // Given a read-only row with a stable input object
+    const inputs = [{ id: "a:1", firstName: "Bob" }];
+    const view = renderReact(<CachedTable inputs={inputs} rowReadOnly={true} />);
+    // When only that row's permissions change
+    view.rerender(<CachedTable inputs={inputs} rowReadOnly={false} />);
+    // Then the row becomes editable
+    expect(view.getByTestId("firstName")).toHaveAttribute("data-readonly", "false");
+  });
+
+  it("refreshes a row when its cache-owning table does not render", () => {
+    // Given a cache owned by a separately mounted table
+    const owner = renderHook(() => useFormStates({ config, getId: (o: FormValue) => o.id! }));
+    const forms = owner.result.current;
+    const view = renderReact(<CachedRow forms={forms} input={{ id: "a:1", firstName: "Bob" }} />);
+    // When just the row receives new server data
+    view.rerender(<CachedRow forms={forms} input={{ id: "a:1", firstName: "Fred" }} />);
+    // Then its own effect refreshes the cached form
+    expect(view.getByTestId("firstName")).toHaveTextContent("Fred");
+  });
+
+  it("does not refresh an existing form from a suspended row render", () => {
+    // Given a mounted cache with a Bob form
+    const owner = renderHook(() => useFormStates({ config, getId: (o: FormValue) => o.id! }));
+    const forms = owner.result.current;
+    const form = forms.getFormState({ id: "a:1", firstName: "Bob" });
+    // And a row that suspends after reading a new server input
+    const loading = Promise.withResolvers<void>();
+    function SuspendedRow(): never {
+      forms.useFormState({ id: "a:1", firstName: "Fred" });
+      throw loading.promise;
+    }
+    // When React renders but does not commit the new row input
+    const view = renderReact(
+      <Suspense fallback="Loading">
+        <SuspendedRow />
+      </Suspense>,
+    );
+    // Then the abandoned refresh does not change the cached form
+    expect(form.firstName.value).toEqual("Bob");
+    view.unmount();
+  });
+
+  it("does not acknowledge observable edits when row effects replay", () => {
+    // Given a row edited by a mount effect before StrictMode replays effects
+    const row = new ObservableRow("a:1");
+    // When replay runs the row's refresh effect with the same mutable input
+    const hook = renderHook(
+      () => {
+        const forms = useFormStates({ config: rowConfig, getId: (o: ObservableRow) => o.id });
+        const form = forms.useFormState(row);
+        useEffect(() => {
+          row.firstName = "Fred";
+        }, []);
+        return form;
+      },
+      { wrapper: StrictMode },
+    );
+    // Then the unsaved edit is still dirty
+    expect(hook.result.current.dirty).toEqual(true);
+  });
+
+  it("autosaves newer edits after the row hook acknowledges an in-flight save", async () => {
+    // Given a cached form with its first save kept in flight
+    const response = Promise.withResolvers<void>();
+    const saved: Partial<FormValue>[] = [];
+    const hook = renderHook(
+      (input: FormValue) => {
+        const forms = useFormStates({
+          config,
+          getId: (o: FormValue) => o.id!,
+          async autoSave(form) {
+            saved.push(form.changedValue);
+            if (saved.length === 1) {
+              await response.promise;
+              hook.rerender({ id: "a:1", firstName: "Fred" });
+            }
+          },
+        });
+        return forms.useFormState(input);
+      },
+      { initialProps: { id: "a:1", firstName: "Bob" } },
+    );
+    const form = hook.result.current;
+    act(() => form.firstName.set("Fred"));
+    await wait();
+    // And a newer edit returns to Bob while Fred is in flight
+    act(() => form.firstName.set("Bob"));
+    // When the response acknowledges Fred through the row hook
+    await act(async () => {
+      response.resolve();
+      await response.promise;
+    });
+    await wait();
+    // Then the newer Bob edit is not lost or mistaken for already saved
+    expect(saved).toEqual([
+      { id: "a:1", firstName: "Fred" },
+      { id: "a:1", firstName: "Bob" },
+    ]);
+  });
+
+  it("does not subscribe a suspended row when its table commits a fallback", () => {
+    // Given a row that creates a form but never commits
+    const row = new ObservableRow("a:1");
+    const loading = Promise.withResolvers<void>();
+    function SuspendedRow(props: { forms: FormStates<ObservableRow> }): never {
+      props.forms.useFormState(row);
+      throw loading.promise;
+    }
+    function Table() {
+      const forms = useFormStates({ config: rowConfig, getId: (o: ObservableRow) => o.id });
+      return (
+        <Suspense fallback="Loading">
+          <SuspendedRow forms={forms} />
+        </Suspense>
+      );
+    }
+    // When the table commits without that row's effects
+    const view = renderReact(<Table />);
+    // Then table setup does not subscribe the uncommitted form
+    expect(getObserverTree(row, "firstName").observers ?? []).toEqual([]);
+    view.unmount();
+  });
+
+  it("does not autosave rule edits from a row that never commits", async () => {
+    // Given a suspended row whose rules change its initial value
+    const row = { id: "a:1", firstName: "Bob" };
+    const loading = Promise.withResolvers<void>();
+    const saved: Partial<FormValue>[] = [];
+    function SuspendedRow(props: { forms: FormStates<FormValue> }): never {
+      props.forms.useFormState(row);
+      throw loading.promise;
+    }
+    function Table() {
+      const forms = useFormStates({
+        config,
+        getId: (o: FormValue) => o.id!,
+        addRules(form) {
+          form.firstName.set("Fred");
+        },
+        async autoSave(form) {
+          saved.push(form.changedValue);
+        },
+      });
+      return (
+        <Suspense fallback="Loading">
+          <SuspendedRow forms={forms} />
+        </Suspense>
+      );
+    }
+    const view = renderReact(<Table />);
+    // When the owning table commits its fallback and autosave timers run
+    await wait();
+    // Then the uncommitted row does not submit a request
+    expect(saved).toEqual([]);
+    view.unmount();
+  });
+
+  it("autosaves rule edits once the row commits under StrictMode", async () => {
+    // Given a row whose rules edit its initial value before effects connect
+    const input = { id: "a:1", firstName: "Bob" };
+    const saved: Partial<FormValue>[] = [];
+    renderHook(
+      () => {
+        const forms = useFormStates({
+          config,
+          getId: (o: FormValue) => o.id!,
+          addRules(form) {
+            form.firstName.set("Fred");
+          },
+          async autoSave(form) {
+            saved.push(form.changedValue);
+          },
+        });
+        return forms.useFormState(input);
+      },
+      { wrapper: StrictMode },
+    );
+    // When the row commits and StrictMode replays its effects
+    await wait();
+    // Then the queued edit is saved once
+    expect(saved).toEqual([{ id: "a:1", firstName: "Fred" }]);
+  });
 });
 
 type FormValue = Pick<AuthorInput, "id" | "firstName">;
@@ -911,3 +1143,19 @@ function ChildComponent({ os }: { os: ObjectState<FormValue> }) {
     </div>
   );
 }
+
+/** Models a table whose row components own their refresh effects. */
+function CachedTable(props: { inputs: FormValue[]; readOnly?: boolean; rowReadOnly?: boolean }) {
+  const forms = useFormStates({ config, getId: (o: FormValue) => o.id!, readOnly: props.readOnly });
+  return props.inputs.map((input) => (
+    <CachedRow key={input.id} forms={forms} input={input} readOnly={props.rowReadOnly} />
+  ));
+}
+
+/** Keeps the row hook outside the table's loop and column render callbacks. */
+function CachedRow(props: { forms: FormStates<FormValue>; input: FormValue; readOnly?: boolean }) {
+  const form = props.forms.useFormState(props.input, { readOnly: props.readOnly });
+  return <ObservedChildComponent os={form} />;
+}
+
+const ObservedChildComponent = observer(ChildComponent);

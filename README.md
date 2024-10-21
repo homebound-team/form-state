@@ -27,6 +27,44 @@ It also keeps track of low-level form UX details like:
 
 See our in-repo [sample app](https://github.com/homebound-team/form-state/blob/main/src/FormStateApp.tsx).
 
+## One Form Per Table Row
+
+Use `useFormStates` instead of independent per-row `useFormState` calls when you need:
+
+- **Cross-row autosave serialization.** One autosave callback can be in flight per `useFormStates` instance; other dirty rows wait their turn. This avoids overlapping writes from that table when different row mutations also update the same backend parent, such as line-item edits that both recalculate an order total. Independent per-row `useFormState` calls can save concurrently. Separate `useFormStates` instances do not block each other.
+- **A table-owned cache keyed by `getId`.** Editors for the same ID share one form. Its WIP edits survive row unmounts/remounts caused by virtualization, filtering, or pagination, as long as the owning table stays mounted and its config stays unchanged. Row unmounts do not release the cached form's subscriptions or stop its queued saves; cleanup follows the owning hook's lifecycle. Table unmount stops new saves and releases subscriptions, without cancelling requests already in flight. Changing the config replaces the cache.
+
+Rows still validate separately and submit separate mutations; this is not a bulk-save API or an aggregate dirty/valid form. If you do not need shared caching or cross-row save coordination, independent per-row `useFormState` calls are simpler.
+
+Create a shared cache with `useFormStates`, then call its `useFormState` hook inside each row component:
+
+```tsx
+import { useFormStates, type FormStates, type ObjectConfig } from "@homebound/form-state";
+
+type AuthorRow = { id: string; firstName: string };
+
+const rowConfig: ObjectConfig<AuthorRow> = {
+  id: { type: "value" },
+  firstName: { type: "value" },
+};
+
+function AuthorTable(props: { authors: AuthorRow[] }) {
+  const forms = useFormStates({ config: rowConfig, getId: (author: AuthorRow) => author.id });
+  return props.authors.map((author) => <AuthorEditor key={author.id} forms={forms} author={author} />);
+}
+
+function AuthorEditor(props: { forms: FormStates<AuthorRow>; author: AuthorRow }) {
+  const form = props.forms.useFormState(props.author);
+  return <BoundTextField field={form.firstName} />;
+}
+```
+
+The row hook keeps the form's identity and WIP edits across server refreshes. It applies updates after the row commits, so it does not notify other MobX observers during render. Components that read field values directly must be MobX observers; reactive bound fields already handle this.
+
+To migrate a table column that calls `getFormState(row)` during render, extract that column's editor into a component and call `forms.useFormState(row)` at its top level. Do not call the row hook directly in a loop, `useMemo`, or column render callback. Pass `{ readOnly: true }` as its second argument for per-row permissions.
+
+`getFormState(row)` remains available for imperative code, such as event and save callbacks. It refreshes immediately and should not be called during React renders.
+
 # Main Features
 
 There are two main reasons why form-state exists:
