@@ -679,6 +679,20 @@ describe("formState", () => {
     expect(a1.dirty).toBeFalsy();
   });
 
+  it("realizes object fields set to null aren't actually dirty", () => {
+    // Given we started off with a `object: undefined`
+    const a1 = createAuthorWithAddressInputState({ address: undefined });
+    expect(a1.address.dirty).toBe(false);
+    expect(a1.address.value).toEqual({});
+    // And it's later set to null, i.e. from a mutation returning `{ address: null }`
+    a1.set({ firstName: "a1", address: null });
+    // Then we convert it to `{}` to potentially hold data
+    expect(a1.address.value).toEqual({});
+    // But we don't consider the address dirty
+    expect(a1.address.dirty).toBe(false);
+    expect(a1.changedValue).toEqual({ firstName: "a1" });
+  });
+
   it("knows an object's field of type object is dirty", () => {
     const a1 = createAuthorInputState({
       books: [{ title: "b1", classification: dd100 }],

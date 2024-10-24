@@ -3,7 +3,7 @@ import { FragmentFieldConfig, ListFieldConfig, ObjectConfig, ObjectFieldConfig, 
 import { FragmentField, newFragmentField } from "src/fields/fragmentField";
 import { ListFieldState, newListFieldState } from "src/fields/listField";
 import { FieldState, FieldStateInternal, InternalSetOpts, SetOpts, newValueFieldState } from "src/fields/valueField";
-import { Builtin, deepClone, fail } from "src/utils";
+import { areEqual, Builtin, deepClone, fail } from "src/utils";
 
 /**
  * Wraps a given input/on-the-wire type `T` for editing in a form.
@@ -162,6 +162,10 @@ export function newObjectState<T, P = any>(
         maybeAutoSave,
       );
     } else if (config.type === "object") {
+      // Because our objectField will fundamentally want to do `child.firstName.set(...)` or
+      // even `child.firstName !== undefined`, etc., we "simplify" things by always setting
+      // an empty object, for our child valueFields/listFields to use/read from, although
+      // we then have to "oh right ignore {}" in places like `dirty`.
       if (!instance[key]) {
         instance[key] = {} as any;
       }
@@ -263,7 +267,12 @@ export function newObjectState<T, P = any>(
     },
 
     get dirty(): boolean {
-      return getFields(this).some((f) => f.dirty) || this.isUnset();
+      return (
+        getFields(this).some((f) => f.dirty) ||
+        // `isUnset` checks if our `parent[key] === undefined`, which can mean "surely we're dirty",
+        // but as long as we've got some keys actually set
+        (this.isUnset() && !areEqual(this.value, {}))
+      );
     },
 
     get isNewEntity(): boolean {
@@ -342,7 +351,11 @@ export function newObjectState<T, P = any>(
           // look dirty, but if we're new we should include them anyway.
           (this.isNewEntity && (f as any)._kind === "value" && f.value !== undefined) ||
           // ...or they're non-empty sub-objects
-          (this.isNewEntity && (f as any)._kind === "object" && Object.entries(f.changedValue).length > 0) ||
+          (this.isNewEntity &&
+            (f as any)._kind === "object" &&
+            // Child objects that are unset will have `changedValue = null`
+            f.changedValue &&
+            Object.entries(f.changedValue).length > 0) ||
           // ...or they're non-empty sub-lists
           (this.isNewEntity && (f as any)._kind === "list" && f.value?.length > 0)
         ) {
