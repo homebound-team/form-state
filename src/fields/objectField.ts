@@ -341,8 +341,10 @@ export function newObjectState<T, P = any>(
           // If the caller used useFormState.ifUndefined to provide some default values, then those keys may not
           // look dirty, but if we're new we should include them anyway.
           (this.isNewEntity && (f as any)._kind === "value" && f.value !== undefined) ||
-          // And unless they're empty sub-objects
-          (this.isNewEntity && (f as any)._kind === "object" && Object.entries(f.changedValue).length > 0)
+          // ...or they're non-empty sub-objects
+          (this.isNewEntity && (f as any)._kind === "object" && Object.entries(f.changedValue).length > 0) ||
+          // ...or they're non-empty sub-lists
+          (this.isNewEntity && (f as any)._kind === "list" && f.value?.length > 0)
         ) {
           result[f.key] = f.changedValue;
         }

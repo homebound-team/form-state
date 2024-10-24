@@ -82,6 +82,7 @@ export function newListFieldState<T, K extends keyof T, U>(
       return _tick.value > 0 && _childTick.value > 0 ? ((parentInstance[key] ?? []) as any as U[]) : fail();
     },
 
+    _kind: "list",
     _focused: false,
     _readOnly: false,
     _loading: false,
