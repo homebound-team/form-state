@@ -1232,6 +1232,25 @@ describe("formState", () => {
     expect(formState.changedValue).toEqual({ firstName: "f" });
   });
 
+  it("changedValue includes initialized-and-unchanged list fields", () => {
+    // Given a new author that is initialized with a new book
+    const formState = createObjectState(authorWithBooksConfig, {
+      books: [{ title: "t1" }],
+    });
+    // Then changedValue realizes that even though `books` is not changed, it should be included
+    expect(formState.books.dirty).toBe(false);
+    expect(formState.changedValue).toEqual({ books: [{ title: "t1" }] });
+  });
+
+  it("changedValue skips initialized-and-unchanged list fields that are empty", () => {
+    // Given a new author that is initialized with no books
+    const formState = createObjectState(authorWithBooksConfig, {
+      books: [],
+    });
+    // Then changedValue doesn't include the books
+    expect(formState.changedValue).toEqual({});
+  });
+
   it("changedValue includes new entity nested fields", () => {
     // Given a new author with an address FK
     const formState = createObjectState(authorWithAddressFkConfig, {
