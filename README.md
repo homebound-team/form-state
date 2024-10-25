@@ -104,6 +104,69 @@ See the [sample](https://github.com/homebound-team/form-state/blob/main/src/Form
 
 # Features
 
+## Incremental changedValue/dirty Management
+
+In general, we have two types of forms:
+
+- `autoSave` forms
+- `submit` forms
+
+### autoSave forms
+
+For auto save forms, the expectation is that you should:
+
+- Pass `useFormState` an `init.input` and `init.map` that updates the form-state from the initial GraphQL request & any cache updates
+- Pass `useFormState` an `autoSave` lambda that calls your GraphQL mutation, using `changedValue`.
+- Have your `save` mutation response return the acked/updated entity/fragment
+
+  ```ts
+  autoSave: async () => {
+    const input = formState.changedValue;
+    await saveAuthor(input);
+  };
+  ```
+
+With these in place, we will correctly handle interleaved edits/saves, i.e.:
+
+1. User changes `{ firstName: bob }`
+2. We submit `{ id: 1, firstName: bob }` to the backend
+3. While waiting for the response, the user sets `{ lastName: smith }`
+4. The GraphQL mutation acks that `{ id: 1, firstName: bob }` is committed
+5. The `init.map` updates `formState` to realize `firstName` is no longer dirty, but `lastName` keeps its WIP change
+6. formState will trigger a 2nd `autoSave` for just the `lastName` change
+
+### Submit forms
+
+For submit forms, the expectation is that you should:
+
+- Pass `useFormState` an `init.input` and `init.map` that updates the form-state from the initial GraphQL request & any cache updates
+- In your `onClick` lambda, use `formState.changedValue` to call your GraphQL mutation
+- Have your `save` mutation response return the acked/updated entity/fragment
+
+If you do this, you should not have to call `commitChanges` manually, because code like:
+
+```ts
+  onClick: async () => {
+    const input = formState.changedValue;
+    await saveAuthor(input);
+    // checks if formState.dirty is true before closing
+    closeModal();
+  };
+```
+
+Will "just work" because the control flow will be:
+
+- User changes `{ firstName: bob }` and clicks Submit
+- `onClick` runs and we submit `{ id: 1, firstName: bob }` to `saveAuthor`
+- _Before_ the `await` promise resolves, the GraphQL response of `saveAuthor { ...AuthorFragment }` will:
+  - Update the apollo cache
+  - Re-render the `AuthorEditor` component with the new data
+  - Call `init.map` to update `formState` with the new data
+  - Realize the `firstName` is no longer dirty
+- When `closeModal` runs, no "You have unsaved changes?" will appear
+
+Basically, in a correctly-setup form, you should never have to call `commitChanges` manually, and doing so risks losing edits that the user made while any saves (either auto save or submit save) were in-flight.
+
 ## Fragments
 
 Normally, form-state expects all fields in the form to be inputs to the GraphQL mutation/wire call. For example, the `author.firstName` field will always be submitted to the `saveAuthor` mutation (albeit with `author.changedValue` you can have `firstName` conditionally included).

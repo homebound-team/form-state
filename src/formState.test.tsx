@@ -2,7 +2,7 @@ import { autorun, isObservable, makeAutoObservable, observable, reaction } from 
 import { ObjectConfig } from "src/config";
 import { f } from "src/configBuilders";
 import { Fragment, ObjectState, createObjectState, fragment } from "src/fields/objectField";
-import { FieldState } from "src/fields/valueField";
+import { FieldState, InternalSetOpts } from "src/fields/valueField";
 import { AuthorAddress, AuthorInput, BookInput, Color, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
 import { required } from "src/rules";
 
@@ -832,6 +832,13 @@ describe("formState", () => {
     expect(a1.firstName.value).toBeNull();
     expect(a1.originalValue.firstName).toBe("asdf");
     expect(a1.firstName.dirty).toBeTruthy();
+    // And when the server acks as null
+    a1.set({ firstName: undefined }, { refreshing: true } as InternalSetOpts);
+    // Then it's no longer dirty
+    expect(a1.firstName.dirty).toBe(false);
+    expect(a1.firstName.originalValue).toBe(undefined);
+    expect(a1.firstName.value).toBe(undefined);
+    expect(a1.changedValue).toEqual({});
   });
 
   it("initializes null values to be undefined", () => {

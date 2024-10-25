@@ -213,7 +213,8 @@ export function newValueFieldState<T, K extends keyof T>(
         throw new Error(`${String(key)} is currently readOnly`);
       }
 
-      if (opts.refreshing && this.dirty && this.value !== value) {
+      const isAckingUnset = this.value === null && (value === null || value === undefined);
+      if (opts.refreshing && this.dirty && this.value !== value && !isAckingUnset) {
         // Ignore incoming values if we have changes (this.dirty) unless our latest change (this.value)
         // matches the incoming value (value), b/c if it does we should accept it and reset originalValue
         // so that we're no longer dirty.
