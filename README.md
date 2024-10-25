@@ -23,6 +23,10 @@ It also keeps track of low-level form UX details like:
   - Supports collections of children, i.e. a `author: { books: [...} }` will include only changed books if necessary
   - Child collections can be either exhaustive (if any child changes, submit them all) or incremental (only include changed children), to match the backend endpoint's semantics
 
+# Basic Usage
+
+See our in-repo [sample app](https://github.com/homebound-team/form-state/blob/main/src/FormStateApp.tsx).
+
 # Main Features
 
 There are two main reasons why form-state exists:
@@ -90,19 +94,7 @@ Admittedly (and hopefully, b/c it makes the code simpler), the differences betwe
 
 These are usually simple/mechanistic changes, but nonetheless just some boilerplate that form-state provides conventions for.
 
-# Basic Usage
-
-See the [sample](https://github.com/homebound-team/form-state/blob/main/src/FormStateApp.tsx).
-
-# Todo
-
-- Add conditional readonly logic, like `{ type: "field", readOnlyIf: i => i.isInternal.value }`
-
-- Add `omitFromValue` so we can have two fields, `book.author.id` / `book.author.name`, where `book.author.name` is used for showing the author name, but `book.author.id` is the only field that is submitted to the server on mutation (maybe pair this with `Ref` based mutations)
-
-- Undo/redo would in theory be neat and easy to do on top of the existing infra
-
-# Features
+# Other Features
 
 ## Incremental changedValue/dirty Management
 
@@ -210,6 +202,14 @@ const form = useFormState({
   },
 });
 ```
+
+# Todo
+
+- Add conditional readonly logic, like `{ type: "field", readOnlyIf: i => i.isInternal.value }`
+
+- Add `omitFromValue` so we can have two fields, `book.author.id` / `book.author.name`, where `book.author.name` is used for showing the author name, but `book.author.id` is the only field that is submitted to the server on mutation (maybe pair this with `Ref` based mutations)
+
+- Undo/redo would in theory be neat and easy to do on top of the existing infra
 
 # Internal Implementation Notes
 
