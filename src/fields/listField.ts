@@ -218,7 +218,7 @@ export function newListFieldState<T, K extends keyof T, U>(
       // passing us cloned rows from the parentCopy, but `getOrCreateChildState` will
       // use the `copyMap` to recover the non-cloned rows, to avoid promoting the clone
       // into a real row.
-      parentInstance[key] = values.map((child) => getOrCreateChildState(child, opts).value) as any as T[K];
+      parentInstance[key] = (values ?? []).map((child) => getOrCreateChildState(child, opts).value) as any as T[K];
       // Make sure to tick first so that `setOriginalValue` sees the latest `rows`
       _tick.value++;
       // Reset originalCopy so that our dirty checks have the right # of rows.

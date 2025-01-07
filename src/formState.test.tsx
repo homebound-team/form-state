@@ -182,6 +182,20 @@ describe("formState", () => {
     expect(ticks).toEqual(3);
   });
 
+  it("list value can refresh on undefined", () => {
+    // Given a list field that is currently []
+    const a1: AuthorInput = { firstName: "a1", books: [] };
+    const state = createAuthorInputState(a1);
+    // When we refresh it with undefined
+    state.set({ books: undefined }, { refreshing: true } as InternalSetOpts);
+    // Then it doesn't blow up, and stays []
+    expect(state.books.value).toEqual([]);
+    expect(state.value).toEqual({ firstName: "a1", books: [] });
+    // And it's not considered changed
+    expect(state.books.dirty).toBe(false);
+    expect(state.books.originalValue).toEqual([]);
+  });
+
   it("list value can observe changes", () => {
     const b1: BookInput = { title: "t1" };
     const a1: AuthorInput = { firstName: "a1", books: [b1] };
