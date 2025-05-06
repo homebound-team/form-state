@@ -5,7 +5,7 @@ import { observer, Observer } from "mobx-react";
 import { useMemo, useRef, useState } from "react";
 import { TextField } from "src/FormStateApp";
 import { ObjectConfig } from "src/config";
-import { ObjectState } from "src/fields/objectField";
+import { Fragment, fragment, ObjectState } from "src/fields/objectField";
 import { FieldState } from "src/fields/valueField";
 import { AuthorInput } from "src/formStateDomain";
 import { required } from "src/rules";
@@ -140,6 +140,31 @@ describe("useFormState", () => {
     expect(r.firstName).toHaveTextContent("0");
     click(r.change);
     expect(r.firstName).toHaveTextContent("0");
+  });
+
+  it("can init with fragments", async () => {
+    // Given a component
+    function TestComponent() {
+      // And we have query data that may or may not be defined
+      const form = useFormState({
+        config: authorWithBookFragments,
+        init: {
+          input: {},
+          map: () => ({ firstName: "a1", books: [{ id: "b:1", data: fragment({ misc: "data" }) }] }),
+        },
+      });
+      return (
+        <>
+          <div data-testid="fieldValue">{form.books.rows[0].data.value.misc}</div>
+          <div data-testid="rowValue">{form.books.rows[0].value.data?.misc ?? "unset"}</div>
+          <div data-testid="listValue">{form.books.value[0].data?.misc ?? "unset"}</div>
+        </>
+      );
+    }
+    const r = await render(<TestComponent />);
+    expect(r.fieldValue).toHaveTextContent("data");
+    expect(r.rowValue).toHaveTextContent("unset");
+    expect(r.listValue).toHaveTextContent("unset");
   });
 
   it("keeps local changed values when a query refreshes", async () => {
@@ -751,7 +776,7 @@ describe("useFormState", () => {
       });
       return <button data-testid="set" onClick={() => form.firstName.set("f2")} />;
     }
-    const r = await render(<TestComponent />);
+    await render(<TestComponent />);
     // When we change a field, and try to commit, it blows up
     // await expect(clickAndWait(r.set)).rejects.toThrow(
     //   "When using autoSave, you should not manually call commitChanges",
@@ -804,6 +829,20 @@ const authorWithAddressAndBooksConfig: ObjectConfig<AuthorInput> = {
       id: { type: "value" },
       title: { type: "value", rules: [required] },
       classification: { type: "value" },
+    },
+  },
+};
+
+const authorWithBookFragments: ObjectConfig<
+  Omit<AuthorInput, "books"> & { books: Array<{ id: string; data: Fragment<{ misc: string }> }> }
+> = {
+  id: { type: "value" },
+  firstName: { type: "value" },
+  books: {
+    type: "list",
+    config: {
+      id: { type: "value" },
+      data: { type: "fragment" },
     },
   },
 };

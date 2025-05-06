@@ -1,6 +1,6 @@
 import { isPlainObject } from "is-plain-object";
 import { isObservable, toJS } from "mobx";
-import { ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
+import { FragmentFieldConfig, ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
 import { deepEquals } from "src/fields/deepEquals";
 import { InputAndMap, QueryAndMap, UseFormStateOpts } from "src/useFormState";
 
@@ -78,7 +78,11 @@ export function pickFields<T, I>(
   }
   return Object.fromEntries(
     Object.entries(formConfig).map(([key, _keyConfig]) => {
-      const keyConfig = _keyConfig as any as ObjectFieldConfig<any> | ListFieldConfig<any> | ValueFieldConfig<any>;
+      const keyConfig = _keyConfig as any as
+        | ObjectFieldConfig<any>
+        | ListFieldConfig<any>
+        | ValueFieldConfig<any>
+        | FragmentFieldConfig;
       const value = (instance as any)[key];
       if (keyConfig.type === "object") {
         if (value) {
@@ -97,6 +101,8 @@ export function pickFields<T, I>(
           return [key, value];
         }
       } else if (keyConfig.type === "value") {
+        return [key, value];
+      } else if (keyConfig.type === "fragment") {
         return [key, value];
       } else {
         return assertNever(keyConfig);
