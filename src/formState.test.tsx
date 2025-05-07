@@ -1927,6 +1927,14 @@ describe("formState", () => {
         }
       `);
     });
+
+    it("are always considered valid", () => {
+      const a: ObjectState<BookWithFragment> = createObjectState<BookWithFragment>(
+        { data: { type: "fragment" } },
+        { data: fragment({ foo: "1" }) },
+      );
+      expect(a.valid).toBe(true);
+    });
   });
 
   it("sets id key correctly", () => {
