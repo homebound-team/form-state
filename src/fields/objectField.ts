@@ -179,7 +179,7 @@ export function newObjectState<T, P = any>(
         maybeAutoSave,
       ) as any;
     } else if (config.type === "fragment") {
-      field = newFragmentField(instance, key);
+      field = newFragmentField(instance as object & T, key as any);
     } else {
       throw new Error(`Invalid type value ${(config as any).type}`);
     }
@@ -259,7 +259,10 @@ export function newObjectState<T, P = any>(
     },
 
     get valid(): boolean {
-      return getFields(this).every((f) => f.valid);
+      return getFields(this).every((f) => {
+        console.log(`Looking at ${f.key} valid=${f.valid}`);
+        return f.valid;
+      });
     },
 
     get errors(): string[] {

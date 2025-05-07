@@ -1,11 +1,16 @@
 import { makeAutoObservable, observable } from "mobx";
+import { FieldState, FieldStateInternal, ValueAdapter } from "src/fields/valueField";
 import { fail } from "src/utils";
+import { V } from "vite/dist/node/types.d-aGj9QkWt";
 
 export interface FragmentField<V> {
   value: V;
 }
 
-export function newFragmentField<T, K extends keyof T>(parentInstance: T, key: K): FragmentField<T[K]> {
+export function newFragmentField<T extends object, K extends keyof T & string>(
+  parentInstance: T,
+  key: K,
+): FragmentField<T[K]> {
   // We always return the same `instance` field from our `value` method, but
   // we want to pretend that it's observable, so use a tick to force it.
   const _tick = observable({ value: 1 });
@@ -16,7 +21,34 @@ export function newFragmentField<T, K extends keyof T>(parentInstance: T, key: K
   delete parentInstance[key];
 
   const obj = {
+    key,
+    _isIdKey: false,
+    _isDeleteKey: false,
+    _isReadOnlyKey: false,
+    touched: false,
+    valid: true,
+    readOnly: true,
+    required: false,
+    loading: false,
+    dirty: false,
+    focused: false,
+    originalValue: undefined,
+    changedValue: undefined,
+    errors: [],
+    rules: [],
+    isNewEntity: false,
+    focus: () => {},
+    blur: () => {},
+    maybeAutoSave: () => {},
+    commitChanges: () => {},
+    revertChanges: () => {},
+
     get value() {
+      // Watch for our parentInstance changing
+      if (key in parentInstance) {
+        value = parentInstance[key];
+        delete parentInstance[key];
+      }
       _tick.value > 0 || fail();
       return value;
     },
@@ -25,7 +57,15 @@ export function newFragmentField<T, K extends keyof T>(parentInstance: T, key: K
       value = v;
       _tick.value++;
     },
-  };
+
+    set() {
+      throw new Error("FragmentField is read-only");
+    },
+
+    adapt() {
+      throw new Error("FragmentField is read-only");
+    },
+  } satisfies FieldStateInternal<T, any>;
 
   return makeAutoObservable(obj, { value: false });
 }
