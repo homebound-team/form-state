@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ObjectConfig } from "src/config";
 import { ObjectState, ObjectStateInternal, createObjectState } from "src/fields/objectField";
 import { initValue } from "src/utils";
@@ -142,15 +142,17 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
         objectStateCache[getId(input)] = [form, input];
       }
 
-      // If the source of truth changed, then update the existing state and return it.
-      if (existing && existing[1] !== input) {
-        (form as any as ObjectStateInternal<any>).set(initValue(config, { map, input }), {
-          refreshing: true,
-        });
-        existing[1] = input;
-      }
-
-      form.readOnly = readOnlyRef.current || !!opts.readOnly;
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      useEffect(() => {
+        // If the source of truth changed, then update the existing state and return it.
+        if (existing && existing[1] !== input) {
+          (form as any as ObjectStateInternal<any>).set(initValue(config, { map, input }), {
+            refreshing: true,
+          });
+          existing[1] = input;
+        }
+        form.readOnly = readOnlyRef.current || !!opts.readOnly;
+      }, [form, input]);
 
       return form;
     },
