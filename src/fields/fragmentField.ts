@@ -58,12 +58,12 @@ export function newFragmentField<T extends object, K extends keyof T & string>(
       _tick.value++;
     },
 
-    set() {
-      throw new Error("FragmentField is read-only");
+    set(value) {
+      this.value = value;
     },
 
-    adapt() {
-      throw new Error("FragmentField is read-only");
+    adapt(value) {
+      throw new Error("FragmentField does not support adapt");
     },
   } satisfies FieldStateInternal<T, any>;
 
