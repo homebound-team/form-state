@@ -260,7 +260,6 @@ export function newObjectState<T, P = any>(
 
     get valid(): boolean {
       return getFields(this).every((f) => {
-        console.log(`Looking at ${f.key} valid=${f.valid}`);
         return f.valid;
       });
     },

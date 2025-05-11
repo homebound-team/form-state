@@ -1928,6 +1928,20 @@ describe("formState", () => {
       `);
     });
 
+    it("accepts new values in set", () => {
+      const a: ObjectState<BookWithFragment> = createObjectState<BookWithFragment>(
+        { title: { type: "value" }, data: { type: "fragment" } },
+        { title: "b1", data: fragment({ foo: "1" }) },
+      );
+      let numCalcs = 0;
+      autorun(() => {
+        numCalcs++;
+        noop(a.value);
+      });
+      a.set({ data: fragment({ foo: "2" }) });
+      expect(numCalcs).toBe(2);
+    });
+
     it("are always considered valid", () => {
       const a: ObjectState<BookWithFragment> = createObjectState<BookWithFragment>(
         { data: { type: "fragment" } },
