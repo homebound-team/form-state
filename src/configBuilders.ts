@@ -27,6 +27,11 @@ export const f = {
     return new ValueFieldConfigBuilder<V>();
   },
 
+  /** Creates the config DSL for a fragment, like `AuthorFragment`. */
+  fragment(): FragmentFieldConfigBuilder {
+    return new FragmentFieldConfigBuilder();
+  },
+
   /** A shortcut for creating a child object with a single `id` key. */
   reference<V extends { id?: unknown }>(fields?: ObjectConfigBuilderFields<V>): ObjectConfigBuilder<V> {
     return f.object<V>({ id: f.value(), ...fields } as any).ref();
@@ -75,6 +80,12 @@ export class ObjectConfigBuilder<T> {
 
   build(): ObjectFieldConfig<T> {
     return this.config;
+  }
+}
+
+export class FragmentFieldConfigBuilder {
+  build(): FragmentFieldConfig {
+    return { type: "fragment" };
   }
 }
 

@@ -64,4 +64,22 @@ describe("config", () => {
       }
     `);
   });
+
+  it("supports fragments", () => {
+    const config = f.config({
+      id: f.value(),
+      address: f.fragment(),
+    });
+    expect(config).toMatchInlineSnapshot(`
+      {
+        "address": {
+          "type": "fragment",
+        },
+        "id": {
+          "rules": [],
+          "type": "value",
+        },
+      }
+    `);
+  });
 });
