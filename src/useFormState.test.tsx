@@ -1,4 +1,4 @@
-import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
+import { click, clickAndWait, render, type, typeAndWait, wait } from "@homebound/rtl-utils";
 import { act } from "@testing-library/react";
 import { makeAutoObservable, reaction } from "mobx";
 import { observer, Observer } from "mobx-react";
@@ -468,6 +468,65 @@ describe("useFormState", () => {
     await clickAndWait(r.blurBookTwo);
     // Then we auto save again
     expect(autoSave).toBeCalledTimes(2);
+  });
+
+  it("can revert to last-saved-state after a failed auto save", async () => {
+    // Given a component
+    function TestComponent() {
+      // And the firstName is initially "f1"
+      const [data, setData] = useState<AuthorInput>({ firstName: "f1" });
+      const query = useMemo(() => {
+        return { data, loading: false, error: undefined };
+      }, [data]);
+      const form = useFormState({
+        config: authorConfig,
+        init: { query, map: (d) => d },
+        async autoSave(fs) {
+          // If the user types "f2", we'll pretend the backend accepted the update, and acks it in the mutation response
+          if (fs.firstName.value === "f2") {
+            await new Promise((resolve) => setTimeout(resolve, 1));
+            setData(fs.value);
+          } else {
+            // If the user types anything else, pretend the backend rejected it, and revert
+            await new Promise((resolve, reject) => {
+              setTimeout(() => {
+                fs.revertChanges();
+                reject(new Error("Mutation failed"));
+              }, 1);
+            });
+          }
+        },
+      });
+      return (
+        <Observer>
+          {() => (
+            <>
+              <div data-testid="firstNameOriginal">{form.firstName.originalValue}</div>
+              <TextField field={form.firstName} />;
+            </>
+          )}
+        </Observer>
+      );
+    }
+
+    // So we start out with f1
+    const r = await render(<TestComponent />);
+    expect(r.firstName).toHaveValue("f1");
+
+    // When we type f2, it should be accepted & stay
+    await typeAndWait(r.firstName, "f2");
+    expect(r.firstName).toHaveValue("f2");
+    expect(r.firstNameOriginal).toHaveTextContent("f2");
+
+    // But if we type f3, we want it reverted, back to f2 (the last good value)
+    type(r.firstName, "f3");
+    // await wait();
+    act(() => {
+      jest.runOnlyPendingTimers();
+    });
+
+    expect(r.firstName).toHaveValue("f2");
+    expect(r.firstNameOriginal).toHaveTextContent("f2");
   });
 
   it("returns empty lists even when inputs are undefined", async () => {
