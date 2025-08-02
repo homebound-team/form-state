@@ -196,6 +196,21 @@ describe("formState", () => {
     expect(state.books.originalValue).toEqual([]);
   });
 
+  it("list value can refresh and not drop new children", () => {
+    // Given a list field that is currently []
+    const a1: AuthorInput = { firstName: "a1", books: [] };
+    const state = createAuthorInputState(a1);
+    // And we add a new child on the client-side
+    state.books.add({ id: "b:1", title: "b1" });
+    // When we refresh it with the original list undefined
+    state.set({ books: [] }, { refreshing: true } as InternalSetOpts);
+    // Then it keeps the new child
+    expect(state.books.value).toEqual([{ id: "b:1", title: "b1" }]);
+    // And it's still considered changed
+    expect(state.books.dirty).toBe(true);
+    expect(state.books.originalValue).toEqual([]);
+  });
+
   it("list value can observe changes", () => {
     const b1: BookInput = { title: "t1" };
     const a1: AuthorInput = { firstName: "a1", books: [b1] };

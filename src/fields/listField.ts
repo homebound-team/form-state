@@ -3,7 +3,8 @@ import { ListFieldConfig, ObjectFieldConfig } from "src/config";
 import { ObjectState, ObjectStateInternal, newObjectState } from "src/fields/objectField";
 import { FieldState, InternalSetOpts } from "src/fields/valueField";
 import { Rule, required } from "src/rules";
-import { fail, isNotUndefined } from "src/utils";
+import { fail, groupBy, isNotUndefined } from "src/utils";
+import hash from "object-hash";
 
 /** Form state for list of children, i.e. `U` is a `Book` in a form with a `books: Book[]`. */
 export interface ListFieldState<U> extends FieldState<U[]> {
@@ -15,7 +16,9 @@ export interface ListFieldState<U> extends FieldState<U[]> {
 }
 
 export function newListFieldState<T, K extends keyof T, U>(
+  // parentCopy is objectField's deepClone-d `originalCopy` that it/we use for `dirty` checking
   parentCopy: T,
+  // parentInstance is objectField's `instance`, that we're currently mutating
   parentInstance: T,
   parentState: () => ObjectState<T>,
   key: K,
@@ -25,7 +28,7 @@ export function newListFieldState<T, K extends keyof T, U>(
   strictOrder: boolean,
   maybeAutoSave: () => void,
 ): ListFieldState<U> {
-  // Keep a map of "item in the parent list" -> "that item's ObjectState"
+  // Keep a map of "item in the parentInstance list" -> "that item's ObjectState"
   const rowMap = new Map<U, ObjectStateInternal<U>>();
   const _tick = observable({ value: 1 });
   const _originalValueTick = observable({ value: 1 });
@@ -218,7 +221,59 @@ export function newListFieldState<T, K extends keyof T, U>(
       // passing us cloned rows from the parentCopy, but `getOrCreateChildState` will
       // use the `copyMap` to recover the non-cloned rows, to avoid promoting the clone
       // into a real row.
-      parentInstance[key] = (values ?? []).map((child) => getOrCreateChildState(child, opts).value) as any as T[K];
+      if (this.dirty && opts.refreshing) {
+        // When refreshing a dirty list, we need to preserve WIP values
+
+        // Start with current list, then merge in incoming changes
+        //
+        // These will all be POJOs, where `currentItems` existing in our `parentInstance`, and
+        // `incomingItems` could really be any of:
+        // - an instance from `parentInstance[key]` that user code is passing back in
+        // - an instance from `parentCopy[key]` that a cache refresh is passing in
+        // - a new instance, either from a cache refresh or user code, that we haven't seen yet
+        const currentItems = this.value || [];
+        const incomingItems = values || [];
+        const mergedItems: U[] = [];
+
+        // Index by idKey or a hash of the object, so we don't have to n^2 merging
+        const idKey = this.rows.length > 0 && (this.rows[0] as any as ObjectStateInternal).idKey;
+        const hashItem = (item: any) => (idKey && item[idKey]) || hash(item);
+        const currentById = groupBy(currentItems, hashItem);
+        const incomingById = groupBy(incomingItems, hashItem);
+
+        // First, process all current items
+        for (const currentItem of currentItems) {
+          const childState = rowMap.get(currentItem)!; // We'll always have a child state for `currentItems`
+          // Try to find a matching item in the incoming data
+          const match = incomingById.get(hashItem(currentItem))?.[0];
+          if (match) {
+            // Defer to set to handle not nuking WIP changes
+            childState.set(match);
+            mergedItems.push(childState.value);
+          } else if (childState.dirty || childState.isNewEntity) {
+            // If no incoming, but we're dirty, keep the WIP change
+            mergedItems.push(currentItem);
+          } else {
+            // Local is not dirty, and it's not upstream, so remove it
+          }
+        }
+
+        // Then, add any incoming items that don't exist in current
+        for (const incomingItem of incomingItems) {
+          const match = currentById.get(hashItem(incomingItem))?.[0];
+          if (!match) {
+            // New item from server, add it
+            const childState = getOrCreateChildState(incomingItem, opts);
+            mergedItems.push(childState.value);
+          }
+        }
+
+        parentInstance[key] = mergedItems as any as T[K];
+
+        // Set original to not merged...
+      } else {
+        parentInstance[key] = (values ?? []).map((child) => getOrCreateChildState(child, opts).value) as any as T[K];
+      }
       // Make sure to tick first so that `setOriginalValue` sees the latest `rows`
       _tick.value++;
       // Reset originalCopy so that our dirty checks have the right # of rows.

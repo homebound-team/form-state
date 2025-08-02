@@ -817,6 +817,7 @@ __metadata:
     "@testing-library/react": ^16.0.1
     "@tsconfig/recommended": ^1.0.7
     "@types/jest": ^29.5.13
+    "@types/object-hash": ^3.0.6
     "@types/react": ^18.3.11
     "@types/react-dom": ^18.3.1
     "@typescript-eslint/eslint-plugin": ^4.17.0
@@ -837,6 +838,7 @@ __metadata:
     lint-staged: ^15.2.10
     mobx: ^6.13.5
     mobx-react: ^9.1.1
+    object-hash: ^3.0.0
     prettier: 3.3.3
     prettier-plugin-organize-imports: ^4.1.0
     react: ^18.3.1
@@ -2857,6 +2859,13 @@ __metadata:
   version: 2.4.4
   resolution: "@types/normalize-package-data@npm:2.4.4"
   checksum: 65dff72b543997b7be8b0265eca7ace0e34b75c3e5fee31de11179d08fa7124a7a5587265d53d0409532ecb7f7fba662c2012807963e1f9b059653ec2c83ee05
+  languageName: node
+  linkType: hard
+
+"@types/object-hash@npm:^3.0.6":
+  version: 3.0.6
+  resolution: "@types/object-hash@npm:3.0.6"
+  checksum: 2c7979d4e540af817b99c09fb4c2fed1c0b0e14342df474d8dcde4165a82c440b038341fd66fe998d9f86acdd5cccc65ba8092315e39e7c2114f945fa70aaa56
   languageName: node
   linkType: hard
 
@@ -9348,6 +9357,13 @@ __metadata:
   version: 4.1.1
   resolution: "object-assign@npm:4.1.1"
   checksum: fcc6e4ea8c7fe48abfbb552578b1c53e0d194086e2e6bbbf59e0a536381a292f39943c6e9628af05b5528aa5e3318bb30d6b2e53cadaf5b8fe9e12c4b69af23f
+  languageName: node
+  linkType: hard
+
+"object-hash@npm:^3.0.0":
+  version: 3.0.0
+  resolution: "object-hash@npm:3.0.0"
+  checksum: 80b4904bb3857c52cc1bfd0b52c0352532ca12ed3b8a6ff06a90cd209dfda1b95cee059a7625eb9da29537027f68ac4619363491eedb2f5d3dddbba97494fd6c
   languageName: node
   linkType: hard
 

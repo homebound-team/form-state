@@ -30,7 +30,9 @@
     "src/**/*.{ts,tsx,css,md}": "prettier --write"
   },
   "dependencies": {
-    "is-plain-object": "^5.0.0"
+    "@types/object-hash": "^3.0.6",
+    "is-plain-object": "^5.0.0",
+    "object-hash": "^3.0.0"
   },
   "peerDependencies": {
     "mobx": ">=6",

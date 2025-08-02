@@ -42,9 +42,10 @@ export type ObjectState<T> =
       canSave(): boolean;
     };
 
-export type ObjectStateInternal<T> = ObjectState<T> & {
+export type ObjectStateInternal<T = unknown> = ObjectState<T> & {
   set(value: T, opts?: InternalSetOpts): void;
   isSameEntity(other: T): boolean;
+  idKey: string | undefined;
 };
 
 const fragmentSym = Symbol("fragment");
@@ -137,6 +138,7 @@ export function newObjectState<T, P = any>(
         config.isIdKey ||
           // Default the id key to "id" unless some other field has isIdKey set
           (key === "id" &&
+            !("isIdKey" in config) && // Allow setting `isIdKey=false`
             !(Object.entries(objectConfig) as any as [string, ValueFieldConfig<any>][]).some(
               ([other, c]) => other !== key && c.isIdKey,
             )),
@@ -389,6 +391,10 @@ export function newObjectState<T, P = any>(
 
     isUnset(): boolean {
       return !!parentInstance && (parentInstance as any)[key] === undefined;
+    },
+
+    get idKey(): string | undefined {
+      return getFields(this).find((f) => f._isIdKey)?.key;
     },
   };
 
