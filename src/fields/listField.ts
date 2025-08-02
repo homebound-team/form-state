@@ -252,6 +252,9 @@ export function newListFieldState<T, K extends keyof T, U>(
         const incomingByHash =
           idKey && currentItems.some((item) => !(item as any)[idKey]) && groupBy(incomingItems, hashWithoutId);
 
+        // Watch for deletions
+        const hasOpKey = Object.keys(listConfig.config).includes("op");
+
         // First, process all current items
         for (const currentItem of currentItems) {
           const childState = rowMap.get(currentItem)!; // We'll always have a child state for `currentItems`
@@ -267,8 +270,12 @@ export function newListFieldState<T, K extends keyof T, U>(
             // Once matched, we don't this to be an addedRow anymore
             addedRows.delete(currentItem);
           } else if (childState.dirty || addedRows.has(currentItem)) {
-            // If no incoming, but we're dirty, keep the WIP change
-            mergedItems.push(currentItem);
+            // If no incoming, but we're dirty (...and not deleted), keep the WIP change
+            if (hasOpKey && (currentItem as any).op === "delete") {
+              // delete
+            } else {
+              mergedItems.push(currentItem);
+            }
           } else {
             // Local is not dirty, and it's not upstream, so remove it
           }
