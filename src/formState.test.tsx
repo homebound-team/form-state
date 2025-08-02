@@ -196,7 +196,7 @@ describe("formState", () => {
     expect(state.books.originalValue).toEqual([]);
   });
 
-  it("list value can refresh and not drop new children", () => {
+  it("list value can refresh and not drop new children w/id", () => {
     // Given a list field that is currently []
     const a1: AuthorInput = { firstName: "a1", books: [] };
     const state = createAuthorInputState(a1);
@@ -204,7 +204,7 @@ describe("formState", () => {
     state.books.add({ id: "b:1", title: "b1" });
     // When we refresh it with the original list undefined
     state.set({ books: [] }, { refreshing: true } as InternalSetOpts);
-    // Then it keeps the new child
+    // Then it keeps the new child (and it somehow already has the id set)
     expect(state.books.value).toEqual([{ id: "b:1", title: "b1" }]);
     // And it's still considered changed
     expect(state.books.dirty).toBe(true);
@@ -214,6 +214,28 @@ describe("formState", () => {
     state.set({ books: [{ id: "b:1", title: "b1", isPublished: true }] }, { refreshing: true } as InternalSetOpts);
     // Then we have only 1 value
     expect(state.books.value).toEqual([{ id: "b:1", title: "b1", isPublished: true }]);
+    // And we're not longer dirty
+    expect(state.books.dirty).toBe(false);
+  });
+
+  it("list value can refresh and not drop new children w/o an id", () => {
+    // Given a list field that is currently []
+    const a1: AuthorInput = { firstName: "a1", books: [] };
+    const state = createAuthorInputState(a1);
+    // And we add a new child on the client-side (and it doesn't have an id)
+    state.books.add({ title: "b1" });
+    // When we refresh it with the original list undefined
+    state.set({ books: [] }, { refreshing: true } as InternalSetOpts);
+    // Then it keeps the new child
+    expect(state.books.value).toEqual([{ title: "b1" }]);
+    // And it's still considered changed
+    expect(state.books.dirty).toBe(true);
+    expect(state.books.originalValue).toEqual([]);
+
+    // And later when we refresh with the value acked from the server
+    state.set({ books: [{ id: "b:1", title: "b1" }] }, { refreshing: true } as InternalSetOpts);
+    // Then we have only 1 value
+    expect(state.books.value).toEqual([{ id: "b:1", title: "b1" }]);
     // And we're not longer dirty
     expect(state.books.dirty).toBe(false);
   });

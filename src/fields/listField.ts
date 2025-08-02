@@ -239,14 +239,27 @@ export function newListFieldState<T, K extends keyof T, U>(
         // Index by idKey or a hash of the object, so we don't have to n^2 merging
         const idKey = this.rows.length > 0 && (this.rows[0] as any as ObjectStateInternal).idKey;
         const hashItem = (item: any) => (idKey && item[idKey]) || hash(item);
+        const hashWithoutId = (item: any) =>
+          hash(Object.fromEntries(Object.entries(item as object).filter(([key]) => key !== idKey)));
         const currentById = groupBy(currentItems, hashItem);
         const incomingById = groupBy(incomingItems, hashItem);
+        // If our local instance doesn't assign in id, when we get results back from the server, strip
+        // their id and then see if we're the same based on data. Note that this is a hueristic, and will
+        // fail if the client-side has made additional changes to the child after submitting it to the server,
+        // or if the server acks back more/different data than the client sent.
+        //
+        // Only do this if one of our client-side objects is missing an id
+        const incomingByHash =
+          idKey && currentItems.some((item) => !(item as any)[idKey]) && groupBy(incomingItems, hashWithoutId);
 
         // First, process all current items
         for (const currentItem of currentItems) {
           const childState = rowMap.get(currentItem)!; // We'll always have a child state for `currentItems`
           // Try to find a matching item in the incoming data
-          const match = incomingById.get(hashItem(currentItem))?.[0];
+          const hash = hashItem(currentItem);
+          const match = (incomingById.get(hash)?.[0] ?? (!!incomingByHash && incomingByHash?.get(hash)?.[0])) as
+            | U
+            | undefined;
           if (match) {
             // Defer to set to handle not nuking WIP changes
             childState.set(match, opts);
@@ -263,7 +276,9 @@ export function newListFieldState<T, K extends keyof T, U>(
 
         // Then, add any incoming items that don't exist in current
         for (const incomingItem of incomingItems) {
-          const match = currentById.get(hashItem(incomingItem))?.[0];
+          // Look for both `incoming.id` and the incoming-sans-id for new entities
+          const match =
+            currentById.get(hashItem(incomingItem))?.[0] || currentById.get(hashWithoutId(incomingItem))?.[0];
           if (!match) {
             // New item from server, add it
             const childState = getOrCreateChildState(incomingItem, opts);
