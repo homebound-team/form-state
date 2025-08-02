@@ -299,6 +299,31 @@ describe("formState", () => {
     expect(state.books.dirty).toBe(false);
   });
 
+  it("list value can refresh and merge children that were added", () => {
+    // Given a list field that is currently populated with 1 child
+    const a1: AuthorInput = { id: "a:1", books: [{ id: "b:1", title: "b1" }] };
+    const state = createAuthorInputState(a1);
+    // When we add a new book
+    state.books.add({ title: "b2" });
+    // When we refresh it with both books, and the 2nd book now has its id assigned
+    state.set(
+      {
+        books: [
+          { id: "b:1", title: "b1" },
+          { id: "b:2", title: "b2" },
+        ],
+      },
+      { refreshing: true } as InternalSetOpts,
+    );
+    // Then wes till have two books
+    expect(state.books.value).toEqual([
+      { id: "b:1", title: "b1" },
+      { id: "b:2", title: "b2" },
+    ]);
+    // And we're not dirty
+    expect(state.books.dirty).toBe(false);
+  });
+
   it("list value can observe changes", () => {
     const b1: BookInput = { title: "t1" };
     const a1: AuthorInput = { firstName: "a1", books: [b1] };

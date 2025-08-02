@@ -269,15 +269,19 @@ export function newListFieldState<T, K extends keyof T, U>(
             mergedItems.push(childState.value);
             // Once matched, we don't this to be an addedRow anymore
             addedRows.delete(currentItem);
-          } else if (childState.dirty || addedRows.has(currentItem)) {
-            // If no incoming, but we're dirty (...and not deleted), keep the WIP change
-            if (hasOpKey && (currentItem as any).op === "delete") {
-              // delete
-            } else {
-              mergedItems.push(currentItem);
-            }
+          } else if (!childState.dirty && !addedRows.has(currentItem)) {
+            // Local is not dirty/added, and it's not upstream, so let it get removed
+          } else if (hasOpKey && (currentItem as any).op === "delete") {
+            // We were locally marked as deleted, and not finding a match is the server acking that we're gone
+          } else if (
+            currentItems.length === incomingItems.length &&
+            !!idKey &&
+            (currentItem as any)[idKey] === undefined
+          ) {
+            // Assume our newly-assigned id is coming back
           } else {
-            // Local is not dirty, and it's not upstream, so remove it
+            // If no incoming, but we're dirty (see above) and not deleted (see above), keep the WIP change
+            mergedItems.push(currentItem);
           }
         }
 
