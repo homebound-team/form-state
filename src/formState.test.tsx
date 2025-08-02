@@ -273,6 +273,32 @@ describe("formState", () => {
     expect(state.tags.dirty).toBe(false);
   });
 
+  it("list value can refresh and drop children that were deleted", () => {
+    // Given a list field that is currently populated
+    const a1: AuthorInput = {
+      id: "a:1",
+      firstName: "a1",
+      books: [
+        { id: "b:1", title: "b1", op: "include" },
+        { id: "b:2", title: "b2", op: "include" },
+      ],
+    };
+    // And incremental deletion is enabled
+    const config = f.config<AuthorInput>({
+      id: f.value(),
+      books: f.list({ id: f.value(), title: f.value(), op: f.value() }),
+    });
+    const state = createObjectState<AuthorInput>(config, a1);
+    // When we delete the 1st book
+    state.books.rows[0].op.set("delete");
+    // When we refresh it only the 2nd book
+    state.set({ books: [{ id: "b:2", title: "b2" }] }, { refreshing: true } as InternalSetOpts);
+    // Then we only have 1 book
+    expect(state.books.value).toEqual([{ id: "b:2", title: "b2", op: "include" }]);
+    // And we're not dirty
+    expect(state.books.dirty).toBe(false);
+  });
+
   it("list value can observe changes", () => {
     const b1: BookInput = { title: "t1" };
     const a1: AuthorInput = { firstName: "a1", books: [b1] };
