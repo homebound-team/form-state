@@ -240,6 +240,39 @@ describe("formState", () => {
     expect(state.books.dirty).toBe(false);
   });
 
+  it("list value can refresh and not drop new children that are just data", () => {
+    // Given a type that has a list field of `{ combo: string[] }`
+    type AuthorInput = { firstName: string; tags: { combo: string[] }[] };
+    const config = f.config<AuthorInput>({
+      firstName: f.value(),
+      tags: f.list({ combo: f.value() }),
+    });
+    const state = createObjectState<AuthorInput>(config, { firstName: "a1", tags: [] });
+    // And we add a new child on the client-side (and it doesn't have an id)
+    state.tags.add({ combo: ["b1", "b2"] });
+    // When we refresh it with the original list undefined
+    state.set({ tags: [] }, { refreshing: true } as InternalSetOpts);
+    // Then it keeps the new child
+    expect(state.tags.value).toEqual([{ combo: ["b1", "b2"] }]);
+    // And it's still considered changed
+    expect(state.tags.dirty).toBe(true);
+    expect(state.tags.originalValue).toEqual([]);
+
+    // And we add an additional child
+    state.tags.add({ combo: ["c1", "c2"] });
+    // And a refresh brings back the 1st child acked from the server
+    state.set({ tags: [{ combo: ["b1", "b2"] }] }, { refreshing: true } as InternalSetOpts);
+    // Then we still have 2 children
+    expect(state.tags.value).toEqual([{ combo: ["b1", "b2"] }, { combo: ["c1", "c2"] }]);
+    // And we're still dirty
+    expect(state.tags.dirty).toBe(true);
+
+    // When the server finally acks both children
+    state.set({ tags: [{ combo: ["b1", "b2"] }, { combo: ["c1", "c2"] }] }, { refreshing: true } as InternalSetOpts);
+    // Then we're finally clean
+    expect(state.tags.dirty).toBe(false);
+  });
+
   it("list value can observe changes", () => {
     const b1: BookInput = { title: "t1" };
     const a1: AuthorInput = { firstName: "a1", books: [b1] };
