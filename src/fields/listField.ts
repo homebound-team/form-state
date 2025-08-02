@@ -3,7 +3,8 @@ import { ListFieldConfig, ObjectFieldConfig } from "src/config";
 import { ObjectState, ObjectStateInternal, newObjectState } from "src/fields/objectField";
 import { FieldState, InternalSetOpts } from "src/fields/valueField";
 import { Rule, required } from "src/rules";
-import { fail, isNotUndefined } from "src/utils";
+import { fail, groupBy, isNotUndefined } from "src/utils";
+import hash from "object-hash";
 
 /** Form state for list of children, i.e. `U` is a `Book` in a form with a `books: Book[]`. */
 export interface ListFieldState<U> extends FieldState<U[]> {
@@ -15,7 +16,9 @@ export interface ListFieldState<U> extends FieldState<U[]> {
 }
 
 export function newListFieldState<T, K extends keyof T, U>(
+  // parentCopy is objectField's deepClone-d `originalCopy` that it/we use for `dirty` checking
   parentCopy: T,
+  // parentInstance is objectField's `instance`, that we're currently mutating
   parentInstance: T,
   parentState: () => ObjectState<T>,
   key: K,
@@ -25,8 +28,9 @@ export function newListFieldState<T, K extends keyof T, U>(
   strictOrder: boolean,
   maybeAutoSave: () => void,
 ): ListFieldState<U> {
-  // Keep a map of "item in the parent list" -> "that item's ObjectState"
+  // Keep a map of "item in the parentInstance list" -> "that item's ObjectState"
   const rowMap = new Map<U, ObjectStateInternal<U>>();
+  const addedRows = new Set<U>();
   const _tick = observable({ value: 1 });
   const _originalValueTick = observable({ value: 1 });
   const _childTick = observable({ value: 1 });
@@ -218,20 +222,91 @@ export function newListFieldState<T, K extends keyof T, U>(
       // passing us cloned rows from the parentCopy, but `getOrCreateChildState` will
       // use the `copyMap` to recover the non-cloned rows, to avoid promoting the clone
       // into a real row.
-      parentInstance[key] = (values ?? []).map((child) => getOrCreateChildState(child, opts).value) as any as T[K];
-      // Make sure to tick first so that `setOriginalValue` sees the latest `rows`
-      _tick.value++;
-      // Reset originalCopy so that our dirty checks have the right # of rows.
-      if (opts.refreshing) {
-        this.setOriginalValue();
+      if (this.dirty && opts.refreshing) {
+        // When refreshing a dirty list, we need to preserve WIP values
+
+        // Start with current list, then merge in incoming changes
+        //
+        // These will all be POJOs, where `currentItems` existing in our `parentInstance`, and
+        // `incomingItems` could really be any of:
+        // - an instance from `parentInstance[key]` that user code is passing back in
+        // - an instance from `parentCopy[key]` that a cache refresh is passing in
+        // - a new instance, either from a cache refresh or user code, that we haven't seen yet
+        const currentItems = this.value || [];
+        const incomingItems = values || [];
+        const mergedItems: U[] = [];
+
+        // Index by idKey or a hash of the object, so we don't have to n^2 merging
+        const idKey = this.rows.length > 0 && (this.rows[0] as any as ObjectStateInternal).idKey;
+        const hashItem = (item: any) => (idKey && item[idKey]) || hash(item);
+        const hashWithoutId = (item: any) =>
+          hash(Object.fromEntries(Object.entries(item as object).filter(([key]) => key !== idKey)));
+        const currentById = groupBy(currentItems, hashItem);
+        const incomingById = groupBy(incomingItems, hashItem);
+        // If our local instance doesn't assign in id, when we get results back from the server, strip
+        // their id and then see if we're the same based on data. Note that this is a hueristic, and will
+        // fail if the client-side has made additional changes to the child after submitting it to the server,
+        // or if the server acks back more/different data than the client sent.
+        //
+        // Only do this if one of our client-side objects is missing an id
+        const incomingByHash =
+          idKey && currentItems.some((item) => !(item as any)[idKey]) && groupBy(incomingItems, hashWithoutId);
+
+        // First, process all current items
+        for (const currentItem of currentItems) {
+          const childState = rowMap.get(currentItem)!; // We'll always have a child state for `currentItems`
+          // Try to find a matching item in the incoming data
+          const hash = hashItem(currentItem);
+          const match = (incomingById.get(hash)?.[0] ?? (!!incomingByHash && incomingByHash?.get(hash)?.[0])) as
+            | U
+            | undefined;
+          if (match) {
+            // Defer to set to handle not nuking WIP changes
+            childState.set(match, opts);
+            mergedItems.push(childState.value);
+            // Once matched, we don't this to be an addedRow anymore
+            addedRows.delete(currentItem);
+          } else if (childState.dirty || addedRows.has(currentItem)) {
+            // If no incoming, but we're dirty, keep the WIP change
+            mergedItems.push(currentItem);
+          } else {
+            // Local is not dirty, and it's not upstream, so remove it
+          }
+        }
+
+        // Then, add any incoming items that don't exist in current
+        for (const incomingItem of incomingItems) {
+          // Look for both `incoming.id` and the incoming-sans-id for new entities
+          const match =
+            currentById.get(hashItem(incomingItem))?.[0] || currentById.get(hashWithoutId(incomingItem))?.[0];
+          if (!match) {
+            // New item from server, add it
+            const childState = getOrCreateChildState(incomingItem, opts);
+            mergedItems.push(childState.value);
+          }
+        }
+
+        parentInstance[key] = mergedItems as any as T[K];
+        _tick.value++;
+
+        // Set original to not merged...
+        this.setOriginalValue(incomingItems);
+      } else {
+        parentInstance[key] = (values ?? []).map((child) => getOrCreateChildState(child, opts).value) as any as T[K];
+        _tick.value++;
+        // Reset originalCopy so that our dirty checks have the right # of rows.
+        if (opts.refreshing) {
+          this.setOriginalValue();
+        }
       }
     },
 
     add(value: U, spliceIndex?: number): void {
       // This is called by the user, so value should be a non-proxy value we should keep
       const childState = getOrCreateChildState(value) as ObjectStateInternal<U>;
-      // const childState = createObjectState(config, value, { maybeAutoSave }) as ObjectStateInternal<U>;
       rowMap.set(value, childState);
+      // Let `.set` know this is a new row
+      addedRows.add(value);
       this.ensureSet();
       this.value.splice(typeof spliceIndex === "number" ? spliceIndex : this.value.length, 0, childState.value);
       _tick.value++;
@@ -273,9 +348,9 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
 
     // This should only be called when value === originalValue
-    setOriginalValue() {
+    setOriginalValue(incomingItems?: U[]) {
       // Use the rows' originalValues to update the parentCopy
-      parentCopy[key] = this.rows.map((r) => r.originalValue) as any;
+      parentCopy[key] = incomingItems ?? (this.rows.map((r) => r.originalValue) as any);
       (parentCopy[key] as U[]).forEach((copy, i) => {
         copyMap.set(copy, (parentInstance[key] as any)[i]);
       });

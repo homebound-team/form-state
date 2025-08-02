@@ -164,6 +164,18 @@ export function deepClone<T>(obj: T, map = new WeakMap()): T {
   }
 }
 
+export function groupBy<T, Y = T, K = string>(list: readonly T[], fn: (x: T) => K, valueFn?: (x: T) => Y): Map<K, Y[]> {
+  const result = new Map<K, Y[]>();
+  list.forEach((o) => {
+    const group = fn(o);
+    if (!result.has(group)) {
+      result.set(group, []);
+    }
+    result.get(group)!.push(valueFn === undefined ? (o as any as Y) : valueFn(o));
+  });
+  return result;
+}
+
 /** Returns all property names, including mobx computeds (non-enumerable) & inherited. */
 function getAllPropertyNames(obj: unknown): string[] {
   const proto = Object.getPrototypeOf(obj);
