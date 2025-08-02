@@ -209,6 +209,13 @@ describe("formState", () => {
     // And it's still considered changed
     expect(state.books.dirty).toBe(true);
     expect(state.books.originalValue).toEqual([]);
+
+    // And later when we refresh with the value acked from the server
+    state.set({ books: [{ id: "b:1", title: "b1", isPublished: true }] }, { refreshing: true } as InternalSetOpts);
+    // Then we have only 1 value
+    expect(state.books.value).toEqual([{ id: "b:1", title: "b1", isPublished: true }]);
+    // And we're not longer dirty
+    expect(state.books.dirty).toBe(false);
   });
 
   it("list value can observe changes", () => {
@@ -2035,6 +2042,7 @@ const authorWithBooksConfig = f.config<AuthorInput>({
     id: f.value(),
     title: f.value().req(),
     classification: f.value(),
+    isPublished: f.value(),
   }),
 });
 

@@ -30,6 +30,7 @@ export function newListFieldState<T, K extends keyof T, U>(
 ): ListFieldState<U> {
   // Keep a map of "item in the parentInstance list" -> "that item's ObjectState"
   const rowMap = new Map<U, ObjectStateInternal<U>>();
+  const addedRows = new Set<U>();
   const _tick = observable({ value: 1 });
   const _originalValueTick = observable({ value: 1 });
   const _childTick = observable({ value: 1 });
@@ -248,9 +249,11 @@ export function newListFieldState<T, K extends keyof T, U>(
           const match = incomingById.get(hashItem(currentItem))?.[0];
           if (match) {
             // Defer to set to handle not nuking WIP changes
-            childState.set(match);
+            childState.set(match, opts);
             mergedItems.push(childState.value);
-          } else if (childState.dirty || childState.isNewEntity) {
+            // Once matched, we don't this to be an addedRow anymore
+            addedRows.delete(currentItem);
+          } else if (childState.dirty || addedRows.has(currentItem)) {
             // If no incoming, but we're dirty, keep the WIP change
             mergedItems.push(currentItem);
           } else {
@@ -269,24 +272,26 @@ export function newListFieldState<T, K extends keyof T, U>(
         }
 
         parentInstance[key] = mergedItems as any as T[K];
+        _tick.value++;
 
         // Set original to not merged...
+        this.setOriginalValue(incomingItems);
       } else {
         parentInstance[key] = (values ?? []).map((child) => getOrCreateChildState(child, opts).value) as any as T[K];
-      }
-      // Make sure to tick first so that `setOriginalValue` sees the latest `rows`
-      _tick.value++;
-      // Reset originalCopy so that our dirty checks have the right # of rows.
-      if (opts.refreshing) {
-        this.setOriginalValue();
+        _tick.value++;
+        // Reset originalCopy so that our dirty checks have the right # of rows.
+        if (opts.refreshing) {
+          this.setOriginalValue();
+        }
       }
     },
 
     add(value: U, spliceIndex?: number): void {
       // This is called by the user, so value should be a non-proxy value we should keep
       const childState = getOrCreateChildState(value) as ObjectStateInternal<U>;
-      // const childState = createObjectState(config, value, { maybeAutoSave }) as ObjectStateInternal<U>;
       rowMap.set(value, childState);
+      // Let `.set` know this is a new row
+      addedRows.add(value);
       this.ensureSet();
       this.value.splice(typeof spliceIndex === "number" ? spliceIndex : this.value.length, 0, childState.value);
       _tick.value++;
@@ -328,9 +333,9 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
 
     // This should only be called when value === originalValue
-    setOriginalValue() {
+    setOriginalValue(incomingItems?: U[]) {
       // Use the rows' originalValues to update the parentCopy
-      parentCopy[key] = this.rows.map((r) => r.originalValue) as any;
+      parentCopy[key] = incomingItems ?? (this.rows.map((r) => r.originalValue) as any);
       (parentCopy[key] as U[]).forEach((copy, i) => {
         copyMap.set(copy, (parentInstance[key] as any)[i]);
       });
