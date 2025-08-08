@@ -27,6 +27,7 @@ export function newListFieldState<T, K extends keyof T, U>(
   config: ObjectFieldConfig<U>,
   strictOrder: boolean,
   maybeAutoSave: () => void,
+  deepExhaustive: boolean,
 ): ListFieldState<U> {
   // Keep a map of "item in the parentInstance list" -> "that item's ObjectState"
   const rowMap = new Map<U, ObjectStateInternal<U>>();
@@ -72,6 +73,7 @@ export function newListFieldState<T, K extends keyof T, U>(
         child,
         undefined,
         maybeAutoSave,
+        listConfig.update === "deep-exhaustive" ?? deepExhaustive,
       ) as ObjectStateInternal<U>;
       rowMap.set(child, childState);
     }
