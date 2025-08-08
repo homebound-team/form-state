@@ -90,6 +90,7 @@ export function createObjectState<T>(
     instance,
     undefined,
     opts.maybeAutoSave || noop,
+    false,
   );
 }
 
@@ -102,6 +103,7 @@ export function newObjectState<T, P = any>(
   instance: T,
   key: keyof T | undefined,
   maybeAutoSave: () => void,
+  deepExhaustive: boolean,
 ): ObjectState<T> {
   // This is what we return, but we only know it's value until we call `observable`, so
   // we create a mutable variable to capture it so that we can create fields/call their
@@ -162,6 +164,7 @@ export function newObjectState<T, P = any>(
         { type: "object", config: config.config },
         config.strictOrder ?? true,
         maybeAutoSave,
+        deepExhaustive,
       );
     } else if (config.type === "object") {
       // Because our objectField will fundamentally want to do `child.firstName.set(...)` or
@@ -179,6 +182,7 @@ export function newObjectState<T, P = any>(
         instance[key] as any,
         key,
         maybeAutoSave,
+        deepExhaustive,
       ) as any;
     } else if (config.type === "fragment") {
       field = newFragmentField(instance as object & T, key as any);
@@ -361,7 +365,9 @@ export function newObjectState<T, P = any>(
             f.changedValue &&
             Object.entries(f.changedValue).length > 0) ||
           // ...or they're non-empty sub-lists
-          (this.isNewEntity && (f as any)._kind === "list" && f.value?.length > 0)
+          (this.isNewEntity && (f as any)._kind === "list" && f.value?.length > 0) ||
+          // ...or the parent list is deep-exhaustive
+          deepExhaustive
         ) {
           result[f.key] = f.changedValue;
         }

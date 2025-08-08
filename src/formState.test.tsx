@@ -1531,7 +1531,7 @@ describe("formState", () => {
     expect(formState.changedValue).toEqual({ firstName: "First" });
   });
 
-  it("can return only changed list fields", () => {
+  it("can return only changed and exhaustive list fields", () => {
     // Given an author with some books
     const formState = createObjectState(authorWithBooksConfig, {
       id: "a:1",
@@ -1624,6 +1624,44 @@ describe("formState", () => {
     expect(formState.changedValue).toEqual({
       id: "a:1",
       books: [{ id: "b:1", title: "t1b" }],
+    });
+  });
+
+  it("can return only changed but deep exhaustive list fields", () => {
+    // Given an author
+    const formState = createObjectState<AuthorInput>(
+      {
+        id: { type: "value" },
+        // And the books collection is marked as deep-exhaustive
+        books: {
+          type: "list",
+          update: "deep-exhaustive",
+          config: {
+            id: { type: "value" },
+            title: { type: "value", rules: [required] },
+          },
+        },
+      },
+      {
+        id: "a:1",
+        firstName: "f",
+        books: [
+          { id: "b:1", title: "t1" },
+          { id: "b:2", title: "t2" },
+        ],
+      },
+    );
+    // And initially nothing is changed
+    expect(formState.changedValue).toEqual({ id: "a:1" });
+    // When we change the 1st book
+    formState.books.rows[0].title.value = "t1b";
+    // Then we see all books & all attributes
+    expect(formState.changedValue).toEqual({
+      id: "a:1",
+      books: [
+        { id: "b:1", title: "t1b" },
+        { id: "b:2", title: "t2" },
+      ],
     });
   });
 

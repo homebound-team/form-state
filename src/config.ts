@@ -73,10 +73,14 @@ export type ListFieldConfig<U> = {
    *
    * When incremental, we only include changed rows in `changedValue`.
    *
+   * When deep-exhaustive, we include all rows in `changedValue` and also
+   * all fields in the child entities, i.e. not just placeholder `{ id: "b:1" }`
+   * values for otherwise-unchanged children.
+   *
    * Defaults to `exhaustive` b/c that is the safest and also Joist's
    * default behavior.
    */
-  update?: "exhaustive" | "incremental";
+  update?: "exhaustive" | "incremental" | "deep-exhaustive";
   /** Set to not consider the order of the list when evaluating changed/dirty states, defaults true. */
   strictOrder?: false;
 };
