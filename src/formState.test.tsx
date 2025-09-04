@@ -1780,7 +1780,7 @@ describe("formState", () => {
     expect(ticks).toEqual(2);
   });
 
-  it("does not override a focused, changed field", () => {
+  it("keeps WIP changes for changed field", () => {
     const formState = createObjectState(authorWithBooksConfig, { firstName: "f", lastName: "l" });
     // Given first name is focused
     formState.firstName.focus();
@@ -1794,6 +1794,38 @@ describe("formState", () => {
     // But the user can still actively type a value
     formState.firstName.set("fff");
     expect(formState.firstName.value).toEqual("fff");
+  });
+
+  it("accepts server result if we have no further changes", () => {
+    const formState = createObjectState(authorWithBooksConfig, { id: "a:1", firstName: "f" });
+    // Given first name has wip edits
+    formState.firstName.set("ff");
+    // When a mutation result sets both firstName and lastName
+    (formState as any).set({ firstName: "f2" }, { refreshing: true });
+    // Then we don't overwrite the user's WIP work
+    expect(formState.firstName.value).toEqual("ff");
+    // But if we call changedValue, insinuating we're sending the value off to the server
+    expect(formState.changedValue).toEqual({ id: "a:1", firstName: "ff" });
+    // And now the server acks something different
+    (formState as any).set({ firstName: "FF" }, { refreshing: true });
+    // Then we accept the value
+    expect(formState.firstName.value).toEqual("FF");
+    expect(formState.firstName.dirty).toEqual(false);
+  });
+
+  it("rejects server result if we have further changes", () => {
+    const formState = createObjectState(authorWithBooksConfig, { id: "a:1", firstName: "f" });
+    // Given first name has wip edits
+    formState.firstName.set("ff");
+    // And we call changedValue, insinuating we're sending the value off to the server
+    expect(formState.changedValue).toEqual({ id: "a:1", firstName: "ff" });
+    // And the user changes the name yet again
+    formState.firstName.set("fff");
+    // And now the server acks something different
+    (formState as any).set({ firstName: "FF" }, { refreshing: true });
+    // Then we keep the "post-changedValue" value
+    expect(formState.firstName.value).toEqual("fff");
+    expect(formState.firstName.dirty).toEqual(true);
   });
 
   it("does update a focused, unchanged field", () => {
