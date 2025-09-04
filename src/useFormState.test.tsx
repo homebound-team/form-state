@@ -228,7 +228,7 @@ describe("useFormState", () => {
               <button data-testid="makeLocalChanges" onClick={makeLocalChanges} />
               <button data-testid="refreshData" onClick={() => setData(data2)} />
               <button data-testid="saveData" onClick={() => setData(data3)} />
-              <div data-testid="changedValue">{JSON.stringify(form.changedValue)}</div>
+              <div data-testid="dirty">{String(form.dirty)}</div>
             </div>
           )}
         </Observer>
@@ -247,12 +247,7 @@ describe("useFormState", () => {
     expect(r.firstName.textContent).toEqual("local");
     expect(r.street.textContent).toEqual("local");
     expect(r.title1.textContent).toEqual("local");
-    expect(JSON.parse(r.changedValue.textContent!)).toEqual({
-      id: "a:1",
-      address: { id: "address:1", street: "local" },
-      books: [{ id: "b:1", title: "local" }, { id: "b:2" }],
-      firstName: "local",
-    });
+    expect(r.dirty.textContent).toEqual("true");
 
     // And when the new query is ran i.e. due to a cache refresh
     click(r.refreshData);
@@ -266,19 +261,57 @@ describe("useFormState", () => {
     expect(r.city.textContent).toEqual("c2");
     expect(r.title2.textContent).toEqual("b2");
     expect(r.booksLength.textContent).toEqual("3");
-    expect(JSON.parse(r.changedValue.textContent!)).toEqual({
-      id: "a:1",
-      address: { id: "address:1", street: "local" },
-      books: [{ id: "b:1", title: "local" }, { id: "b:2" }, { id: "b:3" }],
-      firstName: "local",
-    });
+    expect(r.dirty.textContent).toEqual("true");
 
     // And then when our mutation results come back
     click(r.saveData);
-    // Then changedValue doesn't show our local changes anymore
-    expect(JSON.parse(r.changedValue.textContent!)).toEqual({
-      id: "a:1",
-    });
+    // And we're not dirty anymore
+    expect(r.dirty.textContent).toEqual("false");
+  });
+
+  it("accepts server values if client has no further changes", async () => {
+    function TestComponent() {
+      type FormValue = AuthorInput;
+      const config: ObjectConfig<FormValue> = authorWithAddressAndBooksConfig;
+      // The initial resposne
+      const data1 = { id: "a:1", firstName: "F1" };
+      // The acked response, which uppercases our submission
+      const data2 = { id: "a:1", firstName: "F2" };
+      // And we start out with data1
+      const [data, setData] = useState<FormValue>(data1);
+      const form = useFormState({ config, init: { input: data } });
+      function makeLocalChanges() {
+        form.firstName.value = "f2";
+      }
+      return (
+        <Observer>
+          {() => (
+            <div>
+              <div data-testid="firstName">{form.firstName.value}</div>
+              <button data-testid="makeLocalChanges" onClick={makeLocalChanges} />
+              <button
+                data-testid="refreshData"
+                onClick={() => {
+                  noop(form.changedValue); // pretend we put this on the wire
+                  setData(data2);
+                }}
+              />
+            </div>
+          )}
+        </Observer>
+      );
+    }
+    // And we start out with the initial query data
+    const r = await render(<TestComponent />);
+    expect(r.firstName.textContent).toEqual("F1");
+    // When we make some local changes
+    click(r.makeLocalChanges);
+    // Then we see them
+    expect(r.firstName.textContent).toEqual("f2");
+    // And when the server acks a slightly different result
+    click(r.refreshData);
+    // Then we accept it
+    expect(r.firstName.textContent).toEqual("F2");
   });
 
   it("can accept new data while read only", async () => {
@@ -902,3 +935,5 @@ function focusAndBlur(state: FieldState<any>): void {
   state.focus();
   state.blur();
 }
+
+function noop(value: any): void {}

@@ -101,6 +101,13 @@ export function newValueFieldState<T, K extends keyof T>(
   // which itself is not a proxy, we use this as our "value changed" trigger.
   const _tick = observable({ value: 1 });
   const _originalValueTick = observable({ value: 1 });
+  // Track "this is probably what we put into a mutation to the server" to allow
+  // use to better accept server acks/responses that change our initial submission.
+  //
+  // I.e. we submit `firstName: bob` and the server acks `firstName: Bob`, we should
+  // accept it if we can tell we haven't changed `bob` since our initial submission.
+  let hasInflightChangedValue = false;
+  let lastChangedValue: V | undefined = undefined;
 
   const field = {
     key: key as string,
@@ -164,6 +171,10 @@ export function newValueFieldState<T, K extends keyof T>(
 
     // For primitive fields, the changed value is just the value.
     get changedValue() {
+      // Add some hints to let `set(..., { refreshing: true })` accept server-driven changes to our value,
+      // if the user hasn't changed it yet-again while the changedValue was in in-flight.
+      hasInflightChangedValue = true;
+      lastChangedValue = this.value;
       // Usually if we see a field being unset, we set `parent[key] = null`, but if we're wrapping
       // a mobx observable object, it might have changed to `undefined` without us being able to
       // tell it to be `null` (and potentially break the type contract of `string | undefined`).
@@ -213,12 +224,17 @@ export function newValueFieldState<T, K extends keyof T>(
         throw new Error(`${String(key)} is currently readOnly`);
       }
 
-      const isAckingUnset = this.value === null && (value === null || value === undefined);
-      if (opts.refreshing && this.dirty && this.value !== value && !isAckingUnset) {
-        // Ignore incoming values if we have changes (this.dirty) unless our latest change (this.value)
-        // matches the incoming value (value), b/c if it does we should accept it and reset originalValue
-        // so that we're no longer dirty.
-        return;
+      if (opts.refreshing && this.dirty) {
+        // See if we should ignore the incoming server-side value, to avoid dropping local WIP changes
+        const isAckingUnset = this.value === null && (value === null || value === undefined);
+        const acceptServerAck = hasInflightChangedValue && this.value === lastChangedValue;
+        // Ignore incoming values if we have changes (this.dirty) unless:
+        // - our latest change (this.value) matches the incoming value (value), i.e. the server
+        //   is exactly acking our change, or
+        // - the user hasn't made any changes since `.changedValue` was put on the wire, i.e. the
+        //   server received our value, but wanted to to change it.
+        const keepLocalWipChange = this.value !== value && !isAckingUnset && !acceptServerAck;
+        if (keepLocalWipChange) return;
       } else if (computed && (opts.resetting || opts.refreshing)) {
         // Computeds can't be either reset or refreshed
         return;
@@ -230,6 +246,8 @@ export function newValueFieldState<T, K extends keyof T>(
       // If a list of primitives was originally undefined, coerce `[]` to `undefined`
       const coerceEmptyList = value && value instanceof Array && value.length === 0 && isEmpty(this.originalValue);
       const newValue = keepNull ? null : isEmpty(value) || coerceEmptyList ? undefined : value;
+
+      hasInflightChangedValue = false;
 
       // Set the value on our parent object
       const changed = !areEqual(newValue, this.value, strictOrder);
