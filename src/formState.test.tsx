@@ -1813,6 +1813,19 @@ describe("formState", () => {
     expect(formState.firstName.dirty).toEqual(false);
   });
 
+  it("ignores cache refresh of our original value", () => {
+    const formState = createObjectState(authorWithBooksConfig, { id: "a:1", firstName: "f" });
+    // Given first name has wip edits
+    formState.firstName.set("ff");
+    // And we've called changedValue to put it on the wire
+    expect(formState.changedValue).toEqual({ id: "a:1", firstName: "ff" });
+    // But then a cache refresh fires with our original `f`
+    (formState as any).set({ firstName: "f" }, { refreshing: true });
+    // Then we keep our WIP value
+    expect(formState.firstName.value).toEqual("ff");
+    expect(formState.firstName.dirty).toEqual(true);
+  });
+
   it("rejects server result if we have further changes", () => {
     const formState = createObjectState(authorWithBooksConfig, { id: "a:1", firstName: "f" });
     // Given first name has wip edits

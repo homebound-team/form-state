@@ -227,12 +227,19 @@ export function newValueFieldState<T, K extends keyof T>(
       if (opts.refreshing && this.dirty) {
         // See if we should ignore the incoming server-side value, to avoid dropping local WIP changes
         const isAckingUnset = this.value === null && (value === null || value === undefined);
-        const acceptServerAck = hasInflightChangedValue && this.value === lastChangedValue;
+        const acceptServerAck =
+          hasInflightChangedValue &&
+          this.value === lastChangedValue &&
+          // If value === originalValue, this is likely a cache refresh firing in-between "we put the new value
+          // on the wire" and "the server acked our change". Granted, this heuristic means that if the server
+          // really does reject/rollback our change, we'll ignore it, but atm we don't have a way of differentiating
+          // "this refresh is from a pre-response cache refresh" vs. "post-response cache refresh".
+          value !== this.originalValue;
         // Ignore incoming values if we have changes (this.dirty) unless:
         // - our latest change (this.value) matches the incoming value (value), i.e. the server
         //   is exactly acking our change, or
         // - the user hasn't made any changes since `.changedValue` was put on the wire, i.e. the
-        //   server received our value, but wanted to to change it.
+        //   server received our value, but wanted to change it.
         const keepLocalWipChange = this.value !== value && !isAckingUnset && !acceptServerAck;
         if (keepLocalWipChange) return;
       } else if (computed && (opts.resetting || opts.refreshing)) {
