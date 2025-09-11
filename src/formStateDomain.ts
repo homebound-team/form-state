@@ -37,6 +37,12 @@ export interface BookInput {
   delete?: boolean | null | undefined;
   isPublished?: boolean;
   op?: "include" | "delete" | "remove";
+  reviews?: ReviewInput[];
+}
+
+export interface ReviewInput {
+  id?: string | null | undefined;
+  rating?: number | null | undefined;
 }
 
 export interface DeweyDecimalClassification {
