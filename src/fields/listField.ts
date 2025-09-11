@@ -117,6 +117,12 @@ export function newListFieldState<T, K extends keyof T, U>(
       return this.rows.some((r) => r.dirty) || this.hasChanged();
     },
 
+    // Having a new entity is slightly different than being dirty, b/c merely having a placeholder-but-not-changed-yet
+    // `isNewEntity` child should not fire autosave (which would happen if we're dirty).
+    get hasNewEntity(): boolean {
+      return this.rows.some((r) => r.isNewEntity);
+    },
+
     get focused(): boolean {
       return this.rows.some((r) => r.focused);
     },
@@ -224,7 +230,7 @@ export function newListFieldState<T, K extends keyof T, U>(
       // passing us cloned rows from the parentCopy, but `getOrCreateChildState` will
       // use the `copyMap` to recover the non-cloned rows, to avoid promoting the clone
       // into a real row.
-      if (this.dirty && opts.refreshing) {
+      if ((this.dirty || this.hasNewEntity) && opts.refreshing) {
         // When refreshing a dirty list, we need to preserve WIP values
 
         // Start with current list, then merge in incoming changes
@@ -240,19 +246,23 @@ export function newListFieldState<T, K extends keyof T, U>(
 
         // Index by idKey or a hash of the object, so we don't have to n^2 merging
         const idKey = this.rows.length > 0 && (this.rows[0] as any as ObjectStateInternal).idKey;
-        const hashItem = (item: any) => (idKey && item[idKey]) || hash(item);
-        const hashWithoutId = (item: any) =>
-          hash(Object.fromEntries(Object.entries(item as object).filter(([key]) => key !== idKey)));
-        const currentById = groupBy(currentItems, hashItem);
-        const incomingById = groupBy(incomingItems, hashItem);
+        // Look at our child config, i.e. `bookConfig` and find the non-id / non-list keys
+        const contentKeys = Object.entries(config.config)
+          .filter(([key, cfg]: any) => key !== idKey && cfg.type === "value")
+          .map(([key]) => key);
+        const hashByContent = (item: any) =>
+          hash(Object.fromEntries(Object.entries(item as object).filter(([key]) => contentKeys.includes(key))));
+        const hashById = (item: any) => (idKey && item[idKey]) || hashByContent(item);
+        const currentById = groupBy(currentItems, hashById);
+        const incomingById = groupBy(incomingItems, hashById);
         // If our local instance doesn't assign in id, when we get results back from the server, strip
         // their id and then see if we're the same based on data. Note that this is a hueristic, and will
         // fail if the client-side has made additional changes to the child after submitting it to the server,
         // or if the server acks back more/different data than the client sent.
         //
         // Only do this if one of our client-side objects is missing an id
-        const incomingByHash =
-          idKey && currentItems.some((item) => !(item as any)[idKey]) && groupBy(incomingItems, hashWithoutId);
+        const incomingByContent =
+          idKey && currentItems.some((item) => !(item as any)[idKey]) && groupBy(incomingItems, hashByContent);
 
         // Watch for deletions
         const hasOpKey = Object.keys(listConfig.config).includes("op");
@@ -261,17 +271,21 @@ export function newListFieldState<T, K extends keyof T, U>(
         for (const currentItem of currentItems) {
           const childState = rowMap.get(currentItem)!; // We'll always have a child state for `currentItems`
           // Try to find a matching item in the incoming data
-          const hash = hashItem(currentItem);
-          const match = (incomingById.get(hash)?.[0] ?? (!!incomingByHash && incomingByHash?.get(hash)?.[0])) as
-            | U
-            | undefined;
+          const hash = hashById(currentItem);
+          const match = (incomingById.get(hash)?.[0] ??
+            // Only if we don't have `book[id]` set, look for a match based on our content
+            (!!idKey &&
+              !(currentItem as any)[idKey] &&
+              !!incomingByContent &&
+              // If we don't have an id, our `hash` variable will already be the `hashByContent`, so we can reuse it
+              incomingByContent?.get(hash)?.[0])) as U | undefined;
           if (match) {
             // Defer to set to handle not nuking WIP changes
             childState.set(match, opts);
             mergedItems.push(childState.value);
-            // Once matched, we don't this to be an addedRow anymore
+            // Once matched, we don't want this to be an addedRow anymore
             addedRows.delete(currentItem);
-          } else if (!childState.dirty && !addedRows.has(currentItem)) {
+          } else if (!childState.dirty && !childState.isNewEntity && !addedRows.has(currentItem)) {
             // Local is not dirty/added, and it's not upstream, so let it get removed
           } else if (hasOpKey && (currentItem as any).op === "delete") {
             // We were locally marked as deleted, and not finding a match is the server acking that we're gone
@@ -291,7 +305,7 @@ export function newListFieldState<T, K extends keyof T, U>(
         for (const incomingItem of incomingItems) {
           // Look for both `incoming.id` and the incoming-sans-id for new entities
           const match =
-            currentById.get(hashItem(incomingItem))?.[0] || currentById.get(hashWithoutId(incomingItem))?.[0];
+            currentById.get(hashById(incomingItem))?.[0] || currentById.get(hashByContent(incomingItem))?.[0];
           if (!match) {
             // New item from server, add it
             const childState = getOrCreateChildState(incomingItem, opts);

@@ -324,6 +324,85 @@ describe("formState", () => {
     expect(state.books.dirty).toBe(false);
   });
 
+  it("list value can refresh and merge grand children that were added", () => {
+    // Given a list field that is currently populated with 1 child w/1 grandchild
+    const a1: AuthorInput = {
+      id: "a:1",
+      books: [{ id: "b:1", title: "b1", reviews: [{ id: "r:1", rating: 5 }] }],
+    };
+    const config = f.config<AuthorInput>({
+      id: f.value(),
+      books: f.list({
+        id: f.value(),
+        title: f.value().req(),
+        reviews: f.list({ id: f.value(), rating: f.value().req() }),
+      }),
+    });
+    const state = createObjectState<AuthorInput>(config, a1);
+    // When we add a new book with two ratings
+    state.books.add({ title: "b2", reviews: [{ rating: 4 }, { rating: 3 }] });
+    // When we refresh but only the 1st review grandchild existed when we auto-saved
+    state.set(
+      {
+        books: [
+          { id: "b:1", title: "b1" },
+          {
+            id: "b:2",
+            title: "b2",
+            reviews: [{ id: "r:2", rating: 4 }],
+          },
+        ],
+      },
+      { refreshing: true } as InternalSetOpts,
+    );
+    // Then we still have two books
+    expect(state.books.value).toEqual([
+      {
+        id: "b:1",
+        title: "b1",
+        reviews: [{ id: "r:1", rating: 5 }],
+      },
+      {
+        id: "b:2",
+        title: "b2",
+        // And we stitched together the ack-d 1st review (now with an id assigned) and the 2nd WIP review
+        reviews: [{ id: "r:2", rating: 4 }, { rating: 3 }],
+      },
+    ]);
+    // And we're still dirty
+    expect(state.books.dirty).toBe(true);
+    expect(state.books.rows[0].dirty).toBe(false);
+    expect(state.books.rows[1].dirty).toBe(true);
+    expect(state.books.rows[1].reviews.rows[0].dirty).toBe(false);
+    expect(state.books.rows[1].reviews.rows[1].dirty).toBe(false);
+    expect(state.books.rows[1].reviews.dirty).toBe(true);
+
+    // Until the 2nd auto-save completes
+    state.set(
+      {
+        books: [
+          { id: "b:1", title: "b1" },
+          {
+            id: "b:2",
+            title: "b2",
+            reviews: [
+              { id: "r:2", rating: 4 },
+              { id: "r:3", rating: 3 },
+            ],
+          },
+        ],
+      },
+      { refreshing: true } as InternalSetOpts,
+    );
+    // Then we stitch together the 2nd review as well
+    expect(state.books.value).toMatchObject([
+      { id: "b:1" },
+      { id: "b:2", reviews: [{ id: "r:2" }, { id: "r:3", rating: 3 }] },
+    ]);
+    // And we're no longer dirty
+    expect(state.books.dirty).toBe(false);
+  });
+
   it("list value can observe changes", () => {
     const b1: BookInput = { title: "t1" };
     const a1: AuthorInput = { firstName: "a1", books: [b1] };

@@ -185,11 +185,18 @@ describe("useFormState", () => {
       };
       const data2 = {
         id: "a:1",
-        firstName: "f2",
+        firstName: "f2", // we'll have a local WIP change
         lastName: "l2",
-        address: { id: "address:1", street: "s2", city: "c2" },
+        address: {
+          id: "address:1",
+          street: "s2", // we'll have a local WIP change
+          city: "c2",
+        },
         books: [
-          { id: "b:1", title: "a2" },
+          {
+            id: "b:1",
+            title: "a2", // we'll have a local WIP change
+          },
           { id: "b:2", title: "b2" },
           { id: "b:3", title: "b3" },
         ],
