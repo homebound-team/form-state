@@ -146,6 +146,7 @@ export function newObjectState<T, P = any>(
             )),
         config.isDeleteKey || false,
         config.isReadOnlyKey || false,
+        config.isLocalOnly || false,
         config.computed ??
           // If instance is a mobx class, we can detect computeds as they won't be enumerable
           (isObservable(instance) ? !(key in originalCopy) : false),
@@ -276,7 +277,7 @@ export function newObjectState<T, P = any>(
 
     get dirty(): boolean {
       return (
-        getFields(this).some((f) => f.dirty) ||
+        getFields(this).some((f) => f.dirty && !(f as FieldStateInternal<any, any>)._isLocalOnly) ||
         // `isUnset` checks if our `parent[key] === undefined`, which can mean "surely we're dirty",
         // but as long as we've got some keys actually set
         (this.isUnset() && !areEqual(this.value, {}))
@@ -353,6 +354,8 @@ export function newObjectState<T, P = any>(
         if ((f as any)._computed) return;
         // References only include the id key below
         if (config.reference) return;
+        // Ignore local-only fields
+        if (f._isLocalOnly) return;
         if (
           f.dirty ||
           // If the caller used useFormState.ifUndefined to provide some default values, then those keys may not

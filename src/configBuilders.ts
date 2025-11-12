@@ -94,6 +94,12 @@ export class ValueFieldConfigBuilder<V> {
     return this;
   }
 
+  /** Marks the field as local only. */
+  localOnly(): this {
+    this.config.isLocalOnly = true;
+    return this;
+  }
+
   /** Appends `rules` to the field's validation rules. */
   rules(rules: Rule<V | null | undefined>[]): this {
     (this.config.rules ??= []).push(...rules);

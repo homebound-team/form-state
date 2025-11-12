@@ -79,6 +79,7 @@ export interface FieldStateInternal<T, V> extends FieldState<V> {
   _isIdKey: boolean;
   _isDeleteKey: boolean;
   _isReadOnlyKey: boolean;
+  _isLocalOnly: boolean;
 }
 
 export function newValueFieldState<T, K extends keyof T>(
@@ -90,6 +91,7 @@ export function newValueFieldState<T, K extends keyof T>(
   isIdKey: boolean,
   isDeleteKey: boolean,
   isReadOnlyKey: boolean,
+  isLocalOnly: boolean,
   computed: boolean,
   readOnly: boolean,
   strictOrder: boolean,
@@ -125,6 +127,7 @@ export function newValueFieldState<T, K extends keyof T>(
     _isIdKey: isIdKey,
     _isDeleteKey: isDeleteKey,
     _isReadOnlyKey: isReadOnlyKey,
+    _isLocalOnly: isLocalOnly,
 
     rules,
 
