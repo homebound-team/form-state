@@ -44,6 +44,8 @@ export type ValueFieldConfig<V> = {
   isDeleteKey?: boolean;
   /** If true, the entity that contains this value will be treated as read only. */
   isReadOnlyKey?: boolean;
+  /** If true, we ignore field in dirty checks. */
+  isLocalOnly?: boolean;
   /**
    * Marks a field as being backed by a mobx class computed field.
    *

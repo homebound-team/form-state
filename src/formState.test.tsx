@@ -726,6 +726,34 @@ describe("formState", () => {
     expect(a1.dirty).toBeFalsy();
   });
 
+  it("can ignore isLocalOnly fields as not dirty", () => {
+    // Given we have an `isPublished` field that is marked as local only
+    const config: ObjectConfig<AuthorInput> = {
+      id: { type: "value" },
+      books: {
+        type: "list",
+        config: {
+          id: { type: "value" },
+          isPublished: { type: "value", isLocalOnly: true },
+        },
+      },
+    };
+    // And it starts out true
+    const a1 = createObjectState<AuthorInput>(config, {
+      id: "a:1",
+      books: [{ id: "b:1", isPublished: true }],
+    });
+    // When we change the value to false
+    a1.books.rows[0].isPublished.value = false;
+    // Then the field itself is dirty
+    expect(a1.books.rows[0].isPublished.dirty).toBe(true);
+    // But object is not
+    expect(a1.dirty).toBe(false);
+    expect(a1.books.dirty).toBe(false);
+    // And we don't include it in changedValue
+    expect(a1.changedValue).toEqual({ id: "a:1" });
+  });
+
   it("handles list fields with duplicate ids", () => {
     // Given an author that incorrectly has duplicate books
     const a1 = createAuthorInputState({

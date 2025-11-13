@@ -25,6 +25,7 @@ export function newFragmentField<T extends object, K extends keyof T & string>(
     _isIdKey: false,
     _isDeleteKey: false,
     _isReadOnlyKey: false,
+    _isLocalOnly: false,
     touched: false,
     valid: true,
     readOnly: true,
