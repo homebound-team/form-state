@@ -1,5 +1,5 @@
 import { isPlainObject } from "is-plain-object";
-import { isObservable, observable, reaction, toJS } from "mobx";
+import { observablePrimitive, observable as lsObservable } from "@legendapp/state";
 import { ObjectState } from "src/fields/objectField";
 import { newDelegateProxy } from "src/proxies";
 import { Rule, required } from "src/rules";
@@ -10,7 +10,7 @@ import { areEqual, fail, isEmpty, isNotUndefined } from "src/utils";
  *
  * This API also provides hooks for form elements to call into, i.e. `blur()` and `set(...)` that will
  * update the field state and re-render, i.e. when including in an `ObjectState`-typed literal that is
- * an mobx `useLocalObservable`/observable.
+ * observable.
  *
  * Note that `V` will always have `null | undefined` added to it by `FieldStates`, b/c most form fields
  * i.e. text boxes, can always be cleared out/deleted.
@@ -101,39 +101,47 @@ export function newValueFieldState<T, K extends keyof T>(
 
   // Because we read/write the value directly back into parentInstance[key],
   // which itself is not a proxy, we use this as our "value changed" trigger.
-  const _tick = observable({ value: 1 });
-  const _originalValueTick = observable({ value: 1 });
+  const _tick = observablePrimitive(1);
+  const _originalValueTick = observablePrimitive(1);
   // Track "this is probably what we put into a mutation to the server" to allow
   // use to better accept server acks/responses that change our initial submission.
-  //
-  // I.e. we submit `firstName: bob` and the server acks `firstName: Bob`, we should
-  // accept it if we can tell we haven't changed `bob` since our initial submission.
   let hasInflightChangedValue = false;
   let lastChangedValue: V | undefined = undefined;
+
+  // Mutable state backed by Legend-State observables for reactivity
+  const _touched = observablePrimitive(false);
+  const _readOnly = observablePrimitive(readOnly || false);
+  const _loading = observablePrimitive(false);
+  const _focused = observablePrimitive(false);
+  const _rules = lsObservable(rules);
 
   const field = {
     key: key as string,
 
-    touched: false,
-
-    /** Current readOnly value. */
-    _readOnly: readOnly || false,
-    _loading: false,
-    _kind: "value",
-    // Expose so computed can be skipped in changedValue
-    _computed: computed,
-    _focused: false,
+    get touched() {
+      return _touched.get();
+    },
+    set touched(v: boolean) {
+      _touched.set(v);
+    },
 
     _isIdKey: isIdKey,
     _isDeleteKey: isDeleteKey,
     _isReadOnlyKey: isReadOnlyKey,
     _isLocalOnly: isLocalOnly,
+    _kind: "value",
+    // Expose so computed can be skipped in changedValue
+    _computed: computed,
 
-    rules,
+    get rules(): Rule<V | null | undefined>[] {
+      return _rules.get();
+    },
+    set rules(v: Rule<V | null | undefined>[]) {
+      _rules.set(v);
+    },
 
     get value(): V {
-      // If we're wrapping a mobx store, then we'll get reactivity from parentInstance[key]
-      const value = _tick.value > 0 ? parentInstance[key] : fail();
+      const value = _tick.get() > 0 ? parentInstance[key] : fail();
       // Re-create the `keepNull` logic on sets but for our initial read where our
       // originalValue is null (empty) but we want to expose it as undefined for
       // consistency of "empty-ness" to our UI components.
@@ -145,7 +153,7 @@ export function newValueFieldState<T, K extends keyof T>(
     },
 
     get focused(): boolean {
-      return this._focused;
+      return _focused.get();
     },
 
     get dirty(): boolean {
@@ -154,22 +162,22 @@ export function newValueFieldState<T, K extends keyof T>(
 
     /** Returns whether this field is readOnly, although if our parent is readOnly then it trumps. */
     get readOnly(): boolean {
-      return parentState().readOnly || this._readOnly;
+      return parentState().readOnly || _readOnly.get();
     },
 
     /** Sets the field readOnly, but `loading` will still be or-d with the parent's readOnly state. */
     set readOnly(readOnly: boolean) {
-      this._readOnly = readOnly;
+      _readOnly.set(readOnly);
     },
 
     /** Returns whether this field is loading, or if our parent is loading. */
     get loading(): boolean {
-      return parentState().loading || this._loading;
+      return parentState().loading || _loading.get();
     },
 
     /** Sets the field loading, but `loading` will still be or-d with the parent's loading state. */
     set loading(loading: boolean) {
-      this._loading = loading;
+      _loading.set(loading);
     },
 
     // For primitive fields, the changed value is just the value.
@@ -179,7 +187,7 @@ export function newValueFieldState<T, K extends keyof T>(
       hasInflightChangedValue = true;
       lastChangedValue = this.value;
       // Usually if we see a field being unset, we set `parent[key] = null`, but if we're wrapping
-      // a mobx observable object, it might have changed to `undefined` without us being able to
+      // an observable object, it might have changed to `undefined` without us being able to
       // tell it to be `null` (and potentially break the type contract of `string | undefined`).
       // So detect un-set-ness here and return `null`.
       if (this.value === undefined && this.originalValue !== undefined) return null;
@@ -205,12 +213,12 @@ export function newValueFieldState<T, K extends keyof T>(
     },
 
     focus() {
-      this._focused = true;
+      _focused.set(true);
     },
 
     blur() {
       this.maybeAutoSave();
-      this._focused = false;
+      _focused.set(false);
     },
 
     maybeAutoSave() {
@@ -225,6 +233,11 @@ export function newValueFieldState<T, K extends keyof T>(
     set(value: V | null | undefined, opts: InternalSetOpts = {}) {
       if (this.readOnly && !opts.resetting && !opts.refreshing) {
         throw new Error(`${String(key)} is currently readOnly`);
+      }
+
+      if (computed && (opts.resetting || opts.refreshing)) {
+        // Computeds can't be either reset or refreshed
+        return;
       }
 
       if (opts.refreshing && this.dirty) {
@@ -245,9 +258,6 @@ export function newValueFieldState<T, K extends keyof T>(
         //   server received our value, but wanted to change it.
         const keepLocalWipChange = this.value !== value && !isAckingUnset && !acceptServerAck;
         if (keepLocalWipChange) return;
-      } else if (computed && (opts.resetting || opts.refreshing)) {
-        // Computeds can't be either reset or refreshed
-        return;
       }
 
       // If the user has deleted/emptied a value that was originally set, keep it as `null`
@@ -261,15 +271,16 @@ export function newValueFieldState<T, K extends keyof T>(
 
       // Set the value on our parent object
       const changed = !areEqual(newValue, this.value, strictOrder);
+      if (!changed && !opts.refreshing) return;
       parentInstance[key] = newValue!;
-      _tick.value++;
+      _tick.set((t) => t + 1);
 
       if (opts.refreshing) {
         this.originalValue = newValue as any;
       }
       // If we're being set programmatically, i.e. we don't currently have focus,
       // call blur to trigger any auto-saves.
-      if (!this._focused && !opts.refreshing && !opts.resetting && this.dirty && changed && opts.autoSave !== false) {
+      if (!_focused.peek() && !opts.refreshing && !opts.resetting && this.dirty && changed && opts.autoSave !== false) {
         this.maybeAutoSave();
       }
     },
@@ -287,7 +298,7 @@ export function newValueFieldState<T, K extends keyof T>(
 
     commitChanges() {
       if (isPlainObject(this.originalValue)) {
-        this.originalValue = toJS(this.value);
+        this.originalValue = JSON.parse(JSON.stringify(this.value));
       } else {
         this.originalValue = this.value;
       }
@@ -296,7 +307,7 @@ export function newValueFieldState<T, K extends keyof T>(
 
     get originalValue(): V {
       // A dummy check to for reactivity around our non-proxy value
-      const value = _originalValueTick.value > -1 ? parentCopy[key] : parentCopy[key];
+      const value = _originalValueTick.get() > -1 ? parentCopy[key] : parentCopy[key];
       // Re-create the `keepNull` logic so that `.value` === `.originalValue`
       return value === null ? (undefined as any) : value;
     },
@@ -304,7 +315,7 @@ export function newValueFieldState<T, K extends keyof T>(
     set originalValue(v: V) {
       const canSkip = v === undefined && !(key in (parentCopy as any));
       if (!canSkip) parentCopy[key] = v;
-      _originalValueTick.value++;
+      _originalValueTick.set((t) => t + 1);
     },
 
     maybeTrim() {
@@ -319,19 +330,6 @@ export function newValueFieldState<T, K extends keyof T>(
       }
     },
   };
-
-  // If we're wrapping a mobx observer, watching for external mutations, i.e. from callers not
-  // going through our FieldState.set/FieldState.value setters.
-  if (isObservable(parentInstance)) {
-    reaction(
-      () => parentInstance[key],
-      () => {
-        // Don't auto-save on maybe-external mutation if our field, or another other field (potentially a computed),
-        // is currently focused, because then it's probably just us doing the writes through `Bound...Field` components.
-        if (!parentState().focused) maybeAutoSave();
-      },
-    );
-  }
 
   return field as any;
 }

@@ -1,7 +1,6 @@
-import { makeAutoObservable, observable } from "mobx";
+import { observable, Observable } from "@legendapp/state";
 import { FieldState, FieldStateInternal, ValueAdapter } from "src/fields/valueField";
 import { fail } from "src/utils";
-import { V } from "vite/dist/node/types.d-aGj9QkWt";
 
 export interface FragmentField<V> {
   value: V;
@@ -13,7 +12,7 @@ export function newFragmentField<T extends object, K extends keyof T & string>(
 ): FragmentField<T[K]> {
   // We always return the same `instance` field from our `value` method, but
   // we want to pretend that it's observable, so use a tick to force it.
-  const _tick = observable({ value: 1 });
+  const _tick = observable(1);
 
   // We steal the fragment from our parent, so that it doesn't
   // accidentally end up on the wire
@@ -50,23 +49,23 @@ export function newFragmentField<T extends object, K extends keyof T & string>(
         value = parentInstance[key];
         delete parentInstance[key];
       }
-      _tick.value > 0 || fail();
+      _tick.get() > 0 || fail();
       return value;
     },
 
     set value(v: T[K]) {
       value = v;
-      _tick.value++;
+      _tick.set((t) => t + 1);
     },
 
-    set(value) {
+    set(value: any) {
       this.value = value;
     },
 
-    adapt(value) {
+    adapt(value: any) {
       throw new Error("FragmentField does not support adapt");
     },
   } satisfies FieldStateInternal<T, any>;
 
-  return makeAutoObservable(obj, { value: false });
+  return obj;
 }

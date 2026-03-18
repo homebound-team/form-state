@@ -1,4 +1,4 @@
-import { computed, makeAutoObservable, observable, reaction } from "mobx";
+import { batch, observablePrimitive } from "@legendapp/state";
 import { ListFieldConfig, ObjectFieldConfig } from "src/config";
 import { ObjectState, ObjectStateInternal, newObjectState } from "src/fields/objectField";
 import { FieldState, InternalSetOpts } from "src/fields/valueField";
@@ -32,9 +32,14 @@ export function newListFieldState<T, K extends keyof T, U>(
   // Keep a map of "item in the parentInstance list" -> "that item's ObjectState"
   const rowMap = new Map<U, ObjectStateInternal<U>>();
   const addedRows = new Set<U>();
-  const _tick = observable({ value: 1 });
-  const _originalValueTick = observable({ value: 1 });
-  const _childTick = observable({ value: 1 });
+  const _tick = observablePrimitive(1);
+  const _originalValueTick = observablePrimitive(1);
+
+  // Mutable state backed by Legend-State observables
+  const _readOnly = observablePrimitive(false);
+  const _loading = observablePrimitive(false);
+  const _focused = observablePrimitive(false);
+  const _touched = observablePrimitive(false);
 
   // When child rows don't have ids (i.e. for new rows that aren't saved yet), we need an id-less
   // "clone <-> current" map to tell if we're dirty or not, i.e. whether `parentInstance[key]` has
@@ -85,28 +90,28 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     // Our fundamental state of wrapped Us
     get value() {
-      return _tick.value > 0 && _childTick.value > 0 ? ((parentInstance[key] ?? []) as any as U[]) : fail();
+      if (!(_tick.get() > 0)) fail();
+      // Track child row values so observers of our value see deep changes
+      this.rows.forEach((r) => r.value);
+      return (parentInstance[key] ?? []) as any as U[];
     },
 
     _kind: "list",
-    _focused: false,
-    _readOnly: false,
-    _loading: false,
 
     get readOnly(): boolean {
-      return this._readOnly || parentState().readOnly;
+      return _readOnly.get() || parentState().readOnly;
     },
 
     set readOnly(readOnly: boolean) {
-      this._readOnly = readOnly;
+      _readOnly.set(readOnly);
     },
 
     get loading(): boolean {
-      return this._loading || parentState().loading;
+      return _loading.get() || parentState().loading;
     },
 
     set loading(loading: boolean) {
-      this._loading = loading;
+      _loading.set(loading);
     },
 
     set value(v: U[]) {
@@ -151,20 +156,19 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     // And we can derive each value's ObjectState wrapper as needed from the rowMap cache
     get rows(): readonly ObjectState<U>[] {
-      // It's unclear why we need to access _tick.value here, b/c calling `this.value` should
-      // transitively register us as a dependency on it
-      if (_tick.value < 0) fail();
+      // Access _tick to register as a dependency
+      if (_tick.get() < 0) fail();
       // Avoid using `this.value` to avoid registering `_childTick` as a dependency
       const value = parentInstance[key] as any as U[];
       return (value || []).map((child) => getOrCreateChildState(child, { skipSet: true }));
     },
 
-    // TODO Should this be true when all rows are touched?
     get touched() {
-      return this.rows.some((r) => r.touched) || this.hasChanged();
+      return _touched.get() || this.rows.some((r) => r.touched) || this.hasChanged();
     },
 
     set touched(touched: boolean) {
+      _touched.set(touched);
       this.rows.forEach((r) => (r.touched = touched));
     },
 
@@ -172,7 +176,6 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     get valid(): boolean {
       const value = this.rows;
-      // TODO Passing `originalCopy || []` is probably not 100% right
       const opts = { value, key: key as string, originalValue: this.originalValue, object: parentState() };
       const collectionValid = this.rules.every((r) => r(opts as any) === undefined);
       const entriesValid = this.rows.filter((r) => !(r as any)._considerDeleted()).every((r) => r.valid);
@@ -180,7 +183,7 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
 
     get errors(): string[] {
-      if (_tick.value < 0) fail();
+      if (_tick.get() < 0) fail();
       const opts = { value: this.rows, key: key as string, originalValue: this.originalValue, object: parentState() };
       return this.rules.map((r) => r(opts as any)).filter(isNotUndefined);
     },
@@ -208,11 +211,11 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
 
     focus() {
-      this._focused = true;
+      _focused.set(true);
     },
 
     blur() {
-      this._focused = false;
+      _focused.set(false);
       this.maybeAutoSave();
     },
 
@@ -225,132 +228,111 @@ export function newListFieldState<T, K extends keyof T, U>(
       if (this.readOnly && !opts.resetting && !opts.refreshing) {
         throw new Error(`${String(key)} is currently readOnly`);
       }
-      // Given the values, see if we've got existing child states, and use their
-      // value if so. I.e. this covers revertChanges doing `set(originalValue)` and
-      // passing us cloned rows from the parentCopy, but `getOrCreateChildState` will
-      // use the `copyMap` to recover the non-cloned rows, to avoid promoting the clone
-      // into a real row.
-      if ((this.dirty || this.hasNewEntity) && opts.refreshing) {
-        // When refreshing a dirty list, we need to preserve WIP values
+      batch(() => {
+        // Given the values, see if we've got existing child states, and use their
+        // value if so. I.e. this covers revertChanges doing `set(originalValue)` and
+        // passing us cloned rows from the parentCopy, but `getOrCreateChildState` will
+        // use the `copyMap` to recover the non-cloned rows, to avoid promoting the clone
+        // into a real row.
+        if ((this.dirty || this.hasNewEntity) && opts.refreshing) {
+          // When refreshing a dirty list, we need to preserve WIP values
 
-        // Start with current list, then merge in incoming changes
-        //
-        // These will all be POJOs, where `currentItems` existing in our `parentInstance`, and
-        // `incomingItems` could really be any of:
-        // - an instance from `parentInstance[key]` that user code is passing back in
-        // - an instance from `parentCopy[key]` that a cache refresh is passing in
-        // - a new instance, either from a cache refresh or user code, that we haven't seen yet
-        const currentItems = this.value || [];
-        const incomingItems = values || [];
-        const mergedItems: U[] = [];
+          // Start with current list, then merge in incoming changes
+          const currentItems = this.value || [];
+          const incomingItems = values || [];
+          const mergedItems: U[] = [];
 
-        // Index by idKey or a hash of the object, so we don't have to n^2 merging
-        const idKey = this.rows.length > 0 && (this.rows[0] as any as ObjectStateInternal).idKey;
-        // Look at our child config, i.e. `bookConfig` and find the non-id / non-list keys
-        const contentKeys = Object.entries(config.config)
-          .filter(([key, cfg]: any) => key !== idKey && cfg.type === "value")
-          .map(([key]) => key);
-        const hashByContent = (item: any) =>
-          hash(Object.fromEntries(Object.entries(item as object).filter(([key]) => contentKeys.includes(key))));
-        const hashById = (item: any) => (idKey && item[idKey]) || hashByContent(item);
-        const currentById = groupBy(currentItems, hashById);
-        const incomingById = groupBy(incomingItems, hashById);
-        // If our local instance doesn't assign in id, when we get results back from the server, strip
-        // their id and then see if we're the same based on data. Note that this is a hueristic, and will
-        // fail if the client-side has made additional changes to the child after submitting it to the server,
-        // or if the server acks back more/different data than the client sent.
-        //
-        // Only do this if one of our client-side objects is missing an id
-        const incomingByContent =
-          idKey && currentItems.some((item) => !(item as any)[idKey]) && groupBy(incomingItems, hashByContent);
+          // Index by idKey or a hash of the object, so we don't have to n^2 merging
+          const idKey = this.rows.length > 0 && (this.rows[0] as any as ObjectStateInternal).idKey;
+          const contentKeys = Object.entries(config.config)
+            .filter(([key, cfg]: any) => key !== idKey && cfg.type === "value")
+            .map(([key]) => key);
+          const hashByContent = (item: any) =>
+            hash(Object.fromEntries(Object.entries(item as object).filter(([key]) => contentKeys.includes(key))));
+          const hashById = (item: any) => (idKey && item[idKey]) || hashByContent(item);
+          const currentById = groupBy(currentItems, hashById);
+          const incomingById = groupBy(incomingItems, hashById);
+          const incomingByContent =
+            idKey && currentItems.some((item) => !(item as any)[idKey]) && groupBy(incomingItems, hashByContent);
 
-        // Watch for deletions
-        const hasOpKey = Object.keys(listConfig.config).includes("op");
+          const hasOpKey = Object.keys(listConfig.config).includes("op");
 
-        // First, process all current items
-        for (const currentItem of currentItems) {
-          const childState = rowMap.get(currentItem)!; // We'll always have a child state for `currentItems`
-          // Try to find a matching item in the incoming data
-          const hash = hashById(currentItem);
-          const match = (incomingById.get(hash)?.[0] ??
-            // Only if we don't have `book[id]` set, look for a match based on our content
-            (!!idKey &&
-              !(currentItem as any)[idKey] &&
-              !!incomingByContent &&
-              // If we don't have an id, our `hash` variable will already be the `hashByContent`, so we can reuse it
-              incomingByContent?.get(hash)?.[0])) as U | undefined;
-          if (match) {
-            // Defer to set to handle not nuking WIP changes
-            childState.set(match, opts);
-            mergedItems.push(childState.value);
-            // Once matched, we don't want this to be an addedRow anymore
-            addedRows.delete(currentItem);
-          } else if (!childState.dirty && !childState.isNewEntity && !addedRows.has(currentItem)) {
-            // Local is not dirty/added, and it's not upstream, so let it get removed
-          } else if (hasOpKey && (currentItem as any).op === "delete") {
-            // We were locally marked as deleted, and not finding a match is the server acking that we're gone
-          } else if (
-            currentItems.length === incomingItems.length &&
-            !!idKey &&
-            (currentItem as any)[idKey] === undefined
-          ) {
-            // Assume our newly-assigned id is coming back
-          } else {
-            // If no incoming, but we're dirty (see above) and not deleted (see above), keep the WIP change
-            mergedItems.push(currentItem);
+          for (const currentItem of currentItems) {
+            const childState = rowMap.get(currentItem)!;
+            const hash = hashById(currentItem);
+            const match = (incomingById.get(hash)?.[0] ??
+              (!!idKey && !(currentItem as any)[idKey] && !!incomingByContent && incomingByContent?.get(hash)?.[0])) as
+              | U
+              | undefined;
+            if (match) {
+              childState.set(match, opts);
+              mergedItems.push(childState.value);
+              addedRows.delete(currentItem);
+            } else if (!childState.dirty && !childState.isNewEntity && !addedRows.has(currentItem)) {
+              // Local is not dirty/added, and it's not upstream, so let it get removed
+            } else if (hasOpKey && (currentItem as any).op === "delete") {
+              // We were locally marked as deleted, and not finding a match is the server acking that we're gone
+            } else if (
+              currentItems.length === incomingItems.length &&
+              !!idKey &&
+              (currentItem as any)[idKey] === undefined
+            ) {
+              // Assume our newly-assigned id is coming back
+            } else {
+              mergedItems.push(currentItem);
+            }
+          }
+
+          for (const incomingItem of incomingItems) {
+            const match =
+              currentById.get(hashById(incomingItem))?.[0] || currentById.get(hashByContent(incomingItem))?.[0];
+            if (!match) {
+              const childState = getOrCreateChildState(incomingItem, opts);
+              mergedItems.push(childState.value);
+            }
+          }
+
+          parentInstance[key] = mergedItems as any as T[K];
+          _tick.set((t) => t + 1);
+
+          this.setOriginalValue(incomingItems);
+        } else {
+          parentInstance[key] = (values ?? []).map((child) => getOrCreateChildState(child, opts).value) as any as T[K];
+          _tick.set((t) => t + 1);
+          if (opts.refreshing) {
+            this.setOriginalValue();
           }
         }
-
-        // Then, add any incoming items that don't exist in current
-        for (const incomingItem of incomingItems) {
-          // Look for both `incoming.id` and the incoming-sans-id for new entities
-          const match =
-            currentById.get(hashById(incomingItem))?.[0] || currentById.get(hashByContent(incomingItem))?.[0];
-          if (!match) {
-            // New item from server, add it
-            const childState = getOrCreateChildState(incomingItem, opts);
-            mergedItems.push(childState.value);
-          }
-        }
-
-        parentInstance[key] = mergedItems as any as T[K];
-        _tick.value++;
-
-        // Set original to not merged...
-        this.setOriginalValue(incomingItems);
-      } else {
-        parentInstance[key] = (values ?? []).map((child) => getOrCreateChildState(child, opts).value) as any as T[K];
-        _tick.value++;
-        // Reset originalCopy so that our dirty checks have the right # of rows.
-        if (opts.refreshing) {
-          this.setOriginalValue();
-        }
-      }
+      });
     },
 
     add(value: U, spliceIndex?: number): void {
-      // This is called by the user, so value should be a non-proxy value we should keep
-      const childState = getOrCreateChildState(value) as ObjectStateInternal<U>;
-      rowMap.set(value, childState);
-      // Let `.set` know this is a new row
-      addedRows.add(value);
-      this.ensureSet();
-      this.value.splice(typeof spliceIndex === "number" ? spliceIndex : this.value.length, 0, childState.value);
-      _tick.value++;
+      batch(() => {
+        // This is called by the user, so value should be a non-proxy value we should keep
+        const childState = getOrCreateChildState(value) as ObjectStateInternal<U>;
+        rowMap.set(value, childState);
+        // Let `.set` know this is a new row
+        addedRows.add(value);
+        this.ensureSet();
+        this.value.splice(typeof spliceIndex === "number" ? spliceIndex : this.value.length, 0, childState.value);
+        _tick.set((t) => t + 1);
+      });
       maybeAutoSave();
     },
 
     remove(indexOrValue: number | U): void {
-      this.ensureSet();
-      if (typeof indexOrValue === "number") {
-        this.value.splice(indexOrValue, 1);
-      } else {
-        const index = this.value.findIndex((v) => v === indexOrValue);
-        if (index > -1) {
-          this.value.splice(index, 1);
+      batch(() => {
+        this.ensureSet();
+        if (typeof indexOrValue === "number") {
+          this.value.splice(indexOrValue, 1);
+        } else {
+          const index = this.value.findIndex((v) => v === indexOrValue);
+          if (index > -1) {
+            this.value.splice(index, 1);
+          }
         }
-      }
-      _tick.value++;
+        _tick.set((t) => t + 1);
+      });
       maybeAutoSave();
     },
 
@@ -365,12 +347,12 @@ export function newListFieldState<T, K extends keyof T, U>(
       this.rows.forEach((r) => r.commitChanges());
       this.setOriginalValue();
       this.touched = false;
-      _tick.value++;
+      _tick.set((t) => t + 1);
     },
 
     get originalValue(): U[] {
       // A dummy check to for reactivity around our non-proxy value
-      const value = _originalValueTick.value > -1 ? parentCopy[key] : parentCopy[key];
+      const value = _originalValueTick.get() > -1 ? parentCopy[key] : parentCopy[key];
       return value ?? ([] as any);
     },
 
@@ -381,28 +363,16 @@ export function newListFieldState<T, K extends keyof T, U>(
       (parentCopy[key] as U[]).forEach((copy, i) => {
         copyMap.set(copy, (parentInstance[key] as any)[i]);
       });
-      _originalValueTick.value++;
+      _originalValueTick.set((t) => t + 1);
     },
 
     ensureSet() {
       if (!parentInstance[key]) {
         (parentInstance as any)[key] = [];
       }
-      _tick.value++;
+      _tick.set((t) => t + 1);
     },
   };
 
-  const proxy = makeAutoObservable(list, {
-    // See other makeAutoObservable comment
-    value: computed({ equals: () => false }),
-  }) as any;
-
-  // Any time a row's value changes, percolate that to our `.value` (so the callers to our
-  // `.value` will rerun given the value they saw has deeply changed.)
-  reaction(
-    () => proxy.rows.map((r: any) => r.value),
-    () => _childTick.value++,
-  );
-
-  return proxy;
+  return list as any;
 }

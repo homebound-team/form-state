@@ -1,4 +1,4 @@
-import { computed, isObservable, makeAutoObservable, observable, reaction } from "mobx";
+import { batch, observablePrimitive } from "@legendapp/state";
 import { FragmentFieldConfig, ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
 import { FragmentField, newFragmentField } from "src/fields/fragmentField";
 import { ListFieldState, newListFieldState } from "src/fields/listField";
@@ -72,9 +72,8 @@ type FieldStates<T> = {
 /**
  * Creates a new `ObjectState` for a given form object `T` given config rules in `config`.
  *
- * The returned `ObjectState` can be used in a mobx `useLocalObservable` to drive an
- * interactive form that tracks the current valid/touched/etc. state of both each
- * individual fields as well as the top-level form/object itself.
+ * The returned `ObjectState` can be used to drive an interactive form that tracks the current
+ * valid/touched/etc. state of both each individual fields as well as the top-level form/object itself.
  */
 export function createObjectState<T>(
   config: ObjectConfig<T>,
@@ -105,7 +104,7 @@ export function newObjectState<T, P = any>(
   maybeAutoSave: () => void,
   deepExhaustive: boolean,
 ): ObjectState<T> {
-  // This is what we return, but we only know it's value until we call `observable`, so
+  // This is what we return, but we only know its value until we call `observable`, so
   // we create a mutable variable to capture it so that we can create fields/call their
   // constructors and give them a way to access it later.
   let proxy: ObjectState<T> | undefined = undefined;
@@ -117,8 +116,6 @@ export function newObjectState<T, P = any>(
   }
 
   // We directly mutate `instance` as the user edits the form, so keep a deep copy of the POJO.
-  // If the user passed us `instance` that was a mobx store/class, this originalValue won't really
-  // be a true match (i.e. pass instanceof), but it should be good enough
   const originalCopy: any = deepClone(instance);
 
   const objectConfig = config.config;
@@ -147,9 +144,7 @@ export function newObjectState<T, P = any>(
         config.isDeleteKey || false,
         config.isReadOnlyKey || false,
         config.isLocalOnly || false,
-        config.computed ??
-          // If instance is a mobx class, we can detect computeds as they won't be enumerable
-          (isObservable(instance) ? !(key in originalCopy) : false),
+        config.computed ?? false,
         config.readOnly ?? false,
         config.strictOrder ?? true,
         maybeAutoSave,
@@ -195,7 +190,12 @@ export function newObjectState<T, P = any>(
 
   // We always return the same `instance` field from our `value` method, but
   // we want to pretend that it's observable, so use a tick to force it.
-  const _tick = observable({ value: 1 });
+  const _tick = observablePrimitive(1);
+
+  // Mutable state backed by Legend-State observables
+  const _readOnly = observablePrimitive(false);
+  const _loading = observablePrimitive(false);
+  const _isAutoSaving = observablePrimitive(false);
 
   const fieldNames = Object.keys(objectConfig);
   function getFields(proxyThis: any): FieldStateInternal<T, any>[] {
@@ -208,7 +208,9 @@ export function newObjectState<T, P = any>(
     key,
 
     get value() {
-      _tick.value > 0 || fail();
+      _tick.get() > 0 || fail();
+      // Track child field values so observers of our value see deep changes
+      getFields(this).forEach((f) => f.value);
       return instance;
     },
 
@@ -218,9 +220,6 @@ export function newObjectState<T, P = any>(
 
     // private
     _kind: "object",
-    _readOnly: false,
-    _loading: false,
-    _isAutoSaving: false,
 
     _considerDeleted(): boolean {
       const deleteField = getFields(this).find((f) => f._isDeleteKey);
@@ -246,7 +245,7 @@ export function newObjectState<T, P = any>(
 
     get readOnly(): boolean {
       return (
-        this._readOnly ||
+        _readOnly.get() ||
         this._considerReadOnly() ||
         (parentState && parentState().readOnly) ||
         !!parentListState?.readOnly
@@ -254,15 +253,15 @@ export function newObjectState<T, P = any>(
     },
 
     set readOnly(readOnly: boolean) {
-      this._readOnly = readOnly;
+      _readOnly.set(readOnly);
     },
 
     get loading(): boolean {
-      return this._loading || (parentState && parentState().loading) || !!parentListState?.loading;
+      return _loading.get() || (parentState && parentState().loading) || !!parentListState?.loading;
     },
 
     set loading(loading: boolean) {
-      this._loading = loading;
+      _loading.set(loading);
     },
 
     get valid(): boolean {
@@ -304,39 +303,37 @@ export function newObjectState<T, P = any>(
       if (this.readOnly && !opts.resetting && !opts.refreshing) {
         throw new Error(`${String(key) || "formState"} is currently readOnly`);
       }
-      // Restore our instance if we're being reset
-      if (value && this.isUnset()) (parentInstance as any)[key] = instance;
-      // Delete our instance if we're being unset
-      if (!value && parentInstance) (parentInstance as any)[key] = undefined;
-      // Otherwise just copy over the fields
-      getFields(this).forEach((field) => {
-        if (value && typeof value === "object" && field.key in value) {
-          field.set((value as any)[field.key], opts);
-        }
+      batch(() => {
+        // Restore our instance if we're being reset
+        if (value && this.isUnset()) (parentInstance as any)[key] = instance;
+        // Delete our instance if we're being unset
+        if (!value && parentInstance) (parentInstance as any)[key] = undefined;
+        // Otherwise just copy over the fields
+        getFields(this).forEach((field) => {
+          if (value && typeof value === "object" && field.key in value) {
+            field.set((value as any)[field.key], opts);
+          }
+        });
       });
     },
 
     // Resets all fields back to their original values
     revertChanges() {
-      getFields(this).forEach((f) => f.revertChanges());
+      batch(() => {
+        getFields(this).forEach((f) => f.revertChanges());
+      });
     },
 
     // Saves all current values into _originalValue
     commitChanges() {
-      if (this._isAutoSaving) {
-        // `commitChanges` will mark all WIP changes as committed, which might drop changes if there
-        // is an auto-save in-flight, and the user made more changes, that are waiting for their turn
-        // on the next auto-save request.
-        //
-        // Instead of doing a form-wide "all changes are committed", instead autosave forms should use
-        // init.map/input to have the server's latest results updated within the form, which will then
-        // selectively "un-dirty"/commit the just-saved data, but keep the "still-dirty" WIP data alone.
+      if (_isAutoSaving.peek()) {
         throw new Error(
           "When using autoSave, you should not manually call commitChanges, instead have init.map/input update the form state",
         );
       }
-      // asdf
-      getFields(this).forEach((f) => f.commitChanges());
+      batch(() => {
+        getFields(this).forEach((f) => f.commitChanges());
+      });
     },
 
     // Create a result that is only populated with changed keys
@@ -405,22 +402,16 @@ export function newObjectState<T, P = any>(
     get idKey(): string | undefined {
       return getFields(this).find((f) => f._isIdKey)?.key;
     },
+
+    get _isAutoSaving() {
+      return _isAutoSaving.get();
+    },
+    set _isAutoSaving(v: boolean) {
+      _isAutoSaving.set(v);
+    },
   };
 
-  proxy = makeAutoObservable(obj, {
-    // Use custom equality on `value` that is _never_ equals. This sounds weird, but
-    // because our `value` is always the same `instance` that was passed to `newObjectState`,
-    // to mobx this looks like the value never changes, and it will never invoke observers
-    // even with our tick-based hacks.
-    value: computed({ equals: () => false }),
-    originalValue: computed({ equals: () => false }),
-  });
-
-  // Any time a field changes, percolate that change up to us
-  reaction(
-    () => getFields(proxy).map((f) => f.value),
-    () => _tick.value++,
-  );
+  proxy = obj as any;
 
   return proxy!;
 }

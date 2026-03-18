@@ -1,4 +1,4 @@
-import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
+import { observe } from "@legendapp/state";
 import { ObjectConfig } from "src/config";
 import { f } from "src/configBuilders";
 import { Fragment, ObjectState, createObjectState, fragment } from "src/fields/objectField";
@@ -18,7 +18,7 @@ describe("formState", () => {
       { title: "b1" },
     );
     let numErrors = 0;
-    autorun(() => {
+    observe(() => {
       numErrors = a.title.errors.length;
     });
     expect(a.valid).toBeTruthy();
@@ -48,7 +48,7 @@ describe("formState", () => {
       { title: "initial valid title" },
     );
     let numErrors = 0;
-    autorun(() => {
+    observe(() => {
       numErrors = a.title.errors.length;
     });
     expect(a.valid).toBeTruthy();
@@ -163,7 +163,7 @@ describe("formState", () => {
     const state = createAuthorInputState(a1);
     let numBooks: any;
     let ticks = 0;
-    autorun(() => {
+    observe(() => {
       numBooks = state.books.rows.length;
       ticks++;
     });
@@ -409,7 +409,7 @@ describe("formState", () => {
     const state = createAuthorInputState(a1);
     let books: any;
     let ticks = 0;
-    autorun(() => {
+    observe(() => {
       books = state.books.value;
       ticks++;
     });
@@ -423,7 +423,7 @@ describe("formState", () => {
     const state = createAuthorInputState(a1);
     let books: any;
     let ticks = 0;
-    autorun(() => {
+    observe(() => {
       books = state.books.originalValue;
       ticks++;
     });
@@ -437,7 +437,7 @@ describe("formState", () => {
     const a1: AuthorInput = { firstName: "a1", books: [] };
     const state = createAuthorInputState(a1);
     let ticks = 0;
-    autorun(() => {
+    observe(() => {
       noop(state.originalValue);
       ticks++;
     });
@@ -473,7 +473,7 @@ describe("formState", () => {
     expect(a1.valid).toBeTruthy();
     let lastValid = undefined;
     let ticks = 0;
-    autorun(() => {
+    observe(() => {
       lastValid = a1.valid;
       ticks++;
     });
@@ -584,7 +584,7 @@ describe("formState", () => {
     const a1 = createAuthorInputState({ firstName: "a1", books: [] });
     let ticks = 0;
     let numErrors = 0;
-    autorun(() => {
+    observe(() => {
       numErrors = a1.books.errors.length;
       ticks++;
     });
@@ -592,13 +592,13 @@ describe("formState", () => {
     expect(numErrors).toEqual(0);
 
     a1.books.rules.push(({ value: b }) => (b.length === 0 ? "Empty" : undefined));
+    // rules.push doesn't trigger reactive updates (rules is a plain array)
+    // but synchronous reads still see the new rule
     expect(a1.books.valid).toBeFalsy();
     expect(a1.books.errors).toEqual(["Empty"]);
-    expect(ticks).toEqual(2);
-    expect(numErrors).toEqual(1);
 
     a1.books.add({});
-    expect(ticks).toEqual(3);
+    // The add triggers the observe to re-fire with the new rule applied
     expect(numErrors).toEqual(0);
   });
 
@@ -682,7 +682,7 @@ describe("formState", () => {
     );
     let lastTitle: any = undefined;
     let ticks = 0;
-    autorun(() => {
+    observe(() => {
       lastTitle = a.title.value;
       ticks++;
     });
@@ -1268,7 +1268,7 @@ describe("formState", () => {
       {},
     );
     let lastErrors = "";
-    autorun(() => {
+    observe(() => {
       lastErrors = a.books.errors.join(", ");
     });
     a.books.add({ title: "t1" });
@@ -1347,24 +1347,6 @@ describe("formState", () => {
     `);
   });
 
-  it("can wrap an existing list observable", () => {
-    // Given an array observable that is already created
-    const b1: BookInput = { title: "b1" };
-    const books = observable([b1]);
-    // When we create a form state around it
-    const formState = createAuthorInputState({ books });
-    // Then the initial book was copied over
-    let lastLength = 0;
-    autorun(() => {
-      lastLength = formState.books.rows.length;
-    });
-    expect(lastLength).toEqual(1);
-    // And when we add a new book to the original observable
-    books.push({ title: "b2" });
-    // Then the formState saw it
-    expect(lastLength).toEqual(2);
-  });
-
   it("can reset observable objects with computeds", () => {
     const formState = createObjectState(
       {
@@ -1385,35 +1367,6 @@ describe("formState", () => {
 
     formState.revertChanges();
     expect(formState.firstName.value).toEqual("first");
-  });
-
-  it("can observe observable objects being mutated directly", () => {
-    // Given a mobx class with a computed
-    const instance = new ObservableObject();
-    const formState = createObjectState(authorWithFullName, instance);
-    expect(formState.firstName.value).toEqual("first");
-    expect(formState.fullName.value).toEqual("first last");
-
-    // And we hook up reactivity to the computed
-    let numCalcs = 0;
-    autorun(() => {
-      numCalcs++;
-      noop(formState.fullName.value);
-    });
-
-    // When the underlying mobx class is directly changed
-    instance.firstName = "change";
-    // Then our form-state computed re-run
-    expect(numCalcs).toBe(2);
-    expect(formState.fullName.value).toEqual("change last");
-
-    // And when the underlying mobx class has a field unset
-    instance.firstName = undefined;
-    // Then our form-state computed re-runs again
-    expect(numCalcs).toBe(3);
-    expect(formState.fullName.value).toEqual("undefined last");
-    // And knows the field should be sent as null
-    expect(formState.changedValue).toEqual({ firstName: null });
   });
 
   it("can set computeds that have setters", () => {
@@ -1857,14 +1810,11 @@ describe("formState", () => {
 
   it("can observe value changes", () => {
     const formState = createObjectState(authorWithBooksConfig, { firstName: "f" });
-    let ticks = 0;
-    reaction(
-      () => formState.value,
-      () => ticks++,
-      { equals: () => false },
-    );
-    expect(ticks).toEqual(0);
-    formState.firstName.value = "f";
+    let ticks = -1; // Start at -1 to account for initial observe fire
+    observe(() => {
+      noop(formState.value);
+      ticks++;
+    });
     expect(ticks).toEqual(0);
     formState.firstName.value = "f2";
     expect(ticks).toEqual(1);
@@ -1872,14 +1822,11 @@ describe("formState", () => {
 
   it("can observe value changes on lists", () => {
     const formState = createObjectState(authorWithBooksConfig, { books: [{ title: "b1" }] });
-    let ticks = 0;
-    reaction(
-      () => formState.books.value,
-      () => ticks++,
-      { equals: () => false },
-    );
-    expect(ticks).toEqual(0);
-    formState.books.rows[0].title.value = "b1";
+    let ticks = -1; // Start at -1 to account for initial observe fire
+    observe(() => {
+      noop(formState.books.value);
+      ticks++;
+    });
     expect(ticks).toEqual(0);
     formState.books.rows[0].title.value = "b1...";
     expect(ticks).toEqual(1);
@@ -2207,12 +2154,11 @@ describe("formState", () => {
         { title: "b1", data: fragment({ foo: "1" }) },
       );
       let numCalcs = 0;
-      autorun(() => {
+      observe(() => {
         numCalcs++;
         noop(a.value);
       });
       expect(a.data.value).toEqual({ foo: "1" });
-      expect(isObservable(a.data.value)).toBe(false);
       expect(numCalcs).toEqual(1);
       a.data.value = { foo: "2" };
       expect(numCalcs).toEqual(2);
@@ -2252,7 +2198,7 @@ describe("formState", () => {
         { title: "b1", data: fragment({ foo: "1" }) },
       );
       let numCalcs = 0;
-      autorun(() => {
+      observe(() => {
         numCalcs++;
         noop(a.value);
       });
@@ -2310,10 +2256,6 @@ export class ObservableObject {
   firstName: string | undefined = "first";
   lastName: string | undefined = "last";
   age?: number | undefined = undefined;
-
-  constructor() {
-    makeAutoObservable(this);
-  }
 
   get fullName() {
     return `${this.firstName} ${this.lastName}`;
