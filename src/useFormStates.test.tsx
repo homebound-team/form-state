@@ -1,5 +1,5 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
-import { reaction } from "mobx";
+import { observe } from "@legendapp/state";
 import { useMemo, useState } from "react";
 import { ObjectConfig } from "src/config";
 import { ObjectState } from "src/fields/objectField";
@@ -218,11 +218,11 @@ describe("useFormStates", () => {
         config,
         getId: (o) => o.id!,
         addRules(fs) {
-          // And they have a reactive true that calculates last name
-          reaction(
+          // And they have a reactive rule that calculates last name
+          observe(
             () => fs.firstName.value,
-            (curr) => {
-              fs.lastName.set(curr);
+            (e) => {
+              if (e.num > 0) fs.lastName.set(fs.firstName.value);
             },
           );
         },

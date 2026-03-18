@@ -47,7 +47,7 @@ export type ValueFieldConfig<V> = {
   /** If true, we ignore field in dirty checks. */
   isLocalOnly?: boolean;
   /**
-   * Marks a field as being backed by a mobx class computed field.
+   * Marks a field as computed/derived from other fields.
    *
    * Note that it might still be settable (some computed have setters), but we do
    * exclude from the `reset` operation, i.e. we assume resetting other non-computed fields

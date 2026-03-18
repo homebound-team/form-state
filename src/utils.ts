@@ -1,5 +1,4 @@
 import { isPlainObject } from "is-plain-object";
-import { isObservable, toJS } from "mobx";
 import { FragmentFieldConfig, ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
 import { deepEquals } from "src/fields/deepEquals";
 import { InputAndMap, QueryAndMap, UseFormStateOpts } from "src/useFormState";
@@ -47,7 +46,7 @@ export function initValue<T>(config: ObjectConfig<T>, init: any): T {
   } else {
     throw new Error("init must have an input or query key");
   }
-  // Given our form config, pick out only the subset of fields out of `value` (unless it's a mobx class)
+  // Given our form config, pick out only the subset of fields out of `value`
   return pickFields(config, value ?? {}) as T;
 }
 
@@ -91,11 +90,7 @@ export function pickFields<T, I>(
           return [key, value];
         }
       } else if (keyConfig.type === "list") {
-        if (isObservable(value)) {
-          // If we hit an observable array, leave it as the existing proxy so the our
-          // ListFieldState will react to changes in the original array.
-          return [key, value];
-        } else if (value) {
+        if (value) {
           return [key, (value as any[]).map((u) => pickFields(keyConfig.config, u))];
         } else {
           return [key, value];
@@ -130,7 +125,7 @@ export function isEmpty(value: any): boolean {
  */
 export function areEqual<T>(a?: T, b?: T, strictOrder?: boolean): boolean {
   if (isPlainObject(a)) {
-    return deepEquals(toJS(a), toJS(b));
+    return deepEquals(a, b);
   }
   if (hasToJSON(a) || hasToJSON(b)) {
     const a1 = hasToJSON(a) ? a.toJSON() : a;
@@ -151,9 +146,9 @@ export function hasToJSON(o?: unknown): o is { toJSON(): void } {
   return !!(o && typeof o === "object" && "toJSON" in o);
 }
 
-/** Make a clone of `obj`, but only recurse into POJOs and Arrays...and stores. */
+/** Make a clone of `obj`, recurse into POJOs, Arrays, and class instances. */
 export function deepClone<T>(obj: T, map = new WeakMap()): T {
-  if (obj && typeof obj === "object" && (isPlainObject(obj) || Array.isArray(obj) || isObservable(obj))) {
+  if (obj && typeof obj === "object" && (isPlainObject(obj) || Array.isArray(obj) || isClassInstance(obj))) {
     if (map.has(obj)) return map.get(obj);
     const result = Array.isArray(obj) ? [] : {};
     map.set(obj, result);
@@ -176,7 +171,20 @@ export function groupBy<T, Y = T, K = string>(list: readonly T[], fn: (x: T) => 
   return result;
 }
 
-/** Returns all property names, including mobx computeds (non-enumerable) & inherited. */
+/** Returns true if the object is a class instance (not a plain object, Date, RegExp, etc.). */
+function isClassInstance(obj: unknown): boolean {
+  if (!obj || typeof obj !== "object") return false;
+  const proto = Object.getPrototypeOf(obj);
+  return (
+    proto !== null &&
+    proto !== Object.prototype &&
+    !Array.isArray(obj) &&
+    !(obj instanceof Date) &&
+    !(obj instanceof RegExp)
+  );
+}
+
+/** Returns all property names, including non-enumerable & inherited. */
 function getAllPropertyNames(obj: unknown): string[] {
   const proto = Object.getPrototypeOf(obj);
   // Don't crawl up into Object.prototype, or into arrays/observable arrays

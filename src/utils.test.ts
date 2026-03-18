@@ -1,6 +1,5 @@
-import { isObservable, observable } from "mobx";
 import { ObjectConfig } from "src/config";
-import { AuthorInput, BookInput } from "src/formStateDomain";
+import { AuthorInput } from "src/formStateDomain";
 import { required } from "src/rules";
 import { pickFields } from "src/utils";
 
@@ -74,12 +73,6 @@ describe("utils", () => {
           "lastName": undefined,
         }
       `);
-    });
-
-    it("can pick a set observable list field", () => {
-      const books = observable([] as BookInput[]);
-      const a = pickFields(authorWithBooksConfig, { firstName: "a", b: "ignored", books });
-      expect(isObservable(a.books)).toEqual(true);
     });
   });
 });

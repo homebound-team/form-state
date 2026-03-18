@@ -1,4 +1,4 @@
-import { isPlainObject } from "is-plain-object";
+import { batch } from "@legendapp/state";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ObjectConfig } from "src/config";
 import { ObjectState, createObjectState } from "src/fields/objectField";
@@ -95,9 +95,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
   autoSaveRef.current = autoSave;
 
   const firstRunRef = useRef<boolean>(true);
-  // This is a little weird, but we need to know ahead of time, before the form useMemo, if we're working with classes/mobx proxies
   const [firstInitValue] = useState(() => initValue(config, init));
-  const isWrappingMobxProxy = !isPlainObject(firstInitValue);
   // If they're using init.input, useMemo on it (and it might be an array), otherwise allow the identity of init be unstable
   const dep = isInput(init)
     ? init.onlyOnce
@@ -160,8 +158,6 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
       }
       const value = firstRunRef.current ? firstInitValue : initValue(config, init);
       const form = createObjectState(config, value, { maybeAutoSave });
-      form.readOnly = readOnly;
-      setLoading(form, opts);
       // The identity of `addRules` is not stable, but assume that it is for better UX.
       (addRules || (() => {}))(form);
       firstRunRef.current = true;
@@ -169,35 +165,35 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
     },
     // For this useMemo, we (almost) never re-run so that we can have a stable `form` identity across query refreshes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [config, ...(isWrappingMobxProxy ? dep : [])],
+    [config],
   );
 
   // We use useEffect so that any mutations to the proxies, which will call `setState`s on any observers to
   // queue their components' render), don't happen during our render, per https://fb.me/setstate-in-render.
   useEffect(() => {
-    // Ignore the 1st run b/c our 1st useMemo already initialized `form` with the current `init` value.
-    // Also for mobx proxies, we recreate a new form-state every time init changes, so that our
-    // fields fundamentally pointing to the right proxy. So just defer to the ^ useMemo.
-    if (firstRunRef.current || isWrappingMobxProxy) {
+    if (firstRunRef.current) {
+      // On first run, just set loading/readOnly (useMemo already initialized the values)
       firstRunRef.current = false;
+      batch(() => {
+        form.readOnly = readOnly;
+        setLoading(form, opts);
+      });
       return;
     }
-    setLoading(form, opts);
-    // Note: maybe someday we want to watch the `id` value and notice if it's changing (i.e. 2 -> 3),
-    // and treat this more as a reset than a refresh, b/c the id changing means it's probably
-    // not "the cache refreshed after a mutation save" but "the cache changed b/c of changing
-    // rows in the table that our side panel's form has open/is focused on" (which ideally would
-    // be treated as a full component remount by having an `key` field somewhere in the parent
-    // component, but it's unlikely the user will always remember to do this).
-    (form as any).set(initValue(config, init), { refreshing: true });
+    batch(() => {
+      setLoading(form, opts);
+      (form as any).set(initValue(config, init), { refreshing: true });
+    });
   }, [form, ...dep]);
 
   // Use useEffect so that we don't touch the form.init proxy during a render
   useEffect(() => {
-    form.readOnly = readOnly;
-    if (loading !== undefined) {
-      form.loading = loading;
-    }
+    batch(() => {
+      form.readOnly = readOnly;
+      if (loading !== undefined) {
+        form.loading = loading;
+      }
+    });
   }, [form, readOnly, loading]);
 
   return form;

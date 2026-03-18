@@ -1,7 +1,7 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
 import { act } from "@testing-library/react";
-import { makeAutoObservable, reaction } from "mobx";
-import { observer, Observer } from "mobx-react";
+import { observe } from "@legendapp/state";
+import { observer } from "@legendapp/state/react";
 import { useMemo, useRef, useState } from "react";
 import { TextField } from "src/FormStateApp";
 import { ObjectConfig } from "src/config";
@@ -14,7 +14,7 @@ import { useFormState } from "./useFormState";
 describe("useFormState", () => {
   it("calls init.map if init.input is defined", async () => {
     // Given a component
-    function TestComponent() {
+    const TestComponent = observer(function TestComponent() {
       type FormValue = Pick<AuthorInput, "firstName">;
       const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
       // And we have query data that may or may not be defined
@@ -25,7 +25,7 @@ describe("useFormState", () => {
         init: { input: data, map: (d) => ({ firstName: d.firstName }) },
       });
       return <div>{form.firstName.value}</div>;
-    }
+    });
     const r = await render(<TestComponent />);
     expect(r.baseElement).toHaveTextContent("bob");
   });
@@ -34,7 +34,7 @@ describe("useFormState", () => {
     // Given a component
     type FormValue = Pick<AuthorInput, "firstName">;
     const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
-    function TestComponent() {
+    const TestComponent = observer(function TestComponent() {
       const [, setTick] = useState(0);
       const form = useFormState({
         config,
@@ -47,7 +47,7 @@ describe("useFormState", () => {
           <div data-testid="firstName">{form.firstName.value}</div>
         </div>
       );
-    }
+    });
     const r = await render(<TestComponent />);
     expect(r.firstName).toHaveTextContent("ab");
     click(r.change);
@@ -56,7 +56,7 @@ describe("useFormState", () => {
 
   it("uses default if init.input is undefined", async () => {
     // Given a component
-    function TestComponent() {
+    const TestComponent = observer(function TestComponent() {
       type FormValue = Pick<AuthorInput, "firstName">;
       const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
       // And we have query data that may or may not be defined (but is actually undefined)
@@ -67,7 +67,7 @@ describe("useFormState", () => {
         init: { input: data, map: (d) => ({ firstName: d.firstName }) },
       });
       return <div>{form.firstName.value}</div>;
-    }
+    });
     const r = await render(<TestComponent />);
     // Then we init.map wasn't called, and we used {} instead
     expect(r.baseElement.textContent).toEqual("");
@@ -75,7 +75,7 @@ describe("useFormState", () => {
 
   it("uses custom init.ifUndefined if init.input is undefined", async () => {
     // Given a component
-    function TestComponent() {
+    const TestComponent = observer(function TestComponent() {
       type FormValue = Pick<AuthorInput, "id" | "firstName">;
       const config: ObjectConfig<FormValue> = {
         id: { type: "value" },
@@ -99,7 +99,7 @@ describe("useFormState", () => {
           <div data-testid="changedValue">{JSON.stringify(form.changedValue)}</div>
         </div>
       );
-    }
+    });
     const r = await render(<TestComponent />);
     // Then we use the ifUndefined value
     expect(r.firstName.textContent).toEqual("default");
@@ -107,12 +107,12 @@ describe("useFormState", () => {
   });
 
   it("doesn't required an init value", async () => {
-    function TestComponent() {
+    const TestComponent = observer(function TestComponent() {
       type FormValue = Pick<AuthorInput, "firstName">;
       const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
       const form = useFormState({ config });
       return <div>{form.firstName.value}</div>;
-    }
+    });
     const r = await render(<TestComponent />);
     expect(r.baseElement.textContent).toEqual("");
   });
@@ -144,7 +144,7 @@ describe("useFormState", () => {
 
   it("can init with fragments", async () => {
     // Given a component
-    function TestComponent() {
+    const TestComponent = observer(function TestComponent() {
       // And we have query data that may or may not be defined
       const form = useFormState({
         config: authorWithBookFragments,
@@ -160,7 +160,7 @@ describe("useFormState", () => {
           <div data-testid="listValue">{form.books.value[0].data?.misc ?? "unset"}</div>
         </>
       );
-    }
+    });
     const r = await render(<TestComponent />);
     expect(r.fieldValue).toHaveTextContent("data");
     expect(r.rowValue).toHaveTextContent("unset");
@@ -169,7 +169,7 @@ describe("useFormState", () => {
 
   it("keeps local changed values when a query refreshes", async () => {
     // Given a component
-    function TestComponent() {
+    const TestComponent = observer(function TestComponent() {
       type FormValue = AuthorInput;
       const config: ObjectConfig<FormValue> = authorWithAddressAndBooksConfig;
       // And we have two sets of data
@@ -222,25 +222,21 @@ describe("useFormState", () => {
         form.books.rows[0].title.value = "local";
       }
       return (
-        <Observer>
-          {() => (
-            <div>
-              <div data-testid="firstName">{form.firstName.value}</div>
-              <div data-testid="lastName">{form.lastName.value}</div>
-              <div data-testid="street">{form.address.street.value}</div>
-              <div data-testid="city">{form.address.city.value}</div>
-              <div data-testid="title1">{form.books.rows[0].title.value}</div>
-              <div data-testid="title2">{form.books.rows[1].title.value}</div>
-              <div data-testid="booksLength">{form.books.rows.length}</div>
-              <button data-testid="makeLocalChanges" onClick={makeLocalChanges} />
-              <button data-testid="refreshData" onClick={() => setData(data2)} />
-              <button data-testid="saveData" onClick={() => setData(data3)} />
-              <div data-testid="dirty">{String(form.dirty)}</div>
-            </div>
-          )}
-        </Observer>
+        <div>
+          <div data-testid="firstName">{form.firstName.value}</div>
+          <div data-testid="lastName">{form.lastName.value}</div>
+          <div data-testid="street">{form.address.street.value}</div>
+          <div data-testid="city">{form.address.city.value}</div>
+          <div data-testid="title1">{form.books.rows[0].title.value}</div>
+          <div data-testid="title2">{form.books.rows[1].title.value}</div>
+          <div data-testid="booksLength">{form.books.rows.length}</div>
+          <button data-testid="makeLocalChanges" onClick={makeLocalChanges} />
+          <button data-testid="refreshData" onClick={() => setData(data2)} />
+          <button data-testid="saveData" onClick={() => setData(data3)} />
+          <div data-testid="dirty">{String(form.dirty)}</div>
+        </div>
       );
-    }
+    });
 
     // And we start out with the initial query data
     const r = await render(<TestComponent />);
@@ -277,7 +273,7 @@ describe("useFormState", () => {
   });
 
   it("accepts server values if client has no further changes", async () => {
-    function TestComponent() {
+    const TestComponent = observer(function TestComponent() {
       type FormValue = AuthorInput;
       const config: ObjectConfig<FormValue> = authorWithAddressAndBooksConfig;
       // The initial resposne
@@ -291,23 +287,19 @@ describe("useFormState", () => {
         form.firstName.value = "f2";
       }
       return (
-        <Observer>
-          {() => (
-            <div>
-              <div data-testid="firstName">{form.firstName.value}</div>
-              <button data-testid="makeLocalChanges" onClick={makeLocalChanges} />
-              <button
-                data-testid="refreshData"
-                onClick={() => {
-                  noop(form.changedValue); // pretend we put this on the wire
-                  setData(data2);
-                }}
-              />
-            </div>
-          )}
-        </Observer>
+        <div>
+          <div data-testid="firstName">{form.firstName.value}</div>
+          <button data-testid="makeLocalChanges" onClick={makeLocalChanges} />
+          <button
+            data-testid="refreshData"
+            onClick={() => {
+              noop(form.changedValue); // pretend we put this on the wire
+              setData(data2);
+            }}
+          />
+        </div>
       );
-    }
+    });
     // And we start out with the initial query data
     const r = await render(<TestComponent />);
     expect(r.firstName.textContent).toEqual("F1");
@@ -323,7 +315,7 @@ describe("useFormState", () => {
 
   it("can accept new data while read only", async () => {
     // Given a component
-    function TestComponent() {
+    const TestComponent = observer(function TestComponent() {
       type FormValue = AuthorInput;
       const config: ObjectConfig<FormValue> = authorWithAddressAndBooksConfig;
       // And we have two sets of data
@@ -346,18 +338,14 @@ describe("useFormState", () => {
         readOnly: true,
       });
       return (
-        <Observer>
-          {() => (
-            <div>
-              <div data-testid="firstName">{form.firstName.value}</div>
-              <div data-testid="street">{form.address.street.value}</div>
-              <div data-testid="title1">{form.books.rows[0].title.value}</div>
-              <button data-testid="refreshData" onClick={() => setData(data2)} />
-            </div>
-          )}
-        </Observer>
+        <div>
+          <div data-testid="firstName">{form.firstName.value}</div>
+          <div data-testid="street">{form.address.street.value}</div>
+          <div data-testid="title1">{form.books.rows[0].title.value}</div>
+          <button data-testid="refreshData" onClick={() => setData(data2)} />
+        </div>
       );
-    }
+    });
     // And we start out with the initial query data
     const r = await render(<TestComponent />);
     expect(r.firstName.textContent).toEqual("f1");
@@ -375,20 +363,18 @@ describe("useFormState", () => {
 
   it("can accept new data with computed fields", async () => {
     // Given a component
-    // And it's using a class/mobx proxy as the basis for the data
+    // And it's using a class as the basis for the data
     class AuthorRow {
       constructor(
         public firstName: string,
         public lastName: string,
         public books: { title: string }[],
-      ) {
-        makeAutoObservable(this);
-      }
+      ) {}
       get fullName() {
         return this.firstName + " " + this.lastName;
       }
     }
-    function TestComponent() {
+    const TestComponent = observer(function TestComponent() {
       // And we have two sets of data
       const data1 = { firstName: "f1", lastName: "l1", books: [] as { title: string }[] };
       const data2 = { firstName: "f2", lastName: "l2", books: [{ title: "t1" }] };
@@ -406,19 +392,15 @@ describe("useFormState", () => {
       );
       const form = useFormState({ config, init: { input: author, map: (a) => a } });
       return (
-        <Observer>
-          {() => (
-            <div>
-              <div data-testid="firstName">{form.firstName.value}</div>
-              <div data-testid="fullName">{form.fullName.value}</div>
-              <div data-testid="booksLength">{form.books.rows.length}</div>
-              <div data-testid="booksDirty">{String(form.books.touched)}</div>
-              <button data-testid="refreshData" onClick={() => setData(data2)} />
-            </div>
-          )}
-        </Observer>
+        <div>
+          <div data-testid="firstName">{form.firstName.value}</div>
+          <div data-testid="fullName">{form.fullName.value}</div>
+          <div data-testid="booksLength">{form.books.rows.length}</div>
+          <div data-testid="booksDirty">{String(form.books.touched)}</div>
+          <button data-testid="refreshData" onClick={() => setData(data2)} />
+        </div>
       );
-    }
+    });
     // And we start out with the initial query data
     const r = await render(<TestComponent />);
     expect(r.firstName.textContent).toEqual("f1");
@@ -431,37 +413,6 @@ describe("useFormState", () => {
     expect(r.fullName.textContent).toEqual("f2 l2");
     expect(r.booksLength.textContent).toEqual("1");
     expect(r.booksDirty.textContent).toEqual("false");
-  });
-
-  it("can trigger auto-save when underlying observable is changed", async () => {
-    // Given a component
-    // And it's using a class/mobx proxy as the basis for the data
-    class AuthorRow {
-      constructor(public firstName: string | undefined) {
-        makeAutoObservable(this);
-      }
-    }
-    const autoSave = jest.fn();
-    function TestComponent() {
-      // And the author starts out with f1
-      const author = useMemo(() => new AuthorRow("f1"), []);
-      const config: ObjectConfig<AuthorRow> = useMemo(() => ({ firstName: { type: "value" } }), []);
-      const form = useFormState({ config, init: { input: author, map: (a) => a }, autoSave });
-      return (
-        <div>
-          <button data-testid="changeFirstName" onClick={() => (author.firstName = "f2")} />
-          <button data-testid="clearFirstName" onClick={() => (author.firstName = undefined)} />
-        </div>
-      );
-    }
-    // When we change the underlying observable
-    const r = await render(<TestComponent />);
-    expect(autoSave).toBeCalledTimes(0);
-    await clickAndWait(r.changeFirstName);
-    // Then auto save is triggered
-    expect(autoSave).toBeCalledTimes(1);
-    await clickAndWait(r.clearFirstName);
-    expect(autoSave).toBeCalledTimes(2);
   });
 
   it("can trigger auto save for fields in list that were initially undefined", async () => {
@@ -477,16 +428,12 @@ describe("useFormState", () => {
         autoSave,
       });
       return (
-        <Observer>
-          {() => (
-            <div>
-              <button data-testid="refreshData" onClick={() => setData(data2)} />
-              <button data-testid="add" onClick={() => form.books.add({ title: "New Book" })} />
-              <button data-testid="blurBookOne" onClick={() => focusAndBlur(form.books.rows[0].title)} />
-              <button data-testid="blurBookTwo" onClick={() => focusAndBlur(form.books.rows[1].title)} />
-            </div>
-          )}
-        </Observer>
+        <div>
+          <button data-testid="refreshData" onClick={() => setData(data2)} />
+          <button data-testid="add" onClick={() => form.books.add({ title: "New Book" })} />
+          <button data-testid="blurBookOne" onClick={() => focusAndBlur(form.books.rows[0].title)} />
+          <button data-testid="blurBookTwo" onClick={() => focusAndBlur(form.books.rows[1].title)} />
+        </div>
       );
     }
 
@@ -512,7 +459,7 @@ describe("useFormState", () => {
 
   it("can revert to last-saved-state after a failed auto save", async () => {
     // Given a component
-    function TestComponent() {
+    const TestComponent = observer(function TestComponent() {
       // And the firstName is initially "f1"
       const [data, setData] = useState<AuthorInput>({ firstName: "f1" });
       const query = useMemo(() => {
@@ -534,16 +481,12 @@ describe("useFormState", () => {
         },
       });
       return (
-        <Observer>
-          {() => (
-            <>
-              <div data-testid="firstNameOriginal">{form.firstName.originalValue}</div>
-              <TextField field={form.firstName} />;
-            </>
-          )}
-        </Observer>
+        <>
+          <div data-testid="firstNameOriginal">{form.firstName.originalValue}</div>
+          <TextField field={form.firstName} />;
+        </>
       );
-    }
+    });
 
     // So we start out with f1
     const r = await render(<TestComponent />);
@@ -563,7 +506,7 @@ describe("useFormState", () => {
   it("returns empty lists even when inputs are undefined", async () => {
     const autoSave = jest.fn();
     // Given a component
-    function TestComponent() {
+    const TestComponent = observer(function TestComponent() {
       // And there is no initial data (i.e. we're creating the author)
       const form = useFormState({
         config: authorWithBooksConfig,
@@ -576,7 +519,7 @@ describe("useFormState", () => {
           <div data-testid="dirty">{String(form.books.dirty)}</div>
         </div>
       );
-    }
+    });
 
     // Then we can still read it as empty
     const r = await render(<TestComponent />);
@@ -731,9 +674,11 @@ describe("useFormState", () => {
         config,
         addRules(fs) {
           // And also has calculated values
-          reaction(
+          observe(
             () => fs.firstName.value,
-            (curr) => (fs.lastName.value = curr),
+            () => {
+              fs.lastName.value = fs.firstName.value;
+            },
           );
         },
         autoSave: (fs) => autoSaveStub(fs.changedValue),
@@ -754,10 +699,10 @@ describe("useFormState", () => {
     // Given a component
     type FormValue = Pick<AuthorInput, "firstName">;
     const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
-    function TestComponent({ loading }: { loading: boolean }) {
+    const TestComponent = observer(function TestComponent({ loading }: { loading: boolean }) {
       const form = useFormState({ config, loading });
-      return <Observer>{() => <div data-testid="loading">{String(form.loading)}</div>}</Observer>;
-    }
+      return <div data-testid="loading">{String(form.loading)}</div>;
+    });
     // And we initially pass in `init.query.loading: true`
     const r = await render(<TestComponent loading={true} />);
     // Then the form is marked as loading
@@ -772,10 +717,10 @@ describe("useFormState", () => {
     // Given a component
     type FormValue = Pick<AuthorInput, "firstName">;
     const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
-    function TestComponent({ data }: { data: AuthorInput | undefined }) {
+    const TestComponent = observer(function TestComponent({ data }: { data: AuthorInput | undefined }) {
       const form = useFormState({ config, init: { input: data } });
-      return <Observer>{() => <div data-testid="loading">{String(form.loading)}</div>}</Observer>;
-    }
+      return <div data-testid="loading">{String(form.loading)}</div>;
+    });
     // And we initially pass in `init.input: undefined`
     const r = await render(<TestComponent data={undefined} />);
     // Then the form is marked as loading
@@ -790,10 +735,16 @@ describe("useFormState", () => {
     // Given a component
     type FormValue = Pick<AuthorInput, "firstName">;
     const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
-    function TestComponent({ loading, data }: { loading: boolean; data: AuthorInput | undefined }) {
+    const TestComponent = observer(function TestComponent({
+      loading,
+      data,
+    }: {
+      loading: boolean;
+      data: AuthorInput | undefined;
+    }) {
       const form = useFormState({ config, init: { query: { data, loading, error: null }, map: (d) => d } });
-      return <Observer>{() => <div data-testid="loading">{String(form.loading)}</div>}</Observer>;
-    }
+      return <div data-testid="loading">{String(form.loading)}</div>;
+    });
     // And we initially pass in `init.query.loading: true`
     const r = await render(<TestComponent loading={true} data={undefined} />);
     // Then the form is marked as loading
@@ -807,25 +758,21 @@ describe("useFormState", () => {
   it("treats the id changing as a whole new entity instead of a delete", async () => {
     type FormValue = Pick<AuthorInput, "id" | "firstName">;
     const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
-    function TestComponent() {
+    const TestComponent = observer(function TestComponent() {
       // Given an initial author a1
       const [author, setAuthor] = useState<AuthorInput>({ id: "a:1", firstName: "a1" });
       const form = useFormState({ config, init: { input: author, map: (a) => a } });
       return (
-        <Observer>
-          {() => (
-            <div>
-              <div data-testid="value">{String(form.firstName.value)}</div>
-              <div data-testid="dirty">{String(form.firstName.dirty)}</div>
-              <div data-testid="originalValue">{String(form.firstName.originalValue)}</div>
-              <div data-testid="objectValue">{String(form.value.firstName)}</div>
-              <div data-testid="a1" onClick={() => setAuthor({ id: "a:1", firstName: "a1" })} />
-              <div data-testid="a2" onClick={() => setAuthor({ id: "a:2", firstName: undefined })} />
-            </div>
-          )}
-        </Observer>
+        <div>
+          <div data-testid="value">{String(form.firstName.value)}</div>
+          <div data-testid="dirty">{String(form.firstName.dirty)}</div>
+          <div data-testid="originalValue">{String(form.firstName.originalValue)}</div>
+          <div data-testid="objectValue">{String(form.value.firstName)}</div>
+          <div data-testid="a1" onClick={() => setAuthor({ id: "a:1", firstName: "a1" })} />
+          <div data-testid="a2" onClick={() => setAuthor({ id: "a:2", firstName: undefined })} />
+        </div>
       );
-    }
+    });
     const r = await render(<TestComponent />);
     // And the value is initially a1/and not dirty
     expect(r.value).toHaveTextContent("a1");
