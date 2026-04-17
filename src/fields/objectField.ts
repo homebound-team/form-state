@@ -395,7 +395,7 @@ export function newObjectState<T, P = any>(
       const ourIdValue = idField.value;
       const otherIdValue = (other as any)[idField.key];
       // If the otherIdValue is undefined, it's a new entity so can't be the same as us
-      return otherIdValue !== undefined && otherIdValue === ourIdValue;
+      return otherIdValue !== undefined && areEqual(otherIdValue, ourIdValue);
     },
 
     isUnset(): boolean {

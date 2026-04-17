@@ -3,7 +3,7 @@ import { ListFieldConfig, ObjectFieldConfig } from "src/config";
 import { ObjectState, ObjectStateInternal, newObjectState } from "src/fields/objectField";
 import { FieldState, InternalSetOpts } from "src/fields/valueField";
 import { Rule, required } from "src/rules";
-import { fail, groupBy, isNotUndefined } from "src/utils";
+import { fail, groupBy, isNotUndefined, normalizeHashValue } from "src/utils";
 import hash from "object-hash";
 
 /** Form state for list of children, i.e. `U` is a `Book` in a form with a `books: Book[]`. */
@@ -251,8 +251,15 @@ export function newListFieldState<T, K extends keyof T, U>(
           .filter(([key, cfg]: any) => key !== idKey && cfg.type === "value")
           .map(([key]) => key);
         const hashByContent = (item: any) =>
-          hash(Object.fromEntries(Object.entries(item as object).filter(([key]) => contentKeys.includes(key))));
-        const hashById = (item: any) => (idKey && item[idKey]) || hashByContent(item);
+          hashValue(
+            normalizeHashValue(
+              Object.fromEntries(Object.entries(item as object).filter(([key]) => contentKeys.includes(key))),
+            ),
+          );
+        const hashById = (item: any) => {
+          const idValue = idKey ? item[idKey] : undefined;
+          return idValue === undefined ? hashByContent(item) : idValue;
+        };
         const currentById = groupBy(currentItems, hashById);
         const incomingById = groupBy(incomingItems, hashById);
         // If our local instance doesn't assign in id, when we get results back from the server, strip
@@ -405,4 +412,8 @@ export function newListFieldState<T, K extends keyof T, U>(
   );
 
   return proxy;
+}
+
+function hashValue(value: unknown): string {
+  return hash(value as Parameters<typeof hash>[0]);
 }

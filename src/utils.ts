@@ -2,9 +2,10 @@ import { isPlainObject } from "is-plain-object";
 import { isObservable, toJS } from "mobx";
 import { FragmentFieldConfig, ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
 import { deepEquals } from "src/fields/deepEquals";
+import { areSupportedTemporalValuesEqual, type SupportedTemporal } from "src/temporal";
 import { InputAndMap, QueryAndMap, UseFormStateOpts } from "src/useFormState";
 
-export type Builtin = Date | Function | Uint8Array | string | number | boolean;
+export type Builtin = Date | Function | SupportedTemporal | Uint8Array | string | number | boolean;
 
 export type Primitive = undefined | null | boolean | string | number | Function | Date | { toJSON(): any };
 
@@ -129,6 +130,10 @@ export function isEmpty(value: any): boolean {
  * - arrays
  */
 export function areEqual<T>(a?: T, b?: T, strictOrder?: boolean): boolean {
+  const temporalEquals = areSupportedTemporalValuesEqual(a, b);
+  if (temporalEquals !== undefined) {
+    return temporalEquals;
+  }
   if (isPlainObject(a)) {
     return deepEquals(toJS(a), toJS(b));
   }
@@ -149,6 +154,34 @@ export function areEqual<T>(a?: T, b?: T, strictOrder?: boolean): boolean {
 
 export function hasToJSON(o?: unknown): o is { toJSON(): void } {
   return !!(o && typeof o === "object" && "toJSON" in o);
+}
+
+/** Normalizes values into stable object-hash-safe data using our existing `toJSON` semantics. */
+export function normalizeHashValue(value: unknown, seen: WeakMap<object, unknown> = new WeakMap()): unknown {
+  if (hasToJSON(value)) {
+    return normalizeHashValue(value.toJSON(), seen);
+  }
+  if (Array.isArray(value)) {
+    if (seen.has(value)) {
+      return seen.get(value);
+    }
+    const result: unknown[] = [];
+    seen.set(value, result);
+    value.forEach((entry) => result.push(normalizeHashValue(entry, seen)));
+    return result;
+  }
+  if (value && typeof value === "object" && isPlainObject(value)) {
+    if (seen.has(value)) {
+      return seen.get(value);
+    }
+    const result: Record<string, unknown> = {};
+    seen.set(value, result);
+    Object.entries(value as Record<string, unknown>).forEach(([key, entry]) => {
+      result[key] = normalizeHashValue(entry, seen);
+    });
+    return result;
+  }
+  return value;
 }
 
 /** Make a clone of `obj`, but only recurse into POJOs and Arrays...and stores. */

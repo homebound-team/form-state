@@ -845,6 +845,7 @@ __metadata:
     react-dom: ^18.3.1
     semantic-release: ^24.1.2
     storybook: ^8.3.5
+    temporal-polyfill: ^0.3.2
     ts-jest: ^29.2.5
     ts-node: ^10.9.2
     ts-patch: ^3.2.1
@@ -11697,6 +11698,22 @@ __metadata:
   version: 3.0.0
   resolution: "temp-dir@npm:3.0.0"
   checksum: 577211e995d1d584dd60f1469351d45e8a5b4524e4a9e42d3bdd12cfde1d0bb8f5898311bef24e02aaafb69514c1feb58c7b4c33dcec7129da3b0861a4ca935b
+  languageName: node
+  linkType: hard
+
+"temporal-polyfill@npm:^0.3.2":
+  version: 0.3.2
+  resolution: "temporal-polyfill@npm:0.3.2"
+  dependencies:
+    temporal-spec: 0.3.1
+  checksum: bd24aa2105e3a4f53fec5d641c4a69f9e0394db04434a83fa1191015b453bc498c21f75bb0cb30a823795db919194ec0e6d7894ae99f03155bec5c7bba1b99f3
+  languageName: node
+  linkType: hard
+
+"temporal-spec@npm:0.3.1":
+  version: 0.3.1
+  resolution: "temporal-spec@npm:0.3.1"
+  checksum: f226a51169e86297a34fbfad3fefceab4a9581744f0e03f45d6d8112b02670d9972a0318edf05ab3500516cb062a331335a579fc2b94ea440f8a6aafa4e4eec2
   languageName: node
   linkType: hard
 
