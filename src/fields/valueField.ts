@@ -249,7 +249,10 @@ export function newValueFieldState<T, K extends keyof T>(
         //   is exactly acking our change, or
         // - the user hasn't made any changes since `.changedValue` was put on the wire, i.e. the
         //   server received our value, but wanted to change it.
-        const keepLocalWipChange = this.value !== value && !isAckingUnset && !acceptServerAck;
+        // Compare by content (not `!==`) so array/list-of-primitive values are treated as acked when
+        // the server returns the same contents in a new array instance (otherwise the field would
+        // stay dirty forever, since reference equality never holds for a fresh array).
+        const keepLocalWipChange = !areEqual(this.value, value, strictOrder) && !isAckingUnset && !acceptServerAck;
         if (keepLocalWipChange) return;
       } else if (computed && (opts.resetting || opts.refreshing)) {
         // Computeds can't be either reset or refreshed
