@@ -390,6 +390,40 @@ describe("useFormState", () => {
     }
   });
 
+  it("becomes clean when update acks an array value with the same contents", async () => {
+    // Given a form with an array-of-primitives value field
+    type FormValue = { colors: string[] };
+    const config: ObjectConfig<FormValue> = { colors: { type: "value" } };
+
+    function TestComponent() {
+      const form = useFormState({ config, init: { input: { colors: ["red", "green", "blue"] } } });
+      // Note: we deliberately do not read `form.changedValue` (the way an auto-save would), so the only
+      // thing that can let `update` accept the server value is content equality, not the changedValue hint.
+      return (
+        <Observer>
+          {() => (
+            <div>
+              <div data-testid="colors">{(form.colors.value ?? []).join(",")}</div>
+              <div data-testid="dirty">{String(form.dirty)}</div>
+              <button data-testid="edit" onClick={() => form.colors.set(["red", "green"])} />
+              <button data-testid="saveAndUpdate" onClick={() => form.update({ colors: ["red", "green"] })} />
+            </div>
+          )}
+        </Observer>
+      );
+    }
+    const r = await render(<TestComponent />);
+    expect(r.dirty.textContent).toEqual("false");
+    // When the user edits the array
+    click(r.edit);
+    expect(r.dirty.textContent).toEqual("true");
+    // And the server acks the same contents in a brand-new array instance
+    click(r.saveAndUpdate);
+    // Then the form is clean (we don't get stuck dirty on array reference inequality)
+    expect(r.colors.textContent).toEqual("red,green");
+    expect(r.dirty.textContent).toEqual("false");
+  });
+
   it("can accept new data while read only", async () => {
     // Given a component
     function TestComponent() {
