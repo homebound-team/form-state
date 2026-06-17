@@ -42,7 +42,13 @@ export interface FieldState<V> {
   set(value: V, opts?: SetOpts): void;
   /** Reverts back to the original value and resets dirty/touched. */
   revertChanges(): void;
-  /** Accepts the current changed value (if any) as the original and resets dirty/touched. */
+  /**
+   * Accepts the current changed value (if any) as the original and resets dirty/touched.
+   *
+   * @deprecated Use `formState.update(ackedServerValue)` instead. `commitChanges` marks all current
+   * changes as saved, which risks discarding a user's in-flight edits. Updating from the server ack gives
+   * form-state a field-by-field audit of which changes were successfully saved.
+   */
   commitChanges(): void;
   /** Creates a new FieldState with a transformation of the value, i.e. string to int, or feet to inches. */
   adapt<V2>(adapter: ValueAdapter<V, V2>): FieldState<V2>;

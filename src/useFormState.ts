@@ -1,7 +1,7 @@
 import { isPlainObject } from "is-plain-object";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ObjectConfig } from "src/config";
-import { ObjectState, createObjectState } from "src/fields/objectField";
+import { type ObjectConfig } from "src/config";
+import { type ObjectState, type ObjectStateInternal, createObjectState } from "src/fields/objectField";
 import { initValue, isInput, isQuery } from "./utils";
 
 // A structural match for useQuery
@@ -75,6 +75,18 @@ export type UseFormStateOpts<T, I> = {
   autoSave?: (state: ObjectState<T>) => Promise<unknown>;
 };
 
+export type FormObjectState<T, I> = ObjectState<T> & {
+  /**
+   * Refreshes the form with a server-acked value, i.e. `form.update(savedAuthor)`.
+   *
+   * This is intended for save callbacks that need `form.dirty` to become `false` immediately, before the
+   * normal query/cache refresh has a chance to rerender `useFormState`. Pass the value returned by the
+   * server so the form can map it through `init.map` and then do a field-by-field refresh of only the
+   * changes the server has acknowledged.
+   */
+  update(input: Exclude<I, null | undefined>): void;
+};
+
 // If the user's autoSave hook makes some last-minute `.set` calls to sneak
 // in some business logic right before their GraphQL mutation call, ignore it
 // so that we don't infinite loop.
@@ -87,12 +99,15 @@ let pendingAutoSave = false;
 /**
  * Creates a formState instance for editing in a form.
  */
-export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T> {
+export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectState<T, I> {
   const { config, init, addRules, readOnly = false, loading, autoSave } = opts;
 
   // Use a ref so our memo'ized `onBlur` always see the latest value
   const autoSaveRef = useRef<((state: ObjectState<T>) => void) | undefined>(autoSave);
   autoSaveRef.current = autoSave;
+  // Use a ref so our memo'ized `update` always sees the latest init/map
+  const initRef = useRef<UseFormStateOpts<T, I>["init"]>(init);
+  initRef.current = init;
 
   const firstRunRef = useRef<boolean>(true);
   // This is a little weird, but we need to know ahead of time, before the form useMemo, if we're working with classes/mobx proxies
@@ -159,7 +174,18 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): ObjectState<T>
         }
       }
       const value = firstRunRef.current ? firstInitValue : initValue(config, init);
-      const form = createObjectState(config, value, { maybeAutoSave });
+      const form = createObjectState(config, value, { maybeAutoSave }) as FormObjectState<T, I>;
+      form.update = function update(input) {
+        const init = initRef.current;
+        const updateInit = isInput(init)
+          ? { ...init, input }
+          : isQuery(init)
+            ? { input, map: init.map, ifUndefined: init.ifUndefined }
+            : { input };
+        (form as unknown as ObjectStateInternal<T>).set(initValue(config, updateInit), {
+          refreshing: true,
+        });
+      };
       form.readOnly = readOnly;
       setLoading(form, opts);
       // The identity of `addRules` is not stable, but assume that it is for better UX.

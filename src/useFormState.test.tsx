@@ -321,6 +321,75 @@ describe("useFormState", () => {
     expect(r.firstName.textContent).toEqual("F2");
   });
 
+  it("can immediately update from a server ack before init input rerenders", async () => {
+    type FormValue = Pick<AuthorInput, "firstName" | "lastName">;
+    type ServerAuthor = { legalFirstName: string; legalLastName: string };
+    const config: ObjectConfig<FormValue> = {
+      firstName: { type: "value" },
+      lastName: { type: "value" },
+    };
+    const initialAuthor: ServerAuthor = { legalFirstName: "First", legalLastName: "Last" };
+    const savedAuthor: ServerAuthor = { legalFirstName: "Saved", legalLastName: "Author" };
+
+    function TestComponent() {
+      const form = useFormState({
+        config,
+        init: { input: initialAuthor, map: mapServerAuthor },
+      });
+
+      function makeLocalChanges() {
+        form.firstName.set("Saved");
+        form.lastName.set("Author");
+      }
+
+      function saveWithoutUpdating() {
+        noop(form.changedValue);
+      }
+
+      function saveAndUpdate() {
+        noop(form.changedValue);
+        form.update(savedAuthor);
+      }
+
+      return (
+        <Observer>
+          {() => (
+            <div>
+              <div data-testid="firstName">{form.firstName.value}</div>
+              <div data-testid="lastName">{form.lastName.value}</div>
+              <div data-testid="dirty">{String(form.dirty)}</div>
+              <button data-testid="makeLocalChanges" onClick={makeLocalChanges} />
+              <button data-testid="saveWithoutUpdating" onClick={saveWithoutUpdating} />
+              <button data-testid="saveAndUpdate" onClick={saveAndUpdate} />
+            </div>
+          )}
+        </Observer>
+      );
+    }
+
+    const r = await render(<TestComponent />);
+    expect(r.firstName.textContent).toEqual("First");
+    expect(r.lastName.textContent).toEqual("Last");
+    expect(r.dirty.textContent).toEqual("false");
+
+    click(r.makeLocalChanges);
+    expect(r.firstName.textContent).toEqual("Saved");
+    expect(r.lastName.textContent).toEqual("Author");
+    expect(r.dirty.textContent).toEqual("true");
+
+    click(r.saveWithoutUpdating);
+    expect(r.dirty.textContent).toEqual("true");
+
+    click(r.saveAndUpdate);
+    expect(r.firstName.textContent).toEqual("Saved");
+    expect(r.lastName.textContent).toEqual("Author");
+    expect(r.dirty.textContent).toEqual("false");
+
+    function mapServerAuthor(input: ServerAuthor): FormValue {
+      return { firstName: input.legalFirstName, lastName: input.legalLastName };
+    }
+  });
+
   it("can accept new data while read only", async () => {
     // Given a component
     function TestComponent() {
