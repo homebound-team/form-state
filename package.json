@@ -10,7 +10,8 @@
     "url": "https://github.com/homebound-team/form-state"
   },
   "files": [
-    "dist"
+    "dist",
+    "skills"
   ],
   "scripts": {
     "build": "tspc",
