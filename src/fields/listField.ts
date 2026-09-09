@@ -177,16 +177,15 @@ export function newListFieldState<T, K extends keyof T, U>(
     rules,
 
     get valid(): boolean {
-      const value = this.rows;
-      // TODO Passing `originalCopy || []` is probably not 100% right
-      const opts = { value, key: key as string, originalValue: this.originalValue, object: parentState() };
-      const collectionValid = this.rules.every((r) => r(opts as any) === undefined);
+      const collectionValid = this.errors.length === 0;
       const entriesValid = this.rows.filter((r) => !(r as any)._considerDeleted()).every((r) => r.valid);
       return collectionValid && entriesValid;
     },
 
+    /** Returns the errors from our own collection-level rules (not the rows' errors). */
     get errors(): string[] {
       valueAtom.reportObserved();
+      // TODO Passing `originalCopy || []` is probably not 100% right
       const opts = { value: this.rows, key: key as string, originalValue: this.originalValue, object: parentState() };
       return this.rules.map((r) => r(opts as any)).filter(isNotUndefined);
     },
