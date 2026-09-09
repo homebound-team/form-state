@@ -1,5 +1,5 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
-import { act } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { makeAutoObservable, reaction } from "mobx";
 import { observer, Observer } from "mobx-react";
 import { useMemo, useRef, useState } from "react";
@@ -12,6 +12,44 @@ import { required } from "src/rules";
 import { useFormState } from "./useFormState";
 
 describe("useFormState", () => {
+  it.each([null, undefined, ""])("ignores a normalized stale value of %s", (staleValue) => {
+    // Given a form whose empty server value is exposed as undefined
+    type FormValue = Pick<AuthorInput, "firstName">;
+    const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+    const hook = renderHook(() => useFormState({ config, init: { input: { firstName: null } as FormValue } }));
+    const form = hook.result.current;
+    // And a new name has been submitted without any subsequent local edit
+    act(() => form.firstName.set("Grand Porch"));
+    expect(form.changedValue).toEqual({ firstName: "Grand Porch" });
+
+    // When a refresh contains the same empty baseline in a different representation
+    act(() => form.update({ firstName: staleValue }));
+
+    // Then the refresh preserves the submitted name rather than treating it as a server correction
+    expect(form.firstName.value).toEqual("Grand Porch");
+    expect(form.firstName.originalValue).toEqual(undefined);
+    expect(form.dirty).toEqual(true);
+  });
+
+  it("accepts an empty-string acknowledgement of a deletion", () => {
+    // Given a form with a saved name
+    type FormValue = Pick<AuthorInput, "firstName">;
+    const config: ObjectConfig<FormValue> = { firstName: { type: "value" } };
+    const hook = renderHook(() => useFormState({ config, init: { input: { firstName: "Porch" } as FormValue } }));
+    const form = hook.result.current;
+    // And the user clears the name, represented locally as null
+    act(() => form.firstName.set(undefined));
+    expect(form.firstName.value).toEqual(null);
+
+    // When the server acknowledges the deletion as an empty string, without a submission hint
+    act(() => form.update({ firstName: "" }));
+
+    // Then both the current value and baseline use the normalized empty value
+    expect(form.firstName.value).toEqual(undefined);
+    expect(form.firstName.originalValue).toEqual(undefined);
+    expect(form.dirty).toEqual(false);
+  });
+
   it("calls init.map if init.input is defined", async () => {
     // Given a component
     function TestComponent() {

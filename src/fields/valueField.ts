@@ -252,9 +252,16 @@ export function newValueFieldState<T, K extends keyof T>(
         throw new Error(`${String(key)} is currently readOnly`);
       }
 
+      // If the user has deleted/emptied a value that was originally set, keep it as `null`
+      // so that our partial update to the backend correctly unsets it.
+      const keepNull = !isEmpty(this.originalValue) && isEmpty(value) && !opts.refreshing;
+      // If a list of primitives was originally undefined, coerce `[]` to `undefined`
+      const coerceEmptyList = value && value instanceof Array && value.length === 0 && isEmpty(this.originalValue);
+      const newValue = keepNull ? null : isEmpty(value) || coerceEmptyList ? undefined : value;
+
       if (opts.refreshing && this.dirty) {
         // See if we should ignore the incoming server-side value, to avoid dropping local WIP changes
-        const isAckingUnset = this.value === null && (value === null || value === undefined);
+        const isAckingUnset = this.value === null && newValue === undefined;
         const acceptServerAck =
           hasInflightChangedValue &&
           this.value === lastChangedValue &&
@@ -262,7 +269,7 @@ export function newValueFieldState<T, K extends keyof T>(
           // on the wire" and "the server acked our change". Granted, this heuristic means that if the server
           // really does reject/rollback our change, we'll ignore it, but atm we don't have a way of differentiating
           // "this refresh is from a pre-response cache refresh" vs. "post-response cache refresh".
-          value !== this.originalValue;
+          !areEqual(newValue, this.originalValue, strictOrder);
         // Ignore incoming values if we have changes (this.dirty) unless:
         // - our latest change (this.value) matches the incoming value (value), i.e. the server
         //   is exactly acking our change, or
@@ -271,19 +278,12 @@ export function newValueFieldState<T, K extends keyof T>(
         // Compare by content (not `!==`) so array/list-of-primitive values are treated as acked when
         // the server returns the same contents in a new array instance (otherwise the field would
         // stay dirty forever, since reference equality never holds for a fresh array).
-        const keepLocalWipChange = !areEqual(this.value, value, strictOrder) && !isAckingUnset && !acceptServerAck;
+        const keepLocalWipChange = !areEqual(this.value, newValue, strictOrder) && !isAckingUnset && !acceptServerAck;
         if (keepLocalWipChange) return;
       } else if (computed && (opts.resetting || opts.refreshing)) {
         // Computeds can't be either reset or refreshed
         return;
       }
-
-      // If the user has deleted/emptied a value that was originally set, keep it as `null`
-      // so that our partial update to the backend correctly unsets it.
-      const keepNull = !isEmpty(this.originalValue) && isEmpty(value) && !opts.refreshing;
-      // If a list of primitives was originally undefined, coerce `[]` to `undefined`
-      const coerceEmptyList = value && value instanceof Array && value.length === 0 && isEmpty(this.originalValue);
-      const newValue = keepNull ? null : isEmpty(value) || coerceEmptyList ? undefined : value;
 
       hasInflightChangedValue = false;
 
