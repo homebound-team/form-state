@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { type ObjectConfig } from "src/config";
 import { type ObjectState, type ObjectStateInternal, createObjectState } from "src/fields/objectField";
 import { initValue } from "src/utils";
@@ -82,6 +82,15 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [config],
   );
+  // When `config` changes we start a new cache, so dispose the superseded forms and their fields stop
+  // watching any mobx stores they wrapped. We never dispose the current cache (i.e. in an effect cleanup),
+  // because StrictMode re-runs effects against a still-mounted component.
+  const prevCacheRef = useRef(objectStateCache);
+  useEffect(() => {
+    const prevCache = prevCacheRef.current;
+    if (prevCache !== objectStateCache) Object.values(prevCache).forEach((entry) => entry[0].dispose());
+    prevCacheRef.current = objectStateCache;
+  }, [objectStateCache]);
   // Keep track of ObjectStates that triggered auto-save when a save was already in progress.
   const pendingAutoSaves = useRef<Set<ObjectState<T>>>(new Set());
   // If the user's autoSave hook makes some last-minute `.set` calls to sneak

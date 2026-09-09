@@ -567,6 +567,37 @@ describe("useFormState", () => {
     expect(autoSave).toBeCalledTimes(2);
   });
 
+  it("disposes the previous form when init switches to a different mobx proxy", async () => {
+    // Given a component that wraps a class/mobx proxy
+    class AuthorRow {
+      constructor(public firstName: string | undefined) {
+        makeAutoObservable(this);
+      }
+    }
+    const autoSave = vi.fn();
+    // And two separate rows the component can switch between
+    const rowA = new AuthorRow("a1");
+    const rowB = new AuthorRow("b1");
+    function TestComponent() {
+      const [author, setAuthor] = useState(rowA);
+      const config: ObjectConfig<AuthorRow> = useMemo(() => ({ firstName: { type: "value" } }), []);
+      useFormState({ config, init: { input: author, map: (a) => a }, autoSave });
+      return (
+        <div>
+          <button data-testid="switchToB" onClick={() => setAuthor(rowB)} />
+          <button data-testid="changeA" onClick={() => (rowA.firstName = "a2")} />
+        </div>
+      );
+    }
+    const r = await render(<TestComponent />);
+    // When the component switches to row B, which re-creates the form
+    await clickAndWait(r.switchToB);
+    // And the no-longer-wrapped row A is mutated
+    await clickAndWait(r.changeA);
+    // Then the superseded form was disposed and does not auto-save row A
+    expect(autoSave).toBeCalledTimes(0);
+  });
+
   it("can trigger auto save for fields in list that were initially undefined", async () => {
     const autoSave = vi.fn();
     // Given a component

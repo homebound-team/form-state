@@ -201,6 +201,15 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
     [config, ...(isWrappingMobxProxy ? dep : [])],
   );
 
+  // When `init` changes while wrapping a mobx proxy, the useMemo above builds a new form, so dispose the
+  // superseded one and its fields stop watching the old store. We deliberately never dispose the *current*
+  // form (i.e. in an effect cleanup), because StrictMode re-runs effects against a still-mounted form.
+  const prevFormRef = useRef<FormObjectState<T, I> | undefined>(undefined);
+  useEffect(() => {
+    if (prevFormRef.current && prevFormRef.current !== form) prevFormRef.current.dispose();
+    prevFormRef.current = form;
+  }, [form]);
+
   // We use useEffect so that any mutations to the proxies, which will call `setState`s on any observers to
   // queue their components' render), don't happen during our render, per https://fb.me/setstate-in-render.
   useEffect(() => {

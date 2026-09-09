@@ -393,6 +393,10 @@ export function newObjectState<T, P = any>(
       return result;
     },
 
+    dispose() {
+      getFields(this).forEach((f) => f.dispose());
+    },
+
     get originalValue(): T | undefined {
       getFields(proxy).map((f) => f.originalValue);
       return originalCopy;
