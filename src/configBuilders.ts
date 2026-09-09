@@ -40,7 +40,7 @@ export const f = {
 
   /** A shorthand for creating a computed value. */
   computed<V>(): ValueFieldConfigBuilder<V> {
-    return this.value().computed();
+    return f.value<V>().computed();
   },
 };
 

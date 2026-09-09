@@ -345,7 +345,6 @@ export function newObjectState<T, P = any>(
           "When using autoSave, you should not manually call commitChanges, instead have init.map/input update the form state",
         );
       }
-      // asdf
       getFields(this).forEach((f) => f.commitChanges());
     },
 

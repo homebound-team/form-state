@@ -31,7 +31,12 @@ export interface FieldState<V> {
   readonly isNewEntity: boolean;
   rules: Rule<V>[];
   readonly errors: string[];
-  /** Returns a subset of V with only the changed values. Currently not observable. */
+  /**
+   * Returns a subset of V with only the changed values.
+   *
+   * Reading this also records that the value is probably being put on the wire, so that a later
+   * `refreshing` set can tell a server ack of this value apart from a stale cache refresh.
+   */
   readonly changedValue: V;
   /** Focuses the field. Disables changes from `ObjectState.set` calls. */
   focus(): void;
@@ -194,6 +199,9 @@ export function newValueFieldState<T, K extends keyof T>(
     get changedValue() {
       // Add some hints to let `set(..., { refreshing: true })` accept server-driven changes to our value,
       // if the user hasn't changed it yet-again while the changedValue was in in-flight.
+      //
+      // Note this is a side effect inside a mobx computed; it stays correct because every `set` calls
+      // `valueAtom.reportChanged()`, which invalidates this computed, so the next read re-records the hints.
       hasInflightChangedValue = true;
       lastChangedValue = this.value;
       // Usually if we see a field being unset, we set `parent[key] = null`, but if we're wrapping

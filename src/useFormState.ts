@@ -146,7 +146,6 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
             return;
           }
           isAutoSaving = "queued";
-          let maybeError: undefined | string;
           // We use setTimeout as a cheap way to wait until the end of the current event listener
           setTimeout(async () => {
             try {
@@ -159,9 +158,6 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
               const promise = autoSaveRef.current!(form);
               isAutoSaving = "in-flight";
               await promise;
-            } catch (e) {
-              maybeError = String(e);
-              throw e;
             } finally {
               isAutoSaving = false;
               (form as any)._isAutoSaving = false;
