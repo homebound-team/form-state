@@ -45,7 +45,7 @@ describe("mobx behavior", () => {
 
   it("mobx lists maintain observable identity", () => {
     // given a parent observable
-    const a = observable({ list: [] as {}[] });
+    const a = observable({ list: [] as object[] });
     // if we observable-ize a value being pushing it on the list
     const c1 = observable({});
     a.list.push(c1);

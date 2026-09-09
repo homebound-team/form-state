@@ -5,7 +5,6 @@ node_modules
 dist
 .vscode/
 .idea/
-.eslintcache
 test.html
 
 # Yarn
