@@ -86,10 +86,7 @@ export function pickFields<T, I>(
   return Object.fromEntries(
     Object.entries(formConfig).map(([key, _keyConfig]) => {
       const keyConfig = _keyConfig as any as
-        | ObjectFieldConfig<any>
-        | ListFieldConfig<any>
-        | ValueFieldConfig<any>
-        | FragmentFieldConfig;
+        ObjectFieldConfig<any> | ListFieldConfig<any> | ValueFieldConfig<any> | FragmentFieldConfig;
       const value = (instance as any)[key];
       if (keyConfig.type === "object") {
         if (value) {

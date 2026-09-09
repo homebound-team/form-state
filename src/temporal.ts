@@ -37,9 +37,18 @@ export function areSupportedTemporalValuesEqual(a: unknown, b: unknown): boolean
   if (!aIsTemporal || !bIsTemporal || a[Symbol.toStringTag] !== b[Symbol.toStringTag]) {
     return false;
   }
-  return a.equals(b);
+  // The tags match, so `b` is the same Temporal type as `a`; narrow `a` so that TS accepts `b` for its `equals`.
+  if (isTemporalPlainDate(a)) {
+    return a.equals(b as Temporal.PlainDate);
+  }
+  return a.equals(b as Temporal.ZonedDateTime);
 }
 
 function isSupportedTemporalTag(value: unknown): value is SupportedTemporalTag {
   return value === temporalPlainDateTag || value === temporalZonedDateTimeTag;
+}
+
+/** Narrows a supported Temporal value to `Temporal.PlainDate` by its well-known tag. */
+function isTemporalPlainDate(value: SupportedTemporal): value is Temporal.PlainDate {
+  return value[Symbol.toStringTag] === temporalPlainDateTag;
 }

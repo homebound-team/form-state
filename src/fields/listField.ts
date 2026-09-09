@@ -1,10 +1,10 @@
 import { computed, makeAutoObservable, observable, reaction } from "mobx";
+import hash from "object-hash";
 import { type ListFieldConfig, type ObjectFieldConfig } from "src/config";
 import { type ObjectState, type ObjectStateInternal, newObjectState } from "src/fields/objectField";
 import { type FieldState, type InternalSetOpts } from "src/fields/valueField";
 import { type Rule, required } from "src/rules";
 import { fail, groupBy, isNotUndefined, normalizeHashValue } from "src/utils";
-import hash from "object-hash";
 
 /** Form state for list of children, i.e. `U` is a `Book` in a form with a `books: Book[]`. */
 export interface ListFieldState<U> extends FieldState<U[]> {

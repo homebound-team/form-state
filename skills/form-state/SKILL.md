@@ -96,16 +96,16 @@ Enums and nested ids map to `"value"` fields holding the `.code`/`.id` string â€
 
 ### `type: "value"` options (all optional)
 
-| option                   | meaning                                                                | notes                                                                          |
-| ------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `rules: [required, ...]` | validation rules (see [Validation](#validation))                       | the common case                                                                 |
-| `readOnly: boolean`      | field starts read-only; can be flipped at runtime                      | often `readOnly: !canEdit`                                                       |
-| `computed: true`         | backed by a MobX computed; excluded from `reset`                       | for derived/aggregate fields                                                     |
-| `isDeleteKey: true`      | this bool marks a list row as deleted (excluded from list validity)    | e.g. `delete: { type: "value", isDeleteKey: true }`                             |
-| `isReadOnlyKey: true`    | truthy value makes the whole containing entity read-only               | rare                                                                            |
-| `isIdKey: boolean`       | marks the id field (auto-true for `id`); always kept in `changedValue` | rely on the default for a field named `id`                                       |
+| option                   | meaning                                                                | notes                                                                                   |
+| ------------------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `rules: [required, ...]` | validation rules (see [Validation](#validation))                       | the common case                                                                         |
+| `readOnly: boolean`      | field starts read-only; can be flipped at runtime                      | often `readOnly: !canEdit`                                                              |
+| `computed: true`         | backed by a MobX computed; excluded from `reset`                       | for derived/aggregate fields                                                            |
+| `isDeleteKey: true`      | this bool marks a list row as deleted (excluded from list validity)    | e.g. `delete: { type: "value", isDeleteKey: true }`                                     |
+| `isReadOnlyKey: true`    | truthy value makes the whole containing entity read-only               | rare                                                                                    |
+| `isIdKey: boolean`       | marks the id field (auto-true for `id`); always kept in `changedValue` | rely on the default for a field named `id`                                              |
 | `isLocalOnly: true`      | ignore in dirty checks / never send                                    | for FE-only fields; alternatively add them to `T` and destructure out of `changedValue` |
-| `strictOrder: false`     | array order doesn't affect dirty/changed                               | rare                                                                            |
+| `strictOrder: false`     | array order doesn't affect dirty/changed                               | rare                                                                                    |
 
 ### `type: "list"` (nested collections)
 

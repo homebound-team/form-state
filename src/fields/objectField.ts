@@ -12,8 +12,8 @@ import {
   type FieldState,
   type FieldStateInternal,
   type InternalSetOpts,
-  type SetOpts,
   newValueFieldState,
+  type SetOpts,
 } from "src/fields/valueField";
 import { areEqual, type Builtin, deepClone, fail } from "src/utils";
 
@@ -137,10 +137,7 @@ export function newObjectState<T, P = any>(
   const fieldStates = Object.entries(objectConfig).map(([_key, _config]) => {
     const key = _key as keyof T;
     const config = _config as
-      | ValueFieldConfig<any>
-      | ObjectFieldConfig<any>
-      | ListFieldConfig<any>
-      | FragmentFieldConfig;
+      ValueFieldConfig<any> | ObjectFieldConfig<any> | ListFieldConfig<any> | FragmentFieldConfig;
     let field: FieldState<any> | ListFieldState<any> | ObjectState<T> | FragmentField<any>;
     if (config.type === "value") {
       field = newValueFieldState(

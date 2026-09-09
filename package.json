@@ -28,13 +28,9 @@
     "lint": "oxlint --type-aware",
     "lint:fix": "oxlint --type-aware --fix",
     "storybook": "storybook dev -p 9000",
-    "format": "prettier --loglevel warn --write \"**/*.{ts,tsx,css,md}\"",
+    "format": "prettier --log-level warn --write \"**/*.{ts,tsx,css,md}\"",
+    "prepare": "husky",
     "semantic-release": "semantic-release"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged --allow-empty"
-    }
   },
   "lint-staged": {
     "src/**/*.{ts,tsx,css,md}": "prettier --write"
@@ -43,7 +39,7 @@
     "@types/object-hash": "^3.0.6",
     "is-plain-object": "^5.1.0",
     "object-hash": "^3.0.0",
-    "temporal-polyfill": "^0.3.2"
+    "temporal-polyfill": "^1.0.4"
   },
   "peerDependencies": {
     "mobx": ">=6",
@@ -53,8 +49,8 @@
     "@homebound/eslint-config": "^4.0.0",
     "@homebound/rtl-utils": "^3.0.2",
     "@homebound/tsconfig": "^1.2.0",
-    "@semantic-release/exec": "^6.0.3",
-    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/exec": "^7.1.0",
+    "@semantic-release/git": "^11.0.1",
     "@storybook/addon-docs": "^10.6.0",
     "@storybook/addon-links": "^10.6.0",
     "@storybook/react": "^10.6.0",
@@ -65,19 +61,19 @@
     "@types/jsdom": "^30",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
-    "conventional-changelog-conventionalcommits": "^8.0.0",
-    "husky": "^3.1.0",
+    "conventional-changelog-conventionalcommits": "^10.4.0",
+    "husky": "^9.1.7",
     "jsdom": "^30.0.1",
-    "lint-staged": "^15.2.10",
+    "lint-staged": "^17.5.0",
     "mobx": "^7.0.3",
     "mobx-react": "^10.0.2",
     "oxlint": "~1.78.0",
     "oxlint-tsgolint": "^7.0.2001",
-    "prettier": "3.3.3",
-    "prettier-plugin-organize-imports": "^4.1.0",
+    "prettier": "^3.9.6",
+    "prettier-plugin-organize-imports": "^4.3.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "semantic-release": "^24.1.2",
+    "semantic-release": "^25.0.9",
     "storybook": "^10.6.0",
     "tsdown": "^0.23.0",
     "typescript": "^6.0.3",
