@@ -1897,6 +1897,27 @@ describe("formState", () => {
     expect(ticks).toEqual(2);
   });
 
+  it("can observe value changes through nested lists", () => {
+    // Given a form with a list of books
+    const formState = createObjectState(authorWithBooksConfig, { firstName: "f", books: [{ title: "b1" }] });
+    // And an observer of the top-level value
+    let ticks = 0;
+    reaction(
+      () => formState.value,
+      () => ticks++,
+      { equals: () => false },
+    );
+    expect(ticks).toEqual(0);
+    // When a field deep inside a list row changes
+    formState.books.rows[0].title.value = "b1...";
+    // Then the top-level observer re-ran
+    expect(ticks).toEqual(1);
+    // And when a row is added
+    formState.books.add({ title: "b2" });
+    // Then the top-level observer re-ran again
+    expect(ticks).toEqual(2);
+  });
+
   it("keeps WIP changes for changed field", () => {
     const formState = createObjectState(authorWithBooksConfig, { firstName: "f", lastName: "l" });
     // Given first name is focused

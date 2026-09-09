@@ -1,4 +1,4 @@
-import { computed, makeAutoObservable, observable, reaction } from "mobx";
+import { computed, makeAutoObservable, observable } from "mobx";
 import hash from "object-hash";
 import { type ListFieldConfig, type ObjectFieldConfig } from "src/config";
 import { type ObjectState, type ObjectStateInternal, newObjectState } from "src/fields/objectField";
@@ -34,7 +34,6 @@ export function newListFieldState<T, K extends keyof T, U>(
   const addedRows = new Set<U>();
   const _tick = observable({ value: 1 });
   const _originalValueTick = observable({ value: 1 });
-  const _childTick = observable({ value: 1 });
 
   // When child rows don't have ids (i.e. for new rows that aren't saved yet), we need an id-less
   // "clone <-> current" map to tell if we're dirty or not, i.e. whether `parentInstance[key]` has
@@ -87,7 +86,10 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     // Our fundamental state of wrapped Us
     get value() {
-      return _tick.value > 0 && _childTick.value > 0 ? ((parentInstance[key] ?? []) as any as U[]) : fail();
+      // Read each row's value so observers of our `value` re-run when a row deeply changes,
+      // not just when rows are added/removed (which is what `_tick` tracks).
+      this.rows.forEach((r) => r.value);
+      return _tick.value > 0 ? ((parentInstance[key] ?? []) as any as U[]) : fail();
     },
 
     _kind: "list",
@@ -156,7 +158,7 @@ export function newListFieldState<T, K extends keyof T, U>(
       // It's unclear why we need to access _tick.value here, b/c calling `this.value` should
       // transitively register us as a dependency on it
       if (_tick.value < 0) fail();
-      // Avoid using `this.value` to avoid registering `_childTick` as a dependency
+      // Read `parentInstance[key]` directly (not `this.value`), because `value` reads `rows`
       const value = parentInstance[key] as any as U[];
       return (value || []).map((child) => getOrCreateChildState(child, { skipSet: true }));
     },
@@ -405,13 +407,6 @@ export function newListFieldState<T, K extends keyof T, U>(
     // See other makeAutoObservable comment
     value: computed({ equals: () => false }),
   }) as any;
-
-  // Any time a row's value changes, percolate that to our `.value` (so the callers to our
-  // `.value` will rerun given the value they saw has deeply changed.)
-  reaction(
-    () => proxy.rows.map((r: any) => r.value),
-    () => _childTick.value++,
-  );
 
   return proxy;
 }
