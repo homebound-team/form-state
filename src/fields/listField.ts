@@ -1,10 +1,10 @@
-import { computed, makeAutoObservable, observable } from "mobx";
+import { computed, createAtom, makeAutoObservable } from "mobx";
 import hash from "object-hash";
 import { type ListFieldConfig, type ObjectFieldConfig } from "src/config";
 import { type ObjectState, type ObjectStateInternal, newObjectState } from "src/fields/objectField";
 import { type FieldState, type InternalSetOpts } from "src/fields/valueField";
 import { type Rule, required } from "src/rules";
-import { fail, groupBy, isNotUndefined, normalizeHashValue } from "src/utils";
+import { groupBy, isNotUndefined, normalizeHashValue } from "src/utils";
 
 /** Form state for list of children, i.e. `U` is a `Book` in a form with a `books: Book[]`. */
 export interface ListFieldState<U> extends FieldState<U[]> {
@@ -32,8 +32,10 @@ export function newListFieldState<T, K extends keyof T, U>(
   // Keep a map of "item in the parentInstance list" -> "that item's ObjectState"
   const rowMap = new Map<U, ObjectStateInternal<U>>();
   const addedRows = new Set<U>();
-  const _tick = observable({ value: 1 });
-  const _originalValueTick = observable({ value: 1 });
+  // `parentInstance[key]` and `parentCopy[key]` are not proxies, so we use atoms as our
+  // "rows added/removed" and "original value changed" triggers.
+  const valueAtom = createAtom(`${String(key)}.value`);
+  const originalValueAtom = createAtom(`${String(key)}.originalValue`);
 
   // When child rows don't have ids (i.e. for new rows that aren't saved yet), we need an id-less
   // "clone <-> current" map to tell if we're dirty or not, i.e. whether `parentInstance[key]` has
@@ -87,9 +89,10 @@ export function newListFieldState<T, K extends keyof T, U>(
     // Our fundamental state of wrapped Us
     get value() {
       // Read each row's value so observers of our `value` re-run when a row deeply changes,
-      // not just when rows are added/removed (which is what `_tick` tracks).
+      // not just when rows are added/removed (which is what `valueAtom` tracks).
       this.rows.forEach((r) => r.value);
-      return _tick.value > 0 ? ((parentInstance[key] ?? []) as any as U[]) : fail();
+      valueAtom.reportObserved();
+      return (parentInstance[key] ?? []) as any as U[];
     },
 
     _kind: "list",
@@ -155,9 +158,8 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     // And we can derive each value's ObjectState wrapper as needed from the rowMap cache
     get rows(): readonly ObjectState<U>[] {
-      // It's unclear why we need to access _tick.value here, b/c calling `this.value` should
-      // transitively register us as a dependency on it
-      if (_tick.value < 0) fail();
+      // Re-run when rows are added/removed
+      valueAtom.reportObserved();
       // Read `parentInstance[key]` directly (not `this.value`), because `value` reads `rows`
       const value = parentInstance[key] as any as U[];
       return (value || []).map((child) => getOrCreateChildState(child, { skipSet: true }));
@@ -184,7 +186,7 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
 
     get errors(): string[] {
-      if (_tick.value < 0) fail();
+      valueAtom.reportObserved();
       const opts = { value: this.rows, key: key as string, originalValue: this.originalValue, object: parentState() };
       return this.rules.map((r) => r(opts as any)).filter(isNotUndefined);
     },
@@ -325,13 +327,13 @@ export function newListFieldState<T, K extends keyof T, U>(
         }
 
         parentInstance[key] = mergedItems as any as T[K];
-        _tick.value++;
+        valueAtom.reportChanged();
 
         // Set original to not merged...
         this.setOriginalValue(incomingItems);
       } else {
         parentInstance[key] = (values ?? []).map((child) => getOrCreateChildState(child, opts).value) as any as T[K];
-        _tick.value++;
+        valueAtom.reportChanged();
         // Reset originalCopy so that our dirty checks have the right # of rows.
         if (opts.refreshing) {
           this.setOriginalValue();
@@ -347,7 +349,7 @@ export function newListFieldState<T, K extends keyof T, U>(
       addedRows.add(value);
       this.ensureSet();
       this.value.splice(typeof spliceIndex === "number" ? spliceIndex : this.value.length, 0, childState.value);
-      _tick.value++;
+      valueAtom.reportChanged();
       maybeAutoSave();
     },
 
@@ -361,7 +363,7 @@ export function newListFieldState<T, K extends keyof T, U>(
           this.value.splice(index, 1);
         }
       }
-      _tick.value++;
+      valueAtom.reportChanged();
       maybeAutoSave();
     },
 
@@ -376,12 +378,12 @@ export function newListFieldState<T, K extends keyof T, U>(
       this.rows.forEach((r) => r.commitChanges());
       this.setOriginalValue();
       this.touched = false;
-      _tick.value++;
+      valueAtom.reportChanged();
     },
 
     get originalValue(): U[] {
-      // A dummy check to for reactivity around our non-proxy value
-      const value = _originalValueTick.value > -1 ? parentCopy[key] : parentCopy[key];
+      originalValueAtom.reportObserved();
+      const value = parentCopy[key];
       return value ?? ([] as any);
     },
 
@@ -392,14 +394,14 @@ export function newListFieldState<T, K extends keyof T, U>(
       (parentCopy[key] as U[]).forEach((copy, i) => {
         copyMap.set(copy, (parentInstance[key] as any)[i]);
       });
-      _originalValueTick.value++;
+      originalValueAtom.reportChanged();
     },
 
     ensureSet() {
       if (!parentInstance[key]) {
         (parentInstance as any)[key] = [];
       }
-      _tick.value++;
+      valueAtom.reportChanged();
     },
   };
 

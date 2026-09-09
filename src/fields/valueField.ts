@@ -1,9 +1,9 @@
 import { isPlainObject } from "is-plain-object";
-import { isObservable, observable, reaction, toJS } from "mobx";
+import { createAtom, isObservable, reaction, toJS } from "mobx";
 import { type ObjectState } from "src/fields/objectField";
 import { newDelegateProxy } from "src/proxies";
 import { type Rule, required } from "src/rules";
-import { areEqual, fail, isEmpty, isNotUndefined } from "src/utils";
+import { areEqual, isEmpty, isNotUndefined } from "src/utils";
 
 /**
  * Form state for a primitive field in the form, i.e. its value but also touched/validation/etc. state.
@@ -105,10 +105,11 @@ export function newValueFieldState<T, K extends keyof T>(
 ): FieldState<T[K] | null | undefined> {
   type V = T[K];
 
-  // Because we read/write the value directly back into parentInstance[key],
-  // which itself is not a proxy, we use this as our "value changed" trigger.
-  const _tick = observable({ value: 1 });
-  const _originalValueTick = observable({ value: 1 });
+  // Because we read/write the value directly back into parentInstance[key] (and the
+  // original into parentCopy[key]), which are not proxies, we use atoms as our
+  // "value changed" triggers: getters call `reportObserved`, writes call `reportChanged`.
+  const valueAtom = createAtom(`${String(key)}.value`);
+  const originalValueAtom = createAtom(`${String(key)}.originalValue`);
   // Track "this is probably what we put into a mutation to the server" to allow
   // use to better accept server acks/responses that change our initial submission.
   //
@@ -138,8 +139,9 @@ export function newValueFieldState<T, K extends keyof T>(
     rules,
 
     get value(): V {
-      // If we're wrapping a mobx store, then we'll get reactivity from parentInstance[key]
-      const value = _tick.value > 0 ? parentInstance[key] : fail();
+      // If we're wrapping a mobx store, then we'll also get reactivity from parentInstance[key]
+      valueAtom.reportObserved();
+      const value = parentInstance[key];
       // Re-create the `keepNull` logic on sets but for our initial read where our
       // originalValue is null (empty) but we want to expose it as undefined for
       // consistency of "empty-ness" to our UI components.
@@ -271,7 +273,7 @@ export function newValueFieldState<T, K extends keyof T>(
       // Set the value on our parent object
       const changed = !areEqual(newValue, this.value, strictOrder);
       parentInstance[key] = newValue!;
-      _tick.value++;
+      valueAtom.reportChanged();
 
       if (opts.refreshing) {
         this.originalValue = newValue as any;
@@ -304,8 +306,8 @@ export function newValueFieldState<T, K extends keyof T>(
     },
 
     get originalValue(): V {
-      // A dummy check to for reactivity around our non-proxy value
-      const value = _originalValueTick.value > -1 ? parentCopy[key] : parentCopy[key];
+      originalValueAtom.reportObserved();
+      const value = parentCopy[key];
       // Re-create the `keepNull` logic so that `.value` === `.originalValue`
       return value === null ? (undefined as any) : value;
     },
@@ -313,7 +315,7 @@ export function newValueFieldState<T, K extends keyof T>(
     set originalValue(v: V) {
       const canSkip = v === undefined && !(key in (parentCopy as any));
       if (!canSkip) parentCopy[key] = v;
-      _originalValueTick.value++;
+      originalValueAtom.reportChanged();
     },
 
     maybeTrim() {

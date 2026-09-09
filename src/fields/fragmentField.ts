@@ -1,6 +1,5 @@
-import { makeAutoObservable, observable } from "mobx";
+import { createAtom, makeAutoObservable } from "mobx";
 import { type FieldStateInternal } from "src/fields/valueField";
-import { fail } from "src/utils";
 
 export interface FragmentField<V> {
   value: V;
@@ -10,9 +9,9 @@ export function newFragmentField<T extends object, K extends keyof T & string>(
   parentInstance: T,
   key: K,
 ): FragmentField<T[K]> {
-  // We always return the same `instance` field from our `value` method, but
-  // we want to pretend that it's observable, so use a tick to force it.
-  const _tick = observable({ value: 1 });
+  // `value` lives in a closure variable, not an observable, so we use an atom
+  // to make `get value()` observable and `set value()` notify observers.
+  const valueAtom = createAtom(`${key}.value`);
 
   // We steal the fragment from our parent, so that it doesn't
   // accidentally end up on the wire
@@ -49,13 +48,13 @@ export function newFragmentField<T extends object, K extends keyof T & string>(
         value = parentInstance[key];
         delete parentInstance[key];
       }
-      _tick.value > 0 || fail();
+      valueAtom.reportObserved();
       return value;
     },
 
     set value(v: T[K]) {
       value = v;
-      _tick.value++;
+      valueAtom.reportChanged();
     },
 
     set(value) {
