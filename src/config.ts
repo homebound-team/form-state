@@ -1,6 +1,6 @@
-import { Fragment, ObjectState } from "src/fields/objectField";
-import { Rule } from "src/rules";
-import { Builtin, OmitIf } from "src/utils";
+import { type Fragment, type ObjectState } from "src/fields/objectField";
+import { type Rule } from "src/rules";
+import { type Builtin, type OmitIf } from "src/utils";
 
 /**
  * Config rules for each field in `T` that we're editing in a form.

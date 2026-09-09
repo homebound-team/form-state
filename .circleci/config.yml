@@ -32,6 +32,7 @@ jobs:
       - node/install-packages:
           pkg-manager: yarn-berry
       - run: npm run build
+      - run: yarn typecheck
       - run: yarn lint --quiet
       - run: npm test
 

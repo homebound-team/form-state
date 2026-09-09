@@ -1,5 +1,5 @@
 import { makeAutoObservable, observable } from "mobx";
-import { FieldStateInternal } from "src/fields/valueField";
+import { type FieldStateInternal } from "src/fields/valueField";
 import { fail } from "src/utils";
 
 export interface FragmentField<V> {

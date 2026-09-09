@@ -1,7 +1,13 @@
-import { FragmentFieldConfig, ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
-import { Fragment, ObjectState } from "src/fields/objectField";
-import { Rule, required } from "src/rules";
-import { Builtin, OmitIf } from "src/utils";
+import {
+  type FragmentFieldConfig,
+  type ListFieldConfig,
+  type ObjectConfig,
+  type ObjectFieldConfig,
+  type ValueFieldConfig,
+} from "src/config";
+import { type Fragment, type ObjectState } from "src/fields/objectField";
+import { type Rule, required } from "src/rules";
+import { type Builtin, type OmitIf } from "src/utils";
 
 /**
  * Provides a Zod-ish API for building form configs.

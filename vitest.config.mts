@@ -1,8 +1,9 @@
-import tsconfigPaths from "vite-tsconfig-paths";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
+  // Resolve the `src/...` imports that tsconfig's `paths` allows
+  resolve: { alias: { src: fileURLToPath(new URL("./src", import.meta.url)) } },
   test: {
     globals: true,
     environment: "jsdom",

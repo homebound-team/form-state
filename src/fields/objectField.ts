@@ -1,9 +1,21 @@
 import { computed, isObservable, makeAutoObservable, observable, reaction } from "mobx";
-import { FragmentFieldConfig, ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
-import { FragmentField, newFragmentField } from "src/fields/fragmentField";
-import { ListFieldState, newListFieldState } from "src/fields/listField";
-import { FieldState, FieldStateInternal, InternalSetOpts, SetOpts, newValueFieldState } from "src/fields/valueField";
-import { areEqual, Builtin, deepClone, fail } from "src/utils";
+import {
+  type FragmentFieldConfig,
+  type ListFieldConfig,
+  type ObjectConfig,
+  type ObjectFieldConfig,
+  type ValueFieldConfig,
+} from "src/config";
+import { type FragmentField, newFragmentField } from "src/fields/fragmentField";
+import { type ListFieldState, newListFieldState } from "src/fields/listField";
+import {
+  type FieldState,
+  type FieldStateInternal,
+  type InternalSetOpts,
+  type SetOpts,
+  newValueFieldState,
+} from "src/fields/valueField";
+import { areEqual, type Builtin, deepClone, fail } from "src/utils";
 
 /**
  * Wraps a given input/on-the-wire type `T` for editing in a form.
