@@ -46,7 +46,7 @@
     "react": ">=16"
   },
   "devDependencies": {
-    "@homebound/eslint-config": "^4.0.0",
+    "@homebound/eslint-config": "^5.0.0",
     "@homebound/rtl-utils": "^3.0.2",
     "@homebound/tsconfig": "^1.2.0",
     "@semantic-release/exec": "^7.1.0",
@@ -67,7 +67,7 @@
     "lint-staged": "^17.5.0",
     "mobx": "^7.0.3",
     "mobx-react": "^10.0.2",
-    "oxlint": "~1.78.0",
+    "oxlint": "^1.82.0",
     "oxlint-tsgolint": "^7.0.2001",
     "prettier": "^3.9.6",
     "prettier-plugin-organize-imports": "^4.3.0",
