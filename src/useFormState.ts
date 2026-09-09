@@ -72,7 +72,7 @@ export type UseFormStateOpts<T, I> = {
    *
    * Does not need to be stable/useMemo'd.
    */
-  autoSave?: (state: ObjectState<T>) => Promise<unknown>;
+  autoSave?: (state: ObjectState<T>) => Promise<void>;
 };
 
 export type FormObjectState<T, I> = ObjectState<T> & {
