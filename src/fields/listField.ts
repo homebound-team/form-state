@@ -380,6 +380,11 @@ export function newListFieldState<T, K extends keyof T, U>(
       valueAtom.reportChanged();
     },
 
+    /** Disposes every row's ObjectState, including rows that were removed from the list. */
+    dispose() {
+      new Set(rowMap.values()).forEach((row) => row.dispose());
+    },
+
     get originalValue(): U[] {
       originalValueAtom.reportObserved();
       const value = parentCopy[key];

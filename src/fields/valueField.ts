@@ -52,6 +52,14 @@ export interface FieldState<V> {
   commitChanges(): void;
   /** Creates a new FieldState with a transformation of the value, i.e. string to int, or feet to inches. */
   adapt<V2>(adapter: ValueAdapter<V, V2>): FieldState<V2>;
+  /**
+   * Releases any mobx reactions this field created.
+   *
+   * This only matters when wrapping a mobx observable (i.e. a store or class instance): each field
+   * subscribes to its slot on the store so that external mutations can trigger auto-save, and that
+   * subscription keeps the field alive until it is disposed. Plain objects create no reactions.
+   */
+  dispose(): void;
 }
 
 /**
@@ -117,6 +125,8 @@ export function newValueFieldState<T, K extends keyof T>(
   // accept it if we can tell we haven't changed `bob` since our initial submission.
   let hasInflightChangedValue = false;
   let lastChangedValue: V | undefined = undefined;
+  // Set below if we're wrapping a mobx observable, see `dispose`
+  let disposeStoreReaction: (() => void) | undefined = undefined;
 
   const field = {
     key: key as string,
@@ -304,6 +314,11 @@ export function newValueFieldState<T, K extends keyof T>(
       this.touched = false;
     },
 
+    dispose() {
+      disposeStoreReaction?.();
+      disposeStoreReaction = undefined;
+    },
+
     get originalValue(): V {
       originalValueAtom.reportObserved();
       const value = parentCopy[key];
@@ -333,7 +348,7 @@ export function newValueFieldState<T, K extends keyof T>(
   // If we're wrapping a mobx observer, watching for external mutations, i.e. from callers not
   // going through our FieldState.set/FieldState.value setters.
   if (isObservable(parentInstance)) {
-    reaction(
+    disposeStoreReaction = reaction(
       () => parentInstance[key],
       () => {
         // Don't auto-save on maybe-external mutation if our field, or another other field (potentially a computed),

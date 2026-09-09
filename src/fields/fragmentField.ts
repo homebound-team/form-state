@@ -41,6 +41,7 @@ export function newFragmentField<T extends object, K extends keyof T & string>(
     maybeAutoSave: () => {},
     commitChanges: () => {},
     revertChanges: () => {},
+    dispose: () => {},
 
     get value() {
       // Watch for our parentInstance changing

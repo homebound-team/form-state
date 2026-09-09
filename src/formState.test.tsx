@@ -1918,6 +1918,23 @@ describe("formState", () => {
     expect(ticks).toEqual(2);
   });
 
+  it("stops watching a wrapped mobx store after dispose", () => {
+    // Given a mobx class instance wrapped by the form
+    const instance = new ObservableObject();
+    const maybeAutoSave = vi.fn();
+    const formState = createObjectState(authorWithFullName, instance, { maybeAutoSave });
+    // And mutating the store directly triggers auto-saves (one per field watching the store)
+    instance.firstName = "change";
+    const callsBeforeDispose = maybeAutoSave.mock.calls.length;
+    expect(callsBeforeDispose).toBeGreaterThan(0);
+    // When the form is disposed
+    formState.dispose();
+    // And the store is mutated again
+    instance.firstName = "change again";
+    // Then the form no longer reacts to the store
+    expect(maybeAutoSave).toBeCalledTimes(callsBeforeDispose);
+  });
+
   it("keeps WIP changes for changed field", () => {
     const formState = createObjectState(authorWithBooksConfig, { firstName: "f", lastName: "l" });
     // Given first name is focused
