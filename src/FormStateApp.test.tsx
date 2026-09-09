@@ -1,6 +1,5 @@
 import { click, render, type } from "@homebound/rtl-utils";
 import { fireEvent } from "@testing-library/react";
-import React from "react";
 import { FormStateApp } from "src/FormStateApp";
 
 describe("FormStateApp", () => {

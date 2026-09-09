@@ -1,7 +1,7 @@
-import { Temporal } from "temporal-polyfill";
 import { f } from "src/configBuilders";
 import { createObjectState } from "src/fields/objectField";
 import { type InternalSetOpts } from "src/fields/valueField";
+import { Temporal } from "temporal-polyfill";
 
 describe("Temporal support", () => {
   it("treats equal Temporal value fields as unchanged", () => {

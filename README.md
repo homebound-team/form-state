@@ -138,12 +138,12 @@ For submit forms, the expectation is that you should:
 If you do this, you should not have to call `commitChanges` manually, because code like:
 
 ```ts
-  onClick: async () => {
-    const input = formState.changedValue;
-    await saveAuthor(input);
-    // checks if formState.dirty is true before closing
-    closeModal();
-  };
+onClick: async () => {
+  const input = formState.changedValue;
+  await saveAuthor(input);
+  // checks if formState.dirty is true before closing
+  closeModal();
+};
 ```
 
 Will "just work" because the control flow will be:
