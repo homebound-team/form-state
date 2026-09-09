@@ -982,6 +982,41 @@ describe("useFormState", () => {
     // failed (our autosave is actually fired from a setTimout tick), and so the Jest test
     // fails anyway, but without anyway for us to catch and do a `.toThrow` assertion.
   });
+
+  it("does not lose a second form's auto-save while another form's save is in flight", async () => {
+    // Given two independent auto-saving forms on the same page
+    type FormValue = Pick<AuthorInput, "id" | "firstName">;
+    const config: ObjectConfig<FormValue> = { id: { type: "value" }, firstName: { type: "value" } };
+    // And form A's save will stay in flight until we resolve it
+    let resolveA: () => void = () => {};
+    const autoSaveA = vi.fn(() => new Promise<void>((resolve) => (resolveA = resolve)));
+    // And form B's save resolves right away
+    const autoSaveB = vi.fn(() => Promise.resolve());
+    function TestComponent() {
+      const a = useFormState({ config, init: { input: { id: "a:1", firstName: "a1" } }, autoSave: autoSaveA });
+      const b = useFormState({ config, init: { input: { id: "a:2", firstName: "b1" } }, autoSave: autoSaveB });
+      return (
+        <div>
+          <button data-testid="editA" onClick={() => a.firstName.set("a2")} />
+          <button data-testid="editB" onClick={() => b.firstName.set("b2")} />
+        </div>
+      );
+    }
+    const r = await render(<TestComponent />);
+    // When form A is edited and its auto-save starts
+    await clickAndWait(r.editA);
+    expect(autoSaveA).toBeCalledTimes(1);
+    // And form B is edited while form A's save is still in flight
+    await clickAndWait(r.editB);
+    // Then form B's auto-save is not blocked by form A
+    expect(autoSaveB).toBeCalledTimes(1);
+    // And when form A's save finishes
+    resolveA();
+    await wait();
+    // Then nothing was saved twice
+    expect(autoSaveA).toBeCalledTimes(1);
+    expect(autoSaveB).toBeCalledTimes(1);
+  });
 });
 
 const authorConfig: ObjectConfig<AuthorInput> = {

@@ -84,6 +84,13 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
   );
   // Keep track of ObjectStates that triggered auto-save when a save was already in progress.
   const pendingAutoSaves = useRef<Set<ObjectState<T>>>(new Set());
+  // If the user's autoSave hook makes some last-minute `.set` calls to sneak
+  // in some business logic right before their GraphQL mutation call, ignore it
+  // so that we don't infinite loop.
+  //
+  // This is per-hook (not module-level) so that one hook's in-flight save does not
+  // swallow the auto-saves queued by an unrelated `useFormStates` on the same page.
+  const isAutoSaving = useRef(false);
   // Use a ref so our memo'ized `autoSave` always see the latest value
   const autoSaveRef = useRef<UseFormStatesOpts<T, I>["autoSave"]>(autoSave);
   autoSaveRef.current = autoSave;
@@ -105,13 +112,13 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             return;
           }
           const { current: pending } = pendingAutoSaves;
-          if (isAutoSaving) {
+          if (isAutoSaving.current) {
             pending.add(form);
             return;
           }
           let maybeError: undefined | string;
           try {
-            isAutoSaving = true;
+            isAutoSaving.current = true;
             // See if we have any reactions that want to run (i.e. added by addRules hooks)
             await new Promise((resolve) => setTimeout(resolve, 0));
             // If a reaction re-queued our form during the ^ wait, remove it
@@ -121,7 +128,7 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             maybeError = String(e);
             throw e;
           } finally {
-            isAutoSaving = false;
+            isAutoSaving.current = false;
             if (pending.size > 0) {
               const first = pending.values().next().value!;
               pending.delete(first);
@@ -161,8 +168,3 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
 
   return { getFormState };
 }
-
-// If the user's autoSave hook makes some last-minute `.set` calls to sneak
-// in some business logic right before their GraphQL mutation call, ignore it
-// so that we don't infinite loop.
-let isAutoSaving = false;

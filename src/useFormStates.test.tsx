@@ -282,6 +282,41 @@ describe("useFormStates", () => {
     // Then it's not read only
     expect(r.firstName).toHaveAttribute("data-readonly", "false");
   });
+
+  it("does not lose a second hook's auto-save while another hook's save is in flight", async () => {
+    // Given two independent `useFormStates` hooks on the same page
+    // And hook A's save will stay in flight until we resolve it
+    let resolveA: () => void = () => {};
+    const autoSaveA = vi.fn(() => new Promise<void>((resolve) => (resolveA = resolve)));
+    // And hook B's save resolves right away
+    const autoSaveB = vi.fn(() => Promise.resolve());
+    function TestComponent() {
+      const hookA = useFormStates<FormValue, FormValue>({ config, autoSave: autoSaveA, getId: (o) => o.id! });
+      const hookB = useFormStates<FormValue, FormValue>({ config, autoSave: autoSaveB, getId: (o) => o.id! });
+      const a = hookA.getFormState({ id: "a:1", firstName: "a1" });
+      const b = hookB.getFormState({ id: "a:2", firstName: "b1" });
+      return (
+        <div>
+          <button data-testid="editA" onClick={() => a.firstName.set("a2")} />
+          <button data-testid="editB" onClick={() => b.firstName.set("b2")} />
+        </div>
+      );
+    }
+    const r = await render(<TestComponent />);
+    // When hook A's row is edited and its auto-save starts
+    await clickAndWait(r.editA);
+    expect(autoSaveA).toBeCalledTimes(1);
+    // And hook B's row is edited while hook A's save is still in flight
+    await clickAndWait(r.editB);
+    // Then hook B's auto-save is not blocked by hook A
+    expect(autoSaveB).toBeCalledTimes(1);
+    // And when hook A's save finishes
+    resolveA();
+    await wait();
+    // Then nothing was saved twice
+    expect(autoSaveA).toBeCalledTimes(1);
+    expect(autoSaveB).toBeCalledTimes(1);
+  });
 });
 
 type FormValue = Pick<AuthorInput, "id" | "firstName">;
