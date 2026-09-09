@@ -1086,6 +1086,437 @@ describe("useFormState", () => {
     expect(autoSaveA).toBeCalledTimes(1);
     expect(autoSaveB).toBeCalledTimes(1);
   });
+
+  describe("autosave reconciliation", () => {
+    type Input = { id: string; name: string };
+    const config: ObjectConfig<Input> = { id: { type: "value" }, name: { type: "value" } };
+
+    it("preserves an edit back to the original through update and saves it next", async () => {
+      // Given Bob and two server responses controlled by the test
+      const firstResponse = Promise.withResolvers<Input>();
+      const secondResponse = Promise.withResolvers<Input>();
+      const save = vi
+        .fn<(input: Partial<Input>) => Promise<Input>>()
+        .mockReturnValueOnce(firstResponse.promise)
+        .mockReturnValueOnce(secondResponse.promise);
+      const hook = renderHook(() =>
+        useFormState({
+          config,
+          init: { input: { id: "1", name: "Bob" } },
+          autoSave: async (form): Promise<void> => {
+            hook.result.current.update(await save(form.changedValue));
+          },
+        }),
+      );
+      const form = hook.result.current;
+
+      // When Fred is submitted, then the user edits back to Bob
+      act(() => form.name.set("Fred"));
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(1, { id: "1", name: "Fred" });
+      act(() => form.name.set("Bob"));
+      expect(form.dirty).toEqual(false);
+      // And a stale Bob refresh arrives before the Fred ack
+      act(() => form.update({ id: "1", name: "Bob" }));
+      await act(async () => firstResponse.resolve({ id: "1", name: "Fred" }));
+
+      // Then Bob is preserved, but is now dirty against the saved Fred
+      expect(form.name.value).toEqual("Bob");
+      expect(form.name.originalValue).toEqual("Fred");
+      expect(form.name.dirty).toEqual(true);
+      expect(form.dirty).toEqual(true);
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(2, { id: "1", name: "Bob" });
+      await act(async () => secondResponse.resolve({ id: "1", name: "Bob" }));
+      await wait();
+      expect(form.name.originalValue).toEqual("Bob");
+      expect(form.dirty).toEqual(false);
+      expect(save).toHaveBeenCalledTimes(2);
+    });
+
+    it("preserves an edit back to the original through input refresh", async () => {
+      // Given Bob and a save whose response refreshes the hook input
+      const firstResponse = Promise.withResolvers<Input>();
+      const secondResponse = Promise.withResolvers<Input>();
+      const save = vi
+        .fn<(input: Partial<Input>) => Promise<Input>>()
+        .mockReturnValueOnce(firstResponse.promise)
+        .mockReturnValueOnce(secondResponse.promise);
+      const hook = renderHook(
+        (input: Input) =>
+          useFormState({
+            config,
+            init: { input },
+            autoSave: async (form): Promise<void> => {
+              hook.rerender(await save(form.changedValue));
+            },
+          }),
+        { initialProps: { id: "1", name: "Bob" } },
+      );
+      const form = hook.result.current;
+
+      // When Fred is submitted, then the user returns to Bob before a stale refresh
+      act(() => form.name.set("Fred"));
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(1, { id: "1", name: "Fred" });
+      act(() => form.name.set("Bob"));
+      expect(form.dirty).toEqual(false);
+      hook.rerender({ id: "1", name: "Bob" });
+      await act(async () => firstResponse.resolve({ id: "1", name: "Fred" }));
+
+      // Then the Fred ack keeps Bob and queues it for the next save
+      expect(form.name.value).toEqual("Bob");
+      expect(form.name.originalValue).toEqual("Fred");
+      expect(form.dirty).toEqual(true);
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(2, { id: "1", name: "Bob" });
+      await act(async () => secondResponse.resolve({ id: "1", name: "Bob" }));
+      await wait();
+      expect(form.dirty).toEqual(false);
+      expect(save).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps a newer focused edit when the server canonicalizes the submitted name", async () => {
+      // Given Bob and a deferred save, followed by a successful save of Sue
+      const response = Promise.withResolvers<Input>();
+      const save = vi
+        .fn<(input: Partial<Input>) => Promise<Input>>()
+        .mockReturnValueOnce(response.promise)
+        .mockResolvedValueOnce({ id: "1", name: "Sue" });
+      const hook = renderHook(() =>
+        useFormState({
+          config,
+          init: { input: { id: "1", name: "Bob" } },
+          autoSave: async (form): Promise<void> => {
+            hook.result.current.update(await save(form.changedValue));
+          },
+        }),
+      );
+      const form = hook.result.current;
+
+      // When Fred is submitted, then the user starts typing Sue in the focused field
+      act(() => form.name.set("Fred"));
+      await wait();
+      act(() => {
+        form.name.focus();
+        form.name.set("Sue");
+      });
+      await act(async () => response.resolve({ id: "1", name: "FRED" }));
+
+      // Then the canonicalized ack updates originalValue without replacing Sue or saving before blur
+      expect(form.name.value).toEqual("Sue");
+      expect(form.name.originalValue).toEqual("FRED");
+      expect(form.dirty).toEqual(true);
+      await wait();
+      expect(save).toHaveBeenCalledTimes(1);
+      act(() => form.name.blur());
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(2, { id: "1", name: "Sue" });
+      expect(form.dirty).toEqual(false);
+    });
+
+    it("saves only the latest of repeated edits made during a save", async () => {
+      // Given Bob and a deferred Fred response
+      const response = Promise.withResolvers<Input>();
+      const save = vi
+        .fn<(input: Partial<Input>) => Promise<Input>>()
+        .mockReturnValueOnce(response.promise)
+        .mockResolvedValueOnce({ id: "1", name: "Bob" });
+      const hook = renderHook(() =>
+        useFormState({
+          config,
+          init: { input: { id: "1", name: "Bob" } },
+          autoSave: async (form): Promise<void> => {
+            hook.result.current.update(await save(form.changedValue));
+          },
+        }),
+      );
+      const form = hook.result.current;
+
+      // When Fred is submitted, then several edits finish back at Bob
+      act(() => form.name.set("Fred"));
+      await wait();
+      act(() => {
+        form.name.set("Sue");
+        form.name.set("Fred");
+        form.name.set("Bob");
+      });
+      await act(async () => response.resolve({ id: "1", name: "Fred" }));
+
+      // Then only Bob remains to be saved
+      expect(form.name.value).toEqual("Bob");
+      expect(form.name.originalValue).toEqual("Fred");
+      expect(form.dirty).toEqual(true);
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(2, { id: "1", name: "Bob" });
+      expect(save).toHaveBeenCalledTimes(2);
+      expect(form.dirty).toEqual(false);
+    });
+
+    it("accepts a canonicalized name when there is no newer edit", async () => {
+      // Given Bob and a deferred server response
+      const response = Promise.withResolvers<Input>();
+      const save = vi.fn<(input: Partial<Input>) => Promise<Input>>().mockReturnValueOnce(response.promise);
+      const hook = renderHook(() =>
+        useFormState({
+          config,
+          init: { input: { id: "1", name: "Bob" } },
+          autoSave: async (form): Promise<void> => {
+            hook.result.current.update(await save(form.changedValue));
+          },
+        }),
+      );
+      const form = hook.result.current;
+
+      // When Fred is submitted and the server returns FRED
+      act(() => form.name.set("Fred"));
+      await wait();
+      await act(async () => response.resolve({ id: "1", name: "FRED" }));
+      await wait();
+
+      // Then the server value is accepted without a follow-up save
+      expect(form.name.value).toEqual("FRED");
+      expect(form.name.originalValue).toEqual("FRED");
+      expect(form.dirty).toEqual(false);
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+
+    it("starts another save when the ack arrives after the callback has finished", async () => {
+      // Given a callback that waits for the request but leaves acks to input refreshes
+      const firstResponse = Promise.withResolvers<Input>();
+      const secondResponse = Promise.withResolvers<Input>();
+      const save = vi
+        .fn<(input: Partial<Input>) => Promise<Input>>()
+        .mockReturnValueOnce(firstResponse.promise)
+        .mockReturnValueOnce(secondResponse.promise);
+      const hook = renderHook(
+        (input: Input) =>
+          useFormState({
+            config,
+            init: { input },
+            autoSave: async (form) => {
+              await save(form.changedValue);
+            },
+          }),
+        { initialProps: { id: "1", name: "Bob" } },
+      );
+      const form = hook.result.current;
+
+      // When Fred is submitted, then Bob is restored before the callback finishes
+      act(() => form.name.set("Fred"));
+      await wait();
+      act(() => form.name.set("Bob"));
+      await act(async () => firstResponse.resolve({ id: "1", name: "Fred" }));
+      await wait();
+      expect(form.name.originalValue).toEqual("Bob");
+      expect(form.dirty).toEqual(false);
+      expect(save).toHaveBeenCalledTimes(1);
+
+      // And the cache delivers Fred after the callback has finished
+      hook.rerender({ id: "1", name: "Fred" });
+      expect(form.name.value).toEqual("Bob");
+      expect(form.name.originalValue).toEqual("Fred");
+      expect(form.dirty).toEqual(true);
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(2, { id: "1", name: "Bob" });
+      await act(async () => secondResponse.resolve({ id: "1", name: "Bob" }));
+      hook.rerender({ id: "1", name: "Bob" });
+      expect(form.dirty).toEqual(false);
+    });
+
+    it("keeps originalValue after a failed save and allows a later edit to save", async () => {
+      // Given a callback that catches request errors without applying a false ack
+      const response = Promise.withResolvers<Input>();
+      const save = vi
+        .fn<(input: Partial<Input>) => Promise<Input>>()
+        .mockReturnValueOnce(response.promise)
+        .mockResolvedValueOnce({ id: "1", name: "Sue" });
+      const onError = vi.fn();
+      const hook = renderHook(() =>
+        useFormState({
+          config,
+          init: { input: { id: "1", name: "Bob" } },
+          autoSave: async (form): Promise<void> => {
+            try {
+              hook.result.current.update(await save(form.changedValue));
+            } catch (error) {
+              onError(error);
+            }
+          },
+        }),
+      );
+      const form = hook.result.current;
+
+      // When Fred is submitted, then the user returns to Bob and the request fails
+      act(() => form.name.set("Fred"));
+      await wait();
+      act(() => form.name.set("Bob"));
+      const failure = new Error("Save failed");
+      await act(async () => response.reject(failure));
+      await wait();
+      expect(onError).toHaveBeenCalledWith(failure);
+      expect(form.name.value).toEqual("Bob");
+      expect(form.name.originalValue).toEqual("Bob");
+      expect(form.dirty).toEqual(false);
+      expect(save).toHaveBeenCalledTimes(1);
+
+      // And a later edit starts a new save successfully
+      act(() => form.name.set("Sue"));
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(2, { id: "1", name: "Sue" });
+      expect(form.name.originalValue).toEqual("Sue");
+      expect(form.dirty).toEqual(false);
+    });
+
+    it("preserves an edit back to the original in a nested object", async () => {
+      // Given a nested contact name and a deferred Fred response
+      type ContactInput = { id: string; contact: { name: string } };
+      const contactConfig: ObjectConfig<ContactInput> = {
+        id: { type: "value" },
+        contact: { type: "object", config: { name: { type: "value" } } },
+      };
+      const response = Promise.withResolvers<ContactInput>();
+      const save = vi
+        .fn<(input: Partial<ContactInput>) => Promise<ContactInput>>()
+        .mockReturnValueOnce(response.promise)
+        .mockResolvedValueOnce({ id: "1", contact: { name: "Bob" } });
+      const hook = renderHook(() =>
+        useFormState({
+          config: contactConfig,
+          init: { input: { id: "1", contact: { name: "Bob" } } },
+          autoSave: async (form): Promise<void> => {
+            hook.result.current.update(await save(form.changedValue));
+          },
+        }),
+      );
+      const form = hook.result.current;
+
+      // When the nested name is submitted as Fred, then edited back to Bob
+      act(() => form.contact.name.set("Fred"));
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(1, { id: "1", contact: { name: "Fred" } });
+      act(() => form.contact.name.set("Bob"));
+      await act(async () => response.resolve({ id: "1", contact: { name: "Fred" } }));
+
+      // Then the nested edit remains dirty and is submitted next
+      expect(form.contact.name.value).toEqual("Bob");
+      expect(form.contact.name.originalValue).toEqual("Fred");
+      expect(form.dirty).toEqual(true);
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(2, { id: "1", contact: { name: "Bob" } });
+      expect(form.dirty).toEqual(false);
+    });
+
+    it("preserves an edit back to the original in an existing list row", async () => {
+      // Given an existing contact row and a deferred Fred response
+      type ContactsInput = { id: string; contacts: { id: string; name: string }[] };
+      const contactsConfig: ObjectConfig<ContactsInput> = {
+        id: { type: "value" },
+        contacts: { type: "list", config: { id: { type: "value" }, name: { type: "value" } } },
+      };
+      const response = Promise.withResolvers<ContactsInput>();
+      const save = vi
+        .fn<(input: Partial<ContactsInput>) => Promise<ContactsInput>>()
+        .mockReturnValueOnce(response.promise)
+        .mockResolvedValueOnce({ id: "1", contacts: [{ id: "2", name: "Bob" }] });
+      const hook = renderHook(() =>
+        useFormState({
+          config: contactsConfig,
+          init: { input: { id: "1", contacts: [{ id: "2", name: "Bob" }] } },
+          autoSave: async (form): Promise<void> => {
+            hook.result.current.update(await save(form.changedValue));
+          },
+        }),
+      );
+      const form = hook.result.current;
+      const row = form.contacts.rows[0];
+
+      // When the row name is submitted as Fred, then edited back to Bob
+      act(() => row.name.set("Fred"));
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(1, { id: "1", contacts: [{ id: "2", name: "Fred" }] });
+      act(() => row.name.set("Bob"));
+      await act(async () => response.resolve({ id: "1", contacts: [{ id: "2", name: "Fred" }] }));
+
+      // Then the row edit remains dirty and is submitted next
+      expect(row.name.value).toEqual("Bob");
+      expect(row.name.originalValue).toEqual("Fred");
+      expect(form.dirty).toEqual(true);
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(2, { id: "1", contacts: [{ id: "2", name: "Bob" }] });
+      expect(form.dirty).toEqual(false);
+    });
+
+    it("preserves a clear back to an originally null name through a stale null refresh", async () => {
+      // Given a nullable name, exposed locally as undefined
+      type NullableInput = { id: string; name: string | null | undefined };
+      const nullableConfig: ObjectConfig<NullableInput> = { id: { type: "value" }, name: { type: "value" } };
+      const response = Promise.withResolvers<NullableInput>();
+      const save = vi
+        .fn<(input: Partial<NullableInput>) => Promise<NullableInput>>()
+        .mockReturnValueOnce(response.promise)
+        .mockResolvedValueOnce({ id: "1", name: null });
+      const hook = renderHook(() =>
+        useFormState({
+          config: nullableConfig,
+          init: { input: { id: "1", name: null } as NullableInput },
+          autoSave: async (form): Promise<void> => {
+            hook.result.current.update(await save(form.changedValue));
+          },
+        }),
+      );
+      const form = hook.result.current;
+
+      // When Fred is submitted, then cleared before a stale null refresh and the Fred ack
+      act(() => form.name.set("Fred"));
+      await wait();
+      act(() => form.name.set(undefined));
+      act(() => form.update({ id: "1", name: null }));
+      await act(async () => response.resolve({ id: "1", name: "Fred" }));
+
+      // Then the clear is preserved and submitted as null to delete the saved Fred
+      expect(form.name.value).toEqual(undefined);
+      expect(form.name.originalValue).toEqual("Fred");
+      expect(form.dirty).toEqual(true);
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(2, { id: "1", name: null });
+      expect(form.name.originalValue).toEqual(undefined);
+      expect(form.dirty).toEqual(false);
+    });
+
+    it("normalizes an empty server ack while preserving a newer name", async () => {
+      // Given Bob and a deferred response that will clear the submitted name
+      const response = Promise.withResolvers<Input>();
+      const save = vi
+        .fn<(input: Partial<Input>) => Promise<Input>>()
+        .mockReturnValueOnce(response.promise)
+        .mockResolvedValueOnce({ id: "1", name: "Sue" });
+      const hook = renderHook(() =>
+        useFormState({
+          config,
+          init: { input: { id: "1", name: "Bob" } },
+          autoSave: async (form): Promise<void> => {
+            hook.result.current.update(await save(form.changedValue));
+          },
+        }),
+      );
+      const form = hook.result.current;
+
+      // When Fred is submitted, then Sue is entered before the server returns an empty string
+      act(() => form.name.set("Fred"));
+      await wait();
+      act(() => form.name.set("Sue"));
+      await act(async () => response.resolve({ id: "1", name: "" }));
+
+      // Then originalValue is normalized to undefined while Sue remains to be saved
+      expect(form.name.value).toEqual("Sue");
+      expect(form.name.originalValue).toEqual(undefined);
+      expect(form.dirty).toEqual(true);
+      await wait();
+      expect(save).toHaveBeenNthCalledWith(2, { id: "1", name: "Sue" });
+      expect(form.dirty).toEqual(false);
+    });
+  });
 });
 
 const authorConfig: ObjectConfig<AuthorInput> = {
