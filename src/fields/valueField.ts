@@ -124,12 +124,12 @@ export function newValueFieldState<T, K extends keyof T>(
   const valueAtom = createAtom(`${String(key)}.value`);
   const originalValueAtom = createAtom(`${String(key)}.originalValue`);
   // Track "this is probably what we put into a mutation to the server" to allow
-  // use to better accept server acks/responses that change our initial submission.
+  // us to better accept server acks/responses that change our initial submission.
   //
   // I.e. we submit `firstName: bob` and the server acks `firstName: Bob`, we should
   // accept it if we can tell we haven't changed `bob` since our initial submission.
   let hasInflightChangedValue = false;
-  let lastChangedValue: V | undefined = undefined;
+  let lastSubmittedValue: V | undefined = undefined;
   // Set below if we're wrapping a mobx observable, see `dispose`
   let disposeStoreReaction: (() => void) | undefined = undefined;
 
@@ -203,7 +203,7 @@ export function newValueFieldState<T, K extends keyof T>(
       // Note this is a side effect inside a mobx computed; it stays correct because every `set` calls
       // `valueAtom.reportChanged()`, which invalidates this computed, so the next read re-records the hints.
       hasInflightChangedValue = true;
-      lastChangedValue = this.value;
+      lastSubmittedValue = this.value;
       // Usually if we see a field being unset, we set `parent[key] = null`, but if we're wrapping
       // a mobx observable object, it might have changed to `undefined` without us being able to
       // tell it to be `null` (and potentially break the type contract of `string | undefined`).
@@ -259,12 +259,31 @@ export function newValueFieldState<T, K extends keyof T>(
       const coerceEmptyList = value && value instanceof Array && value.length === 0 && isEmpty(this.originalValue);
       const newValue = keepNull ? null : isEmpty(value) || coerceEmptyList ? undefined : value;
 
-      if (opts.refreshing && this.dirty) {
+      if (opts.refreshing && (this.dirty || hasInflightChangedValue)) {
+        // When accepting (refreshing) a new value from the server (i.e. an ack after our mutation
+        // _or_ just a cache/query refresh, we can't be sure which), make sure we don't drop any
+        // WIP changes the user made after the initial submit.
+        //
+        // - Initially, originalValue is name=Bob.
+        // - The user submits name=Fred, recorded as lastSubmittedValue.
+        // - The user edits back to name=Bob, making the field temporarily clean.
+        // - Before the acknowledgement, a cache refresh happens with `newValue=Bob`.
+        // - Without this early return, we'd accept `value=Bob` and clear hasInflightChangedValue.
+        // - When the Fred ack arrives, the field is clean with no inflight flag, so we'd overwrite the
+        //   user's newer Bob edit with Fred, instead of preserving Bob.
+        if (
+          hasInflightChangedValue &&
+          // Reading changedValue sets the inflight flag even for a clean field, so lastSubmittedValue
+          // can still equal originalValue. Only preserve the flag here if the submission differs from originalValue.
+          !areEqual(lastSubmittedValue, this.originalValue, strictOrder) &&
+          areEqual(newValue, this.originalValue, strictOrder)
+        )
+          return;
         // See if we should ignore the incoming server-side value, to avoid dropping local WIP changes
         const isAckingUnset = this.value === null && newValue === undefined;
         const acceptServerAck =
           hasInflightChangedValue &&
-          this.value === lastChangedValue &&
+          this.value === lastSubmittedValue &&
           // If value === originalValue, this is likely a cache refresh firing in-between "we put the new value
           // on the wire" and "the server acked our change". Granted, this heuristic means that if the server
           // really does reject/rollback our change, we'll ignore it, but atm we don't have a way of differentiating
@@ -279,13 +298,30 @@ export function newValueFieldState<T, K extends keyof T>(
         // the server returns the same contents in a new array instance (otherwise the field would
         // stay dirty forever, since reference equality never holds for a fresh array).
         const keepLocalWipChange = !areEqual(this.value, newValue, strictOrder) && !isAckingUnset && !acceptServerAck;
-        if (keepLocalWipChange) return;
+        if (keepLocalWipChange) {
+          if (hasInflightChangedValue && !areEqual(newValue, this.originalValue, strictOrder)) {
+            // Besides keeping the WIP change, update originalValue to the acked value (we only get here
+            // if the current value no longer matches lastSubmittedValue and the server value differs
+            // from originalValue).
+            // - Initially, originalValue is name=Bob.
+            // - The user submits name=Fred, then edits back to name=Bob.
+            // - The Fred ack arrives with `newValue=Fred`.
+            // - Keep `value=Bob`, but set `originalValue=Fred` and clear the inflight flag.
+            // - Bob is now dirty against Fred and needs a follow-up autosave.
+            this.originalValue = newValue as V;
+            hasInflightChangedValue = false;
+            // Bob matched the old originalValue, so its edit may not have queued a save.
+            // The previous save may also have settled before this ack. Schedule a save now, or wait for blur.
+            if (!this._focused) maybeAutoSave();
+          }
+          return;
+        }
       } else if (computed && (opts.resetting || opts.refreshing)) {
         // Computeds can't be either reset or refreshed
         return;
       }
 
-      hasInflightChangedValue = false;
+      if (opts.refreshing || opts.resetting) hasInflightChangedValue = false;
 
       // Set the value on our parent object
       const changed = !areEqual(newValue, this.value, strictOrder);

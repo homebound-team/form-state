@@ -1,4 +1,5 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
+import { act, renderHook } from "@testing-library/react";
 import { reaction } from "mobx";
 import { useMemo, useState } from "react";
 import { type ObjectConfig } from "src/config";
@@ -316,6 +317,84 @@ describe("useFormStates", () => {
     // Then nothing was saved twice
     expect(autoSaveA).toBeCalledTimes(1);
     expect(autoSaveB).toBeCalledTimes(1);
+  });
+
+  it("autosaves an edit back to the original value after an in-flight save is acknowledged", async () => {
+    // Given a Bob form with a stable configuration
+    type FormValue = { id: string; name: string };
+    const config: ObjectConfig<FormValue> = { id: { type: "value" }, name: { type: "value" } };
+    // And two save responses that remain pending until explicitly resolved
+    const firstResponse = Promise.withResolvers<FormValue>();
+    const secondResponse = Promise.withResolvers<FormValue>();
+    const submitted: Partial<FormValue>[] = [];
+    const autoSave = vi
+      .fn()
+      .mockImplementationOnce(async (form: ObjectState<FormValue>) => {
+        submitted.push(form.changedValue);
+        hook.rerender(await firstResponse.promise);
+      })
+      .mockImplementationOnce(async (form: ObjectState<FormValue>) => {
+        submitted.push(form.changedValue);
+        hook.rerender(await secondResponse.promise);
+      });
+    // And the hook refreshes the cached form from each new input
+    const hook = renderHook(
+      (input: FormValue) => useFormStates({ config, autoSave, getId: (o: FormValue) => o.id }).getFormState(input),
+      { initialProps: { id: "a:1", name: "Bob" } },
+    );
+    const form = hook.result.current;
+    expect(form.name.value).toEqual("Bob");
+    expect(form.name.originalValue).toEqual("Bob");
+    expect(form.dirty).toEqual(false);
+
+    // When Fred is submitted and its response stays in flight
+    act(() => form.name.set("Fred"));
+    await wait();
+    expect(autoSave).toHaveBeenCalledTimes(1);
+    expect(submitted).toEqual([{ id: "a:1", name: "Fred" }]);
+
+    // And the user edits back to Bob, which is locally clean
+    act(() => form.name.set("Bob"));
+    expect(form.name.value).toEqual("Bob");
+    expect(form.name.originalValue).toEqual("Bob");
+    expect(form.dirty).toEqual(false);
+
+    // And a stale cache refresh still reports Bob before Fred is acknowledged
+    hook.rerender({ id: "a:1", name: "Bob" });
+    expect(form.name.value).toEqual("Bob");
+    expect(form.name.originalValue).toEqual("Bob");
+    expect(form.dirty).toEqual(false);
+    expect(autoSave).toHaveBeenCalledTimes(1);
+
+    // When the first save callback refreshes the hook with Fred's acknowledgement
+    await act(async () => {
+      firstResponse.resolve({ id: "a:1", name: "Fred" });
+      await firstResponse.promise;
+    });
+    // Then Bob is preserved and becomes dirty against the acknowledged Fred
+    expect(form.name.value).toEqual("Bob");
+    expect(form.name.originalValue).toEqual("Fred");
+    expect(form.dirty).toEqual(true);
+
+    // And Bob is autosaved without another user edit
+    await wait();
+    expect(autoSave).toHaveBeenCalledTimes(2);
+    expect(submitted).toEqual([
+      { id: "a:1", name: "Fred" },
+      { id: "a:1", name: "Bob" },
+    ]);
+
+    // When the second save callback refreshes the hook with Bob's acknowledgement
+    await act(async () => {
+      secondResponse.resolve({ id: "a:1", name: "Bob" });
+      await secondResponse.promise;
+    });
+    // Then the form is clean and no third save is submitted
+    await wait();
+    expect(form.name.value).toEqual("Bob");
+    expect(form.name.originalValue).toEqual("Bob");
+    expect(form.dirty).toEqual(false);
+    expect(autoSave).toHaveBeenCalledTimes(2);
   });
 });
 

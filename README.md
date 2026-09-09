@@ -127,6 +127,14 @@ With these in place, we will correctly handle interleaved edits/saves, i.e.:
 5. The `init.map` updates `formState` to realize `firstName` is no longer dirty, but `lastName` keeps its WIP change
 6. formState will trigger a 2nd `autoSave` for just the `lastName` change
 
+Server acks must be applied explicitly:
+
+- Use updated `init.input`/query data (usually happens for free via Apollo/React Query cache refreshes), or
+- Call `formState.update(ackedInput)` explicitly (i.e. in a callback before navigating, to prevent "Are you sure you want to leave?" prompts)
+- Do not use `commitChanges()` to acknowledge saves: it also commits edits that may have never been submitted.
+
+form-state applies several heuristics to avoid dropping any WIP edits the user made between the initial request and the server's response.
+
 ### Submit forms
 
 For submit forms, the expectation is that you should:
