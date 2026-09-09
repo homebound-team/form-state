@@ -1,8 +1,9 @@
-import { StorybookConfig } from "@storybook/react-vite";
+import { type StorybookConfig } from "@storybook/react-vite";
 
 const config: StorybookConfig = {
   stories: ["../src/**/*.stories.tsx"],
-  addons: ["@storybook/addon-links", "@storybook/addon-essentials"],
+  // addon-essentials moved into Storybook core; docs is the one piece that stayed a separate addon
+  addons: ["@storybook/addon-links", "@storybook/addon-docs"],
   typescript: { check: false },
   framework: "@storybook/react-vite",
 };
