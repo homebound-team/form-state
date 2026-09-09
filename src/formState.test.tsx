@@ -2052,9 +2052,8 @@ describe("formState", () => {
     // And a bound field that wants a FieldState<any, Address> (even though technically `ObjectState`
     // turns this into a nested `ObjectState` (instead of "just a `FieldState`"), because it can't
     // "see" the `{ type: value }`, until we pass the config as a generic to `ObjectState`.
-    let field: FieldState<AuthorAddress | null | undefined>;
     // Then we can assign the value
-    field = a.address;
+    const field: FieldState<AuthorAddress | null | undefined> = a.address;
     // And treat it as a value object
     a.address.set({ street: "123", city: "nyc" });
     expect(a.value).toEqual({ address: { street: "123", city: "nyc" } });

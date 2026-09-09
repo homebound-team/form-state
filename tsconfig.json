@@ -7,9 +7,9 @@
     "jsx": "react-jsx",
     "declaration": true,
     "outDir": "./dist",
-    "baseUrl": ".",
+    "rootDir": "./src",
     "paths": {
-      "src/*": ["src/*"]
+      "src/*": ["./src/*"]
     },
     "plugins": [
       { "transform": "typescript-transform-paths" },

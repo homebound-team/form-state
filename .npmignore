@@ -2,9 +2,7 @@
 /.github
 /.storybook
 /.yarn
-/.eslintcache
-/.eslintignore
-/.eslintrc.js
+/oxlint.config.ts
 /.nvmrc
 /.prettierrc.js
 /.yarnrc.yml

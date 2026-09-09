@@ -1,7 +1,6 @@
 import { makeAutoObservable, observable } from "mobx";
-import { FieldState, FieldStateInternal, ValueAdapter } from "src/fields/valueField";
+import { FieldStateInternal } from "src/fields/valueField";
 import { fail } from "src/utils";
-import { V } from "vite/dist/node/types.d-aGj9QkWt";
 
 export interface FragmentField<V> {
   value: V;

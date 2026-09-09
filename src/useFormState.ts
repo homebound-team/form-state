@@ -216,6 +216,8 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
     // be treated as a full component remount by having an `key` field somewhere in the parent
     // component, but it's unlikely the user will always remember to do this).
     (form as any).set(initValue(config, init), { refreshing: true });
+    // Only re-run when the `init` values change; `config` and `opts` are treated as stable, like in the useMemo above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, ...dep]);
 
   // Use useEffect so that we don't touch the form.init proxy during a render

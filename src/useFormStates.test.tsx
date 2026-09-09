@@ -45,7 +45,8 @@ describe("useFormStates", () => {
     function TestComponent() {
       const [apiData, setApiData] = useState<FormValue>({ id: "a:1", firstName: "Brandon" });
       const { getFormState } = useFormStates<FormValue, FormValue>({ config, autoSave, getId: (o) => o.id! });
-      // Memoize an original for comparing the update against.
+      // Memoize an original for comparing the update against, so deliberately ignore `apiData` changes.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       const originalState = useMemo(() => getFormState(apiData), [getFormState]);
       const state = getFormState(apiData);
 
