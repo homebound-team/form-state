@@ -10,7 +10,7 @@ import { useFormStates } from "src/useFormStates";
 
 describe("useFormStates", () => {
   it("can lazily create form states", async () => {
-    const autoSave = jest.fn();
+    const autoSave = vi.fn();
     type FormValue = Pick<AuthorInput, "id" | "firstName">;
 
     // Given a parent and child component, where the formState is created only for the child component.
@@ -37,7 +37,7 @@ describe("useFormStates", () => {
   });
 
   it("can update existing object state from cache with new values", async () => {
-    const autoSave = jest.fn();
+    const autoSave = vi.fn();
     type FormValue = Pick<AuthorInput, "id" | "firstName">;
     const config: ObjectConfig<FormValue> = { id: { type: "value" }, firstName: { type: "value" } };
 
@@ -75,7 +75,7 @@ describe("useFormStates", () => {
   });
 
   it("can queue up changes for auto save if a save is already in progress - works across multiple states", async () => {
-    const autoSaveStub = jest.fn();
+    const autoSaveStub = vi.fn();
     type FormValue = Pick<AuthorInput, "id" | "firstName" | "lastName">;
     const config: ObjectConfig<FormValue> = {
       id: { type: "value" },
@@ -148,7 +148,7 @@ describe("useFormStates", () => {
   });
 
   it("clears out cache if configuration changes", async () => {
-    const autoSave = jest.fn();
+    const autoSave = vi.fn();
     type FormValue = Pick<AuthorInput, "id" | "firstName">;
     // Given a component with stable API data.
     const apiData = { id: "a:1", firstName: "Brandon", lastName: "Dow" };
@@ -187,7 +187,7 @@ describe("useFormStates", () => {
 
   it("calls addRules once per form state", async () => {
     // Given a user wants to use addRules
-    const addRules = jest.fn();
+    const addRules = vi.fn();
 
     function TestComponent() {
       const config: ObjectConfig<FormValue> = { id: { type: "value" }, firstName: { type: "value" } };
@@ -212,7 +212,7 @@ describe("useFormStates", () => {
 
   it("calls autoSave with results of calculations in addRules", async () => {
     // Given a user wants to use auto save
-    const autoSave = jest.fn();
+    const autoSave = vi.fn();
 
     function TestComponent() {
       const { getFormState } = useFormStates({

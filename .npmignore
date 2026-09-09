@@ -6,7 +6,7 @@
 /.nvmrc
 /.prettierrc.js
 /.yarnrc.yml
-/jest.config.js
+/vitest.config.mts
 /release.config.js
 /tsconfig.json
 
