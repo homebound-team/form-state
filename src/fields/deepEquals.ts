@@ -38,7 +38,7 @@ export function deepEquals(a: any, b: any, visited: Set<any> = new Set()): boole
       break;
     }
     if (a[key] && a[key] instanceof Object) {
-      if (visited.has(a[key])) break;
+      if (visited.has(a[key])) continue;
       visited.add(a[key]);
     }
     if (!deepEquals(a[key], b[key], visited)) {
