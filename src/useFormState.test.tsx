@@ -544,7 +544,7 @@ describe("useFormState", () => {
         makeAutoObservable(this);
       }
     }
-    const autoSave = jest.fn();
+    const autoSave = vi.fn();
     function TestComponent() {
       // And the author starts out with f1
       const author = useMemo(() => new AuthorRow("f1"), []);
@@ -568,7 +568,7 @@ describe("useFormState", () => {
   });
 
   it("can trigger auto save for fields in list that were initially undefined", async () => {
-    const autoSave = jest.fn();
+    const autoSave = vi.fn();
     // Given a component
     function TestComponent() {
       // When the data is initially undefined
@@ -664,7 +664,7 @@ describe("useFormState", () => {
   });
 
   it("returns empty lists even when inputs are undefined", async () => {
-    const autoSave = jest.fn();
+    const autoSave = vi.fn();
     // Given a component
     function TestComponent() {
       // And there is no initial data (i.e. we're creating the author)
@@ -718,7 +718,7 @@ describe("useFormState", () => {
 
   it("batches calls to auto-save", async () => {
     // Given a component
-    const autoSave = jest.fn();
+    const autoSave = vi.fn();
     function TestComponent() {
       type FormValue = AuthorInput;
       const config: ObjectConfig<FormValue> = authorConfig;
@@ -750,7 +750,7 @@ describe("useFormState", () => {
   });
 
   it("queues changes for auto save if a save is already in progress", async () => {
-    const autoSaveStub = jest.fn();
+    const autoSaveStub = vi.fn();
     type FormValue = Pick<AuthorInput, "id" | "firstName" | "lastName">;
     const config: ObjectConfig<FormValue> = {
       id: { type: "value" },
@@ -802,7 +802,7 @@ describe("useFormState", () => {
     click(r.focusSetAndSaveField, { allowAsync: true });
     // Let the initial autoSave be called
     act(() => {
-      jest.runOnlyPendingTimers();
+      vi.runOnlyPendingTimers();
     });
     expect(r.name).toHaveTextContent("Brandon Dow");
     expect(autoSaveStub).toBeCalledTimes(1);
@@ -820,7 +820,7 @@ describe("useFormState", () => {
   });
 
   it("calls autoSave with results of calculations in addRules", async () => {
-    const autoSaveStub = jest.fn();
+    const autoSaveStub = vi.fn();
     type FormValue = Pick<AuthorInput, "id" | "firstName" | "lastName">;
     const config: ObjectConfig<FormValue> = {
       id: { type: "value" },
@@ -954,7 +954,7 @@ describe("useFormState", () => {
 
   it("doesn't allow calling commitChanges", async () => {
     // Given a component
-    const autoSave = jest.fn();
+    const autoSave = vi.fn();
     function TestComponent() {
       type FormValue = AuthorInput;
       const config: ObjectConfig<FormValue> = authorConfig;

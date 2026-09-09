@@ -624,7 +624,7 @@ describe("formState", () => {
 
   it("passes sanitized values to validation rules", () => {
     // Given a field with a validation rule
-    const rule = jest.fn().mockReturnValue("Required");
+    const rule = vi.fn().mockReturnValue("Required");
     const a = createObjectState<AuthorInput>({ firstName: { type: "value", rules: [rule] } }, {});
     expect(rule).toHaveBeenCalledTimes(0);
     // When the field is set to empty string
@@ -642,7 +642,7 @@ describe("formState", () => {
 
   it("passes trimmed values to validation rules on maybeAutoSave", () => {
     // Given we have a required rule
-    const rule = jest.fn().mockReturnValue("Required");
+    const rule = vi.fn().mockReturnValue("Required");
     const a = createObjectState<AuthorInput>({ firstName: { type: "value", rules: [rule] } }, {});
     expect(rule).toHaveBeenCalledTimes(0);
 
@@ -770,7 +770,7 @@ describe("formState", () => {
   });
 
   it("calls maybeAutoSave when adding or removing to a list", () => {
-    const maybeAutoSave = jest.fn();
+    const maybeAutoSave = vi.fn();
     const a1 = createAuthorInputState({ books: [] }, maybeAutoSave);
     expect(a1.books.dirty).toBeFalsy();
     a1.books.add({ title: "t2" });
@@ -781,7 +781,7 @@ describe("formState", () => {
   });
 
   it("calls maybeAutoSave when programmatically setting a value", () => {
-    const maybeAutoSave = jest.fn();
+    const maybeAutoSave = vi.fn();
     // Given an author listening for blur
     const a1 = createAuthorInputState({ books: [{}] }, maybeAutoSave);
     // When we programmatically set a field that isn't focused
@@ -795,7 +795,7 @@ describe("formState", () => {
   });
 
   it("can skip maybeAutoSave when programmatically setting a value", () => {
-    const maybeAutoSave = jest.fn();
+    const maybeAutoSave = vi.fn();
     // Given an author listening for blur
     const a1 = createAuthorInputState({ books: [{}] }, maybeAutoSave);
     // When we programmatically set a field that isn't focused
@@ -805,7 +805,7 @@ describe("formState", () => {
   });
 
   it("defers calling maybeAutoSave when setting a focused value", () => {
-    const maybeAutoSave = jest.fn();
+    const maybeAutoSave = vi.fn();
     // Given an author listening for blur
     const a1 = createAuthorInputState({ books: [{}] }, maybeAutoSave);
     // And the field is focused
@@ -817,7 +817,7 @@ describe("formState", () => {
   });
 
   it("skips maybeAutoSave when refreshing", () => {
-    const maybeAutoSave = jest.fn();
+    const maybeAutoSave = vi.fn();
     // Given an author listening for blur
     const a1 = createAuthorInputState({ books: [{}] }, maybeAutoSave);
     // When we programmatically set a field that isn't focused
@@ -827,7 +827,7 @@ describe("formState", () => {
   });
 
   it("skips maybeAutoSave when resetting", () => {
-    const maybeAutoSave = jest.fn();
+    const maybeAutoSave = vi.fn();
     // Given an author listening for blur
     const a1 = createAuthorInputState({ books: [{}] }, maybeAutoSave);
     // And we called maybeAutoSave once
@@ -840,7 +840,7 @@ describe("formState", () => {
   });
 
   it("skips maybeAutoSave when not dirty", () => {
-    const maybeAutoSave = jest.fn();
+    const maybeAutoSave = vi.fn();
     // Given an author listening for blur
     const a1 = createAuthorInputState({ firstName: "first", books: [{}] }, maybeAutoSave);
     // When we programmatically set a field to it's existing valued
