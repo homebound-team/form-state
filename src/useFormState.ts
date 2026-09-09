@@ -87,15 +87,6 @@ export type FormObjectState<T, I> = ObjectState<T> & {
   update(input: Exclude<I, null | undefined>): void;
 };
 
-// If the user's autoSave hook makes some last-minute `.set` calls to sneak
-// in some business logic right before their GraphQL mutation call, ignore it
-// so that we don't infinite loop.
-let isAutoSaving: "queued" | "in-flight" | false = false;
-
-// `pendingAutoSave` is a flag for determining if we need to immediately call `maybeAutoSave` again after the initial Promise finishes
-// This could happen if a field triggers auto-save while another field's auto-save is already in progress.
-let pendingAutoSave = false;
-
 /**
  * Creates a formState instance for editing in a form.
  */
@@ -124,6 +115,18 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
 
   const form = useMemo(
     () => {
+      // If the user's autoSave hook makes some last-minute `.set` calls to sneak
+      // in some business logic right before their GraphQL mutation call, ignore it
+      // so that we don't infinite loop.
+      //
+      // This is per-form (not module-level) so that one form's in-flight save does
+      // not swallow the auto-save of an unrelated form on the same page.
+      let isAutoSaving: "queued" | "in-flight" | false = false;
+
+      // `pendingAutoSave` is a flag for determining if we need to immediately call `maybeAutoSave` again after the initial Promise finishes
+      // This could happen if a field triggers auto-save while another field's auto-save is already in progress.
+      let pendingAutoSave = false;
+
       function maybeAutoSave() {
         if (isAutoSaving === "in-flight") {
           pendingAutoSave = true;
