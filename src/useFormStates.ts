@@ -125,7 +125,6 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             pending.add(form);
             return;
           }
-          let maybeError: undefined | string;
           try {
             isAutoSaving.current = true;
             // See if we have any reactions that want to run (i.e. added by addRules hooks)
@@ -133,9 +132,6 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             // If a reaction re-queued our form during the ^ wait, remove it
             pending.delete(form);
             await autoSaveRef.current(form);
-          } catch (e) {
-            maybeError = String(e);
-            throw e;
           } finally {
             isAutoSaving.current = false;
             if (pending.size > 0) {

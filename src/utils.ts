@@ -7,7 +7,7 @@ import {
   type ObjectFieldConfig,
   type ValueFieldConfig,
 } from "src/config";
-import { deepEquals } from "src/fields/deepEquals";
+import { deepEquals, hasToJSON } from "src/fields/deepEquals";
 import { areSupportedTemporalValuesEqual, type SupportedTemporal } from "src/temporal";
 import { type InputAndMap, type QueryAndMap, type UseFormStateOpts } from "src/useFormState";
 
@@ -153,10 +153,6 @@ export function areEqual<T>(a?: T, b?: T, strictOrder?: boolean): boolean {
     return a.every((a1) => b.some((b1) => areEqual(a1, b1)));
   }
   return a === b;
-}
-
-export function hasToJSON(o?: unknown): o is { toJSON(): void } {
-  return !!(o && typeof o === "object" && "toJSON" in o);
 }
 
 /** Normalizes values into stable object-hash-safe data using our existing `toJSON` semantics. */

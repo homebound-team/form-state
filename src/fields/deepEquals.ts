@@ -50,6 +50,7 @@ export function deepEquals(a: any, b: any, visited: Set<any> = new Set()): boole
   return equal;
 }
 
-function hasToJSON(o?: unknown): o is { toJSON(): unknown } {
+/** Returns whether `o` is an object with a `toJSON` method, i.e. a Date or a custom value type. */
+export function hasToJSON(o?: unknown): o is { toJSON(): unknown } {
   return !!(o && typeof o === "object" && "toJSON" in o);
 }
