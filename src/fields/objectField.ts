@@ -1,4 +1,4 @@
-import { computed, isObservable, makeAutoObservable, observable, reaction } from "mobx";
+import { computed, isObservable, makeAutoObservable } from "mobx";
 import {
   type FragmentFieldConfig,
   type ListFieldConfig,
@@ -15,7 +15,7 @@ import {
   newValueFieldState,
   type SetOpts,
 } from "src/fields/valueField";
-import { areEqual, type Builtin, deepClone, fail } from "src/utils";
+import { areEqual, type Builtin, deepClone } from "src/utils";
 
 /**
  * Wraps a given input/on-the-wire type `T` for editing in a form.
@@ -202,10 +202,6 @@ export function newObjectState<T, P = any>(
     return [key, field];
   });
 
-  // We always return the same `instance` field from our `value` method, but
-  // we want to pretend that it's observable, so use a tick to force it.
-  const _tick = observable({ value: 1 });
-
   const fieldNames = Object.keys(objectConfig);
   function getFields(proxyThis: any): FieldStateInternal<T, any>[] {
     return fieldNames.map((name) => proxyThis[name]) as FieldStateInternal<T, any>[];
@@ -217,7 +213,10 @@ export function newObjectState<T, P = any>(
     key,
 
     get value() {
-      _tick.value > 0 || fail();
+      // We always return the same `instance`, so read each field's value here to make
+      // observers of our (identity-stable) `value` re-run when any field deeply changes.
+      // (`originalValue` below does the same for `originalCopy`.)
+      getFields(this).forEach((f) => f.value);
       return instance;
     },
 
@@ -426,12 +425,6 @@ export function newObjectState<T, P = any>(
     value: computed({ equals: () => false }),
     originalValue: computed({ equals: () => false }),
   });
-
-  // Any time a field changes, percolate that change up to us
-  reaction(
-    () => getFields(proxy).map((f) => f.value),
-    () => _tick.value++,
-  );
 
   return proxy!;
 }
