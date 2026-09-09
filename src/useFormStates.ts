@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef } from "react";
-import { ObjectConfig } from "src/config";
-import { ObjectState, ObjectStateInternal, createObjectState } from "src/fields/objectField";
+import { type ObjectConfig } from "src/config";
+import { type ObjectState, type ObjectStateInternal, createObjectState } from "src/fields/objectField";
 import { initValue } from "src/utils";
 
 export type ObjectStateCache<T, I> = Record<string, [ObjectState<T>, I]>;

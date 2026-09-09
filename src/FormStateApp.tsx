@@ -1,6 +1,6 @@
 import { Observer } from "mobx-react";
-import { AuthorInput, BookInput } from "src/formStateDomain";
-import { FieldState, f, useFormState } from "src/index";
+import { type AuthorInput, type BookInput } from "src/formStateDomain";
+import { type FieldState, f, useFormState } from "src/index";
 
 export function FormStateApp() {
   const formState = useFormState({

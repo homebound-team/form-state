@@ -1,8 +1,8 @@
 import { isPlainObject } from "is-plain-object";
 import { isObservable, observable, reaction, toJS } from "mobx";
-import { ObjectState } from "src/fields/objectField";
+import { type ObjectState } from "src/fields/objectField";
 import { newDelegateProxy } from "src/proxies";
-import { Rule, required } from "src/rules";
+import { type Rule, required } from "src/rules";
 import { areEqual, fail, isEmpty, isNotUndefined } from "src/utils";
 
 /**

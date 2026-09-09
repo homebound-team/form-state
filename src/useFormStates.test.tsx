@@ -1,10 +1,10 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
 import { reaction } from "mobx";
 import { useMemo, useState } from "react";
-import { ObjectConfig } from "src/config";
-import { ObjectState } from "src/fields/objectField";
+import { type ObjectConfig } from "src/config";
+import { type ObjectState } from "src/fields/objectField";
 import { TextField } from "src/FormStateApp";
-import { AuthorInput } from "src/formStateDomain";
+import { type AuthorInput } from "src/formStateDomain";
 import { required } from "src/rules";
 import { useFormStates } from "src/useFormStates";
 

@@ -1,5 +1,6 @@
 import { f } from "src/configBuilders";
-import { ObservableObject } from "src/formState.test";
+// `import type` so that, with verbatimModuleSyntax, this does not also load (and re-register) formState.test's tests
+import type { ObservableObject } from "src/formState.test";
 
 describe("config", () => {
   it("supports observable objects with helper methods in the config DSL", () => {

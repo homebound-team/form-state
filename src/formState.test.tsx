@@ -1,9 +1,19 @@
 import { autorun, isObservable, makeAutoObservable, observable, reaction } from "mobx";
-import { ObjectConfig } from "src/config";
+import { type ObjectConfig } from "src/config";
 import { f } from "src/configBuilders";
-import { Fragment, ObjectState, createObjectState, fragment } from "src/fields/objectField";
-import { FieldState, InternalSetOpts } from "src/fields/valueField";
-import { AuthorAddress, AuthorInput, BookInput, Color, DateOnly, dd100, dd200, jan1, jan2 } from "src/formStateDomain";
+import { type Fragment, type ObjectState, createObjectState, fragment } from "src/fields/objectField";
+import { type FieldState, type InternalSetOpts } from "src/fields/valueField";
+import {
+  type AuthorAddress,
+  type AuthorInput,
+  type BookInput,
+  Color,
+  DateOnly,
+  dd100,
+  dd200,
+  jan1,
+  jan2,
+} from "src/formStateDomain";
 import { required } from "src/rules";
 
 describe("formState", () => {

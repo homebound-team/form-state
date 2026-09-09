@@ -1,4 +1,6 @@
-import { type Temporal } from "temporal-polyfill";
+// Use `import type` (not `import { type Temporal }`) so that, with verbatimModuleSyntax, the bundle does not keep
+// a side-effect `import "temporal-polyfill"`; form-state only needs the types and never loads the polyfill.
+import type { Temporal } from "temporal-polyfill";
 
 // Use Temporal's well-known tags for runtime detection instead of `instanceof` because this
 // library can receive values from native Temporal, a polyfill, another copy of a polyfill,

@@ -1,9 +1,15 @@
 import { isPlainObject } from "is-plain-object";
 import { isObservable, toJS } from "mobx";
-import { FragmentFieldConfig, ListFieldConfig, ObjectConfig, ObjectFieldConfig, ValueFieldConfig } from "src/config";
+import {
+  type FragmentFieldConfig,
+  type ListFieldConfig,
+  type ObjectConfig,
+  type ObjectFieldConfig,
+  type ValueFieldConfig,
+} from "src/config";
 import { deepEquals } from "src/fields/deepEquals";
 import { areSupportedTemporalValuesEqual, type SupportedTemporal } from "src/temporal";
-import { InputAndMap, QueryAndMap, UseFormStateOpts } from "src/useFormState";
+import { type InputAndMap, type QueryAndMap, type UseFormStateOpts } from "src/useFormState";
 
 export type Builtin = Date | Function | SupportedTemporal | Uint8Array | string | number | boolean;
 

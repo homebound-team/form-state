@@ -4,10 +4,10 @@ import { makeAutoObservable, reaction } from "mobx";
 import { observer, Observer } from "mobx-react";
 import { useMemo, useRef, useState } from "react";
 import { TextField } from "src/FormStateApp";
-import { ObjectConfig } from "src/config";
-import { Fragment, fragment, ObjectState } from "src/fields/objectField";
-import { FieldState } from "src/fields/valueField";
-import { AuthorInput } from "src/formStateDomain";
+import { type ObjectConfig } from "src/config";
+import { type Fragment, fragment, type ObjectState } from "src/fields/objectField";
+import { type FieldState } from "src/fields/valueField";
+import { type AuthorInput } from "src/formStateDomain";
 import { required } from "src/rules";
 import { useFormState } from "./useFormState";
 

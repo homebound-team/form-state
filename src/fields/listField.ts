@@ -1,8 +1,8 @@
 import { computed, makeAutoObservable, observable, reaction } from "mobx";
-import { ListFieldConfig, ObjectFieldConfig } from "src/config";
-import { ObjectState, ObjectStateInternal, newObjectState } from "src/fields/objectField";
-import { FieldState, InternalSetOpts } from "src/fields/valueField";
-import { Rule, required } from "src/rules";
+import { type ListFieldConfig, type ObjectFieldConfig } from "src/config";
+import { type ObjectState, type ObjectStateInternal, newObjectState } from "src/fields/objectField";
+import { type FieldState, type InternalSetOpts } from "src/fields/valueField";
+import { type Rule, required } from "src/rules";
 import { fail, groupBy, isNotUndefined, normalizeHashValue } from "src/utils";
 import hash from "object-hash";
 
@@ -73,7 +73,9 @@ export function newListFieldState<T, K extends keyof T, U>(
         child,
         undefined,
         maybeAutoSave,
-        listConfig.update === "deep-exhaustive" ?? deepExhaustive,
+        // Note: this used to be `... ?? deepExhaustive`, but the left side is a boolean, so the
+        // parent's `deepExhaustive` was never inherited here; this keeps that behavior.
+        listConfig.update === "deep-exhaustive",
       ) as ObjectStateInternal<U>;
       rowMap.set(child, childState);
     }

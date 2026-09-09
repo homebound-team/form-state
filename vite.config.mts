@@ -1,6 +1,7 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
-import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
+  // Resolve the `src/...` imports that tsconfig's `paths` allows
+  resolve: { alias: { src: fileURLToPath(new URL("./src", import.meta.url)) } },
 });

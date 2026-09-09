@@ -4,10 +4,12 @@
 /.yarn
 /oxlint.config.ts
 /.nvmrc
-/.prettierrc.js
+/.prettierrc.cjs
 /.yarnrc.yml
 /vitest.config.mts
-/release.config.js
+/release.config.cjs
 /tsconfig.json
+/tsdown.config.ts
+/vite.config.mts
 
 node_modules
