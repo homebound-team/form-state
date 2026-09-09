@@ -1,8 +1,17 @@
 import { f } from "src/configBuilders";
+import { required } from "src/rules";
 // `import type` so that, with verbatimModuleSyntax, this does not also load (and re-register) formState.test's tests
 import type { ObservableObject } from "src/formState.test";
 
 describe("config", () => {
+  it("keeps earlier rules when req is chained after rules", () => {
+    // Given a value config with a custom rule
+    // And `req()` is called after that rule was added
+    const config = f.value<string>().rules([noBobs]).req().build();
+    // Then both the custom rule and `required` are kept, in order
+    expect(config.rules).toEqual([noBobs, required]);
+  });
+
   it("supports observable objects with helper methods in the config DSL", () => {
     const config = f.config<ObservableObject>({
       firstName: f.value(),
@@ -66,3 +75,8 @@ describe("config", () => {
     `);
   });
 });
+
+/** A test rule that rejects the value "bob". */
+function noBobs(opts: { value: string | null | undefined }): string | undefined {
+  return opts.value === "bob" ? "No bobs" : undefined;
+}

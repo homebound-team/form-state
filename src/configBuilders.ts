@@ -88,9 +88,9 @@ export class ObjectConfigBuilder<T> {
 export class ValueFieldConfigBuilder<V> {
   private config: ValueFieldConfig<V> = { type: "value", rules: [] };
 
-  /** Marks the field as required. */
+  /** Marks the field as required, keeping any rules that were already added. */
   req(): this {
-    this.config.rules = [required];
+    (this.config.rules ??= []).push(required);
     return this;
   }
 
