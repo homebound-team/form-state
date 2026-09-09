@@ -195,8 +195,7 @@ export function newValueFieldState<T, K extends keyof T>(
     },
 
     get valid(): boolean {
-      const opts = { value: this.value, key: key as string, originalValue: this.originalValue, object: parentState() };
-      return this.rules.every((r) => r(opts as any) === undefined);
+      return this.errors.length === 0;
     },
 
     get errors(): string[] {
