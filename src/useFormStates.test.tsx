@@ -777,6 +777,58 @@ describe("useFormStates", () => {
       { id: "a:2", firstName: "New edit" },
     ]);
   });
+
+  it("preserves pending rows when an in-flight save finishes while effects are disconnected", async () => {
+    // Given two observable rows and a save that stays in flight
+    const first = new ObservableRow("a:1");
+    const second = new ObservableRow("a:2");
+    const response = Promise.withResolvers<void>();
+    const saved: Partial<ObservableRow>[] = [];
+    function Table() {
+      const hook = useFormStates({
+        config: rowConfig,
+        getId: (o: ObservableRow) => o.id,
+        async autoSave(form) {
+          saved.push(form.changedValue);
+          await response.promise;
+        },
+      });
+      hook.getFormState(first);
+      hook.getFormState(second);
+      return null;
+    }
+    const view = renderReact(
+      <Activity mode="visible">
+        <Table />
+      </Activity>,
+    );
+    first.firstName = "Fred";
+    await wait();
+    // And a second row queues a save before effects disconnect
+    second.firstName = "Sue";
+    view.rerender(
+      <Activity mode="hidden">
+        <Table />
+      </Activity>,
+    );
+    response.resolve();
+    await wait();
+    expect(saved).toEqual([{ id: "a:1", firstName: "Fred" }]);
+
+    // When effects reconnect after the first save has finished
+    view.rerender(
+      <Activity mode="visible">
+        <Table />
+      </Activity>,
+    );
+    await wait();
+
+    // Then the pending row is still queued and resumes saving
+    expect(saved).toEqual([
+      { id: "a:1", firstName: "Fred" },
+      { id: "a:2", firstName: "Sue" },
+    ]);
+  });
 });
 
 type FormValue = Pick<AuthorInput, "id" | "firstName">;

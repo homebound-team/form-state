@@ -77,21 +77,19 @@ type UseFormStatesHook<T, I> = {
 export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormStatesHook<T, I> {
   const { config, autoSave, getId, map, addRules, readOnly = false } = opts;
 
+  // Force resetting the cache if config changes.
   const cache = useMemo(
     () => ({
+      config,
       forms: {} as ObjectStateCache<T, I>,
       active: false,
-      // Keep paused work with its owner, not in the shared queue used by active caches.
+      // Keep paused saves with their forms so effect reconnection can resume them.
       pending: new Map<ObjectState<T>, () => Promise<void>>(),
     }),
-    // Force resetting the cache if config changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [config],
   );
-  const objectStateCache = cache.forms;
-  // Keep track of ObjectStates that triggered auto-save when a save was already in progress.
-  // Each retry retains its cache's lifecycle, even when an old request finishes after config changes.
-  const pendingAutoSaves = useRef(new Map<ObjectState<T>, { cache: typeof cache; retry: () => Promise<void> }>());
+  // A previous config's in-flight request must drain the latest committed cache, not its old queue.
+  const currentCacheRef = useRef(cache);
   // If the user's autoSave hook makes some last-minute `.set` calls to sneak
   // in some business logic right before their GraphQL mutation call, ignore it
   // so that we don't infinite loop.
@@ -107,7 +105,7 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
   readOnlyRef.current = readOnly;
 
   useEffect(() => {
-    const pending = pendingAutoSaves.current;
+    currentCacheRef.current = cache;
     cache.active = true;
     Object.values(cache.forms).forEach((entry) => activateSubscriptions(entry[0]));
     // Edits made before setup, or saves paused by effect cleanup, still belong to these forms.
@@ -115,15 +113,13 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
     return () => {
       // Stop queued requests immediately, without cancelling requests already in flight.
       cache.active = false;
-      Object.values(cache.forms).forEach((entry) => {
-        pending.delete(entry[0]);
-        deactivateSubscriptions(entry[0]);
-      });
+      Object.values(cache.forms).forEach((entry) => deactivateSubscriptions(entry[0]));
     };
   }, [cache]);
 
   const getFormState = useCallback<UseFormStatesHook<T, I>["getFormState"]>(
     (input, opts = {}) => {
+      const { config, forms: objectStateCache } = cache;
       const existing = objectStateCache[getId(input)];
       let form = existing?.[0];
 
@@ -133,7 +129,6 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
        * Each retry retains its cache so a config replacement cannot revive a released form.
        */
       async function maybeAutoSave() {
-        const { current: pending } = pendingAutoSaves;
         if (!cache.active) {
           cache.pending.set(form, maybeAutoSave);
           return;
@@ -144,12 +139,10 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
           if (!form.valid) {
             console.debug("Skipping auto-save b/c form is invalid: ", form.errors);
             cache.pending.delete(form);
-            pending.delete(form);
             return;
           }
           if (isAutoSaving.current) {
             cache.pending.set(form, maybeAutoSave);
-            pending.set(form, { cache, retry: maybeAutoSave });
             return;
           }
           try {
@@ -157,7 +150,6 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             // See if we have any reactions that want to run (i.e. added by addRules hooks)
             await new Promise((resolve) => setTimeout(resolve, 0));
             // If a reaction re-queued our form during the ^ wait, remove it
-            pending.delete(form);
             cache.pending.delete(form);
             if (cache.active && autoSaveRef.current) {
               await autoSaveRef.current(form);
@@ -166,22 +158,20 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             }
           } finally {
             isAutoSaving.current = false;
-            // A completed request must not start saves owned by an unmounted or replaced cache.
-            for (const [first, next] of pending) {
-              pending.delete(first);
-              if (next.cache.active) {
-                if (!first.dirty || !first.valid) {
-                  next.cache.pending.delete(first);
-                  continue;
-                }
-                await next.retry();
+            // Config replacement can commit a new cache while this request is in flight.
+            // Only drain that current cache, and leave its queue intact if effects are disconnected.
+            const currentCache = currentCacheRef.current;
+            if (currentCache.active) {
+              for (const [first, retry] of currentCache.pending) {
+                currentCache.pending.delete(first);
+                if (!first.dirty || !first.valid) continue;
+                await retry();
                 break;
               }
             }
           }
         } else {
           cache.pending.delete(form);
-          pending.delete(form);
         }
       }
 
@@ -211,7 +201,7 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
     },
     // Allow the user to not stable-ize getId, map, addRules, and autoSave
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cache, config],
+    [cache],
   );
 
   return { getFormState };

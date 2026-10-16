@@ -129,8 +129,9 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
       let pendingAutoSave = false;
 
       function maybeAutoSave() {
-        // Before effect setup or after cleanup, the form must not start requests. Keep the save
-        // pending so a later setup (StrictMode replay or effect reconnection) can retry it.
+        // When not subscribed (i.e. before or after useEffect setup/cleanup), we must not initiate
+        // any auto save requests. So mark the save as pending so a later setup (i.e. StrictMode
+        // replay or actual useEffect reconnection) can retry it.
         if (!subscriptionsActive(form)) {
           pendingAutoSave = true;
           return;
@@ -185,8 +186,9 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
         }
       }
       const value = firstRunRef.current ? firstInitValue : initValue(config, init);
-      // React can abandon this render without running effect cleanup. Wait for effect setup to
-      // subscribe to the store so an abandoned form cannot leave reactions behind.
+      // Use createInactiveObjectState to defer subscribing the form to any underlying mobx stores
+      // until our useEffect subscriptions actually run/are committed, i.e. in case React abandons
+      // this render, when we'd not want to leak/leave behind prematurely-connected subscriptions.
       const form = createInactiveObjectState(config, value, { maybeAutoSave }) as FormObjectState<T, I>;
       form.update = function update(input) {
         const init = initRef.current;
