@@ -108,8 +108,8 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
     currentCacheRef.current = cache;
     cache.active = true;
     Object.values(cache.forms).forEach((entry) => activateSubscriptions(entry[0]));
-    // Edits made before setup, or saves paused by effect cleanup, still belong to these forms.
-    Array.from(cache.pending.values()).forEach((retry) => void retry());
+    // Resume any auto saves that were made before/after useEffect connected our subscriptions
+    Array.from(cache.pending.values()).forEach((maybeAutosave) => void maybeAutosave());
     return () => {
       // Stop queued requests immediately, without cancelling requests already in flight.
       cache.active = false;
@@ -162,10 +162,10 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             // Only drain that current cache, and leave its queue intact if effects are disconnected.
             const currentCache = currentCacheRef.current;
             if (currentCache.active) {
-              for (const [first, retry] of currentCache.pending) {
+              for (const [first, maybeAutosave] of currentCache.pending) {
                 currentCache.pending.delete(first);
                 if (!first.dirty || !first.valid) continue;
-                await retry();
+                await maybeAutosave();
                 break;
               }
             }
