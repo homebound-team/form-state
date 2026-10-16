@@ -8,6 +8,7 @@ import {
 } from "src/config";
 import { type FragmentField, newFragmentField } from "src/fields/fragmentField";
 import { type ListFieldState, newListFieldState } from "src/fields/listField";
+import { activateSubscriptions, deactivateSubscriptions, registerSubscriptions } from "src/fields/subscriptions";
 import {
   type FieldState,
   type FieldStateInternal,
@@ -89,6 +90,17 @@ type FieldStates<T> = {
  * individual fields as well as the top-level form/object itself.
  */
 export function createObjectState<T>(
+  config: ObjectConfig<T>,
+  instance: T,
+  opts: { maybeAutoSave?: () => void } = {},
+): ObjectState<T> {
+  const form = createInactiveObjectState(config, instance, opts);
+  activateSubscriptions(form);
+  return form;
+}
+
+/** Builds a hook-owned form without subscriptions that could escape an abandoned render. */
+export function createInactiveObjectState<T>(
   config: ObjectConfig<T>,
   instance: T,
   opts: { maybeAutoSave?: () => void } = {},
@@ -393,7 +405,7 @@ export function newObjectState<T, P = any>(
     },
 
     dispose() {
-      getFields(this).forEach((f) => f.dispose());
+      deactivateSubscriptions(proxy!);
     },
 
     get originalValue(): T | undefined {
@@ -429,5 +441,14 @@ export function newObjectState<T, P = any>(
     originalValue: computed({ equals: () => false }),
   });
 
+  // Use the original children: makeAutoObservable can wrap plain value fields in proxies.
+  registerSubscriptions(proxy!, {
+    activate() {
+      fieldStates.forEach((entry) => activateSubscriptions(entry[1] as object));
+    },
+    deactivate() {
+      fieldStates.forEach((entry) => deactivateSubscriptions(entry[1] as object));
+    },
+  });
   return proxy!;
 }

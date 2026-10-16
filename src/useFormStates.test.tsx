@@ -1,7 +1,7 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
-import { act, renderHook } from "@testing-library/react";
-import { reaction } from "mobx";
-import { useMemo, useState } from "react";
+import { act, renderHook, render as renderReact } from "@testing-library/react";
+import { getObserverTree, makeAutoObservable, reaction } from "mobx";
+import { Activity, StrictMode, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { type ObjectConfig } from "src/config";
 import { type ObjectState } from "src/fields/objectField";
 import { TextField } from "src/FormStateApp";
@@ -396,6 +396,439 @@ describe("useFormStates", () => {
     expect(form.dirty).toEqual(false);
     expect(autoSave).toHaveBeenCalledTimes(2);
   });
+
+  it("releases observable subscriptions for forms created after mounting", async () => {
+    // Given a mounted hook whose row is created later
+    const row = new ObservableRow("a:1");
+    const autoSave = vi.fn(async () => {});
+    const hook = renderHook(() => useFormStates({ config: rowConfig, autoSave, getId: (o: ObservableRow) => o.id }));
+    hook.result.current.getFormState(row);
+
+    // When the table unmounts and the observable is edited
+    hook.unmount();
+    await Promise.resolve();
+    row.firstName = "Fred";
+    await wait();
+
+    // Then no autosave runs
+    expect(autoSave).toHaveBeenCalledTimes(0);
+  });
+
+  it("removes the MobX reactions synchronously on unmount", () => {
+    // Given a form wrapping a real observable instance after the initial render
+    const row = new ObservableRow("a:1");
+    const hook = renderHook(() => useFormStates({ config: rowConfig, getId: (o: ObservableRow) => o.id }));
+    hook.result.current.getFormState(row);
+
+    // When the table unmounts
+    hook.unmount();
+
+    // Then the observable no longer retains the field's reaction
+    expect(getObserverTree(row, "firstName").observers ?? []).toEqual([]);
+  });
+
+  it("keeps observable autosaves working after StrictMode effect replay", async () => {
+    // Given a form created during the initial StrictMode render
+    const row = new ObservableRow("a:1");
+    const saved: Partial<ObservableRow>[] = [];
+    renderHook(
+      () =>
+        useFormStates({
+          config: rowConfig,
+          getId: (o: ObservableRow) => o.id,
+          async autoSave(form) {
+            saved.push(form.changedValue);
+          },
+        }).getFormState(row),
+      { wrapper: StrictMode },
+    );
+    await Promise.resolve();
+
+    // When the observable changes after effect replay
+    row.firstName = "Fred";
+    await wait();
+
+    // Then the cached form still saves
+    expect(saved).toEqual([{ id: "a:1", firstName: "Fred" }]);
+  });
+
+  it("releases replaced forms while the new config remains functional", async () => {
+    // Given a form with the original config
+    const oldRow = new ObservableRow("a:1");
+    const newRow = new ObservableRow("a:2");
+    const saved: Partial<ObservableRow>[] = [];
+    const hook = renderHook(
+      (config: ObjectConfig<ObservableRow>) =>
+        useFormStates({
+          config,
+          getId: (o: ObservableRow) => o.id,
+          async autoSave(form) {
+            saved.push(form.changedValue);
+          },
+        }),
+      { initialProps: rowConfig },
+    );
+    hook.result.current.getFormState(oldRow);
+
+    // When config is replaced and both the old and new rows change
+    hook.rerender({ ...rowConfig });
+    hook.result.current.getFormState(newRow);
+    await Promise.resolve();
+    oldRow.firstName = "Old edit";
+    newRow.firstName = "New edit";
+    await wait();
+
+    // Then only the new form saves
+    expect(saved).toEqual([{ id: "a:2", firstName: "New edit" }]);
+  });
+
+  it("does not start an autosave queued just before unmount", async () => {
+    // Given a mounted observable form
+    const row = new ObservableRow("a:1");
+    const autoSave = vi.fn(async () => {});
+    const hook = renderHook(() =>
+      useFormStates({ config: rowConfig, autoSave, getId: (o: ObservableRow) => o.id }).getFormState(row),
+    );
+
+    // When an edit queues a save but the table unmounts before its timer runs
+    row.firstName = "Fred";
+    hook.unmount();
+    await wait();
+
+    // Then no request starts
+    expect(autoSave).toHaveBeenCalledTimes(0);
+  });
+
+  it("does not drain pending saves after unmount", async () => {
+    // Given two observable forms and an in-flight save
+    const first = new ObservableRow("a:1");
+    const second = new ObservableRow("a:2");
+    const response = Promise.withResolvers<void>();
+    const saved: Partial<ObservableRow>[] = [];
+    const hook = renderHook(() =>
+      useFormStates({
+        config: rowConfig,
+        getId: (o: ObservableRow) => o.id,
+        async autoSave(form) {
+          saved.push(form.changedValue);
+          await response.promise;
+        },
+      }),
+    );
+    hook.result.current.getFormState(first);
+    hook.result.current.getFormState(second);
+    first.firstName = "Fred";
+    await wait();
+    // And more edits queue behind the in-flight save
+    first.firstName = "Newer edit";
+    second.firstName = "Other edit";
+
+    // When the table unmounts before the response arrives
+    hook.unmount();
+    response.resolve();
+    await wait();
+
+    // Then only the already-started request ran
+    expect(saved).toEqual([{ id: "a:1", firstName: "Fred" }]);
+  });
+
+  it("releases the old config's observable subscriptions synchronously", () => {
+    // Given a cached form with the original config
+    const row = new ObservableRow("a:1");
+    const hook = renderHook(
+      (config: ObjectConfig<ObservableRow>) => useFormStates({ config, getId: (o: ObservableRow) => o.id }),
+      { initialProps: rowConfig },
+    );
+    hook.result.current.getFormState(row);
+
+    // When config changes
+    hook.rerender({ ...rowConfig });
+
+    // Then the superseded form no longer watches the row
+    expect(getObserverTree(row, "firstName").observers ?? []).toEqual([]);
+  });
+
+  it("does not save a replaced config's queued form", async () => {
+    // Given an observable edit whose autosave timer has not run
+    const row = new ObservableRow("a:1");
+    const autoSave = vi.fn(async () => {});
+    const hook = renderHook(
+      (config: ObjectConfig<ObservableRow>) => useFormStates({ config, autoSave, getId: (o: ObservableRow) => o.id }),
+      { initialProps: rowConfig },
+    );
+    hook.result.current.getFormState(row);
+    row.firstName = "Fred";
+
+    // When config is replaced before the request starts
+    hook.rerender({ ...rowConfig });
+    await wait();
+
+    // Then the old form does not start a request
+    expect(autoSave).toHaveBeenCalledTimes(0);
+  });
+
+  it("serializes a new config's saves behind the old config's in-flight request", async () => {
+    // Given a save in flight for the original config
+    const oldRow = new ObservableRow("a:1");
+    const newRow = new ObservableRow("a:2");
+    const response = Promise.withResolvers<void>();
+    const saved: Partial<ObservableRow>[] = [];
+    const hook = renderHook(
+      (config: ObjectConfig<ObservableRow>) =>
+        useFormStates({
+          config,
+          getId: (o: ObservableRow) => o.id,
+          async autoSave(form) {
+            saved.push(form.changedValue);
+            await response.promise;
+          },
+        }),
+      { initialProps: rowConfig },
+    );
+    hook.result.current.getFormState(oldRow);
+    oldRow.firstName = "Fred";
+    await wait();
+    // And a replacement config has a new form with an edit waiting to save
+    hook.rerender({ ...rowConfig });
+    hook.result.current.getFormState(newRow);
+    newRow.firstName = "New edit";
+    await wait();
+    expect(saved).toEqual([{ id: "a:1", firstName: "Fred" }]);
+
+    // When the old request completes
+    response.resolve();
+    await wait();
+
+    // Then the new form saves after the old request
+    expect(saved).toEqual([
+      { id: "a:1", firstName: "Fred" },
+      { id: "a:2", firstName: "New edit" },
+    ]);
+  });
+
+  it("preserves saves queued by mount effects during StrictMode replay", async () => {
+    // Given two observable forms edited by a mount effect
+    const first = new ObservableRow("a:1");
+    const second = new ObservableRow("a:2");
+    const saved: Partial<ObservableRow>[] = [];
+    renderHook(
+      () => {
+        const hook = useFormStates({
+          config: rowConfig,
+          getId: (o: ObservableRow) => o.id,
+          async autoSave(form) {
+            saved.push(form.changedValue);
+          },
+        });
+        hook.getFormState(first);
+        hook.getFormState(second);
+        useEffect(() => {
+          first.firstName = "First edit";
+          second.firstName = "Second edit";
+        }, []);
+      },
+      { wrapper: StrictMode },
+    );
+
+    // When StrictMode replays effects before the queued requests run
+    await wait();
+
+    // Then neither row's save is lost
+    expect(saved).toEqual([
+      { id: "a:1", firstName: "First edit" },
+      { id: "a:2", firstName: "Second edit" },
+    ]);
+  });
+
+  it("does not leak subscriptions if a retained callback creates a form after unmount", async () => {
+    // Given a getFormState callback retained after the table unmounts
+    const row = new ObservableRow("a:1");
+    const hook = renderHook(() => useFormStates({ config: rowConfig, getId: (o: ObservableRow) => o.id }));
+    const { getFormState } = hook.result.current;
+    hook.unmount();
+    await Promise.resolve();
+
+    // When delayed work creates a form with that callback
+    getFormState(row);
+
+    // Then the form does not retain observable subscriptions
+    expect(getObserverTree(row, "firstName").observers ?? []).toEqual([]);
+  });
+
+  it("saves changes made between render and effect subscription", async () => {
+    // Given a layout effect that edits a cached row before passive effects run
+    const row = new ObservableRow("a:1");
+    const saved: Partial<ObservableRow>[] = [];
+    renderHook(() => {
+      const form = useFormStates({
+        config: rowConfig,
+        getId: (o: ObservableRow) => o.id,
+        async autoSave(form) {
+          saved.push(form.changedValue);
+        },
+      }).getFormState(row);
+      useLayoutEffect(() => {
+        row.firstName = "Fred";
+      }, []);
+      return form;
+    });
+
+    // When the hook acquires subscriptions and autosave runs
+    await wait();
+
+    // Then the edit from before subscription is saved
+    expect(saved).toEqual([{ id: "a:1", firstName: "Fred" }]);
+  });
+
+  it("does not acquire subscriptions for an uncommitted table render", () => {
+    // Given a table that suspends after creating a row form
+    const row = new ObservableRow("a:1");
+    const loading = Promise.withResolvers<void>();
+    function SuspendedTable(): never {
+      useFormStates({ config: rowConfig, getId: (o: ObservableRow) => o.id }).getFormState(row);
+      throw loading.promise;
+    }
+
+    // When React renders the table without committing its effects
+    const view = renderReact(
+      <Suspense fallback="Loading">
+        <SuspendedTable />
+      </Suspense>,
+    );
+
+    // Then the uncommitted cache has not subscribed to the store
+    expect(getObserverTree(row, "firstName").observers ?? []).toEqual([]);
+    view.unmount();
+  });
+
+  it("resumes a queued save after effects reconnect on a later tick", async () => {
+    // Given an observable row in a visible table
+    const row = new ObservableRow("a:1");
+    const saved: Partial<ObservableRow>[] = [];
+    function Table() {
+      useFormStates({
+        config: rowConfig,
+        getId: (o: ObservableRow) => o.id,
+        async autoSave(form) {
+          saved.push(form.changedValue);
+        },
+      }).getFormState(row);
+      return null;
+    }
+    const view = renderReact(
+      <Activity mode="visible">
+        <Table />
+      </Activity>,
+    );
+    // And an edit queues a request just before effects disconnect
+    row.firstName = "Fred";
+    view.rerender(
+      <Activity mode="hidden">
+        <Table />
+      </Activity>,
+    );
+    await wait();
+    expect(saved).toEqual([]);
+
+    // When React reconnects the same table's effects later
+    view.rerender(
+      <Activity mode="visible">
+        <Table />
+      </Activity>,
+    );
+    await wait();
+
+    // Then the same cached form resumes its queued save
+    expect(saved).toEqual([{ id: "a:1", firstName: "Fred" }]);
+  });
+
+  it("keeps draining other rows when an earlier queued row has been acknowledged", async () => {
+    // Given a row's save in flight and another row ready to edit
+    const first = new ObservableRow("a:1");
+    const second = new ObservableRow("a:2");
+    const response = Promise.withResolvers<void>();
+    const saved: Partial<ObservableRow>[] = [];
+    const hook = renderHook(() =>
+      useFormStates({
+        config: rowConfig,
+        getId: (o: ObservableRow) => o.id,
+        async autoSave(form) {
+          saved.push(form.changedValue);
+          await response.promise;
+        },
+      }),
+    );
+    hook.result.current.getFormState(first);
+    hook.result.current.getFormState(second);
+    first.firstName = "Fred";
+    await wait();
+    // And both rows queue more edits, but a refresh acknowledges the first row
+    first.firstName = "Sue";
+    second.firstName = "New edit";
+    hook.result.current.getFormState({ id: "a:1", firstName: "Sue" });
+
+    // When the in-flight request completes
+    response.resolve();
+    await wait();
+
+    // Then the clean row does not block the other row's pending save
+    expect(saved).toEqual([
+      { id: "a:1", firstName: "Fred" },
+      { id: "a:2", firstName: "New edit" },
+    ]);
+  });
+
+  it("preserves pending rows when an in-flight save finishes while effects are disconnected", async () => {
+    // Given two observable rows and a save that stays in flight
+    const first = new ObservableRow("a:1");
+    const second = new ObservableRow("a:2");
+    const response = Promise.withResolvers<void>();
+    const saved: Partial<ObservableRow>[] = [];
+    function Table() {
+      const hook = useFormStates({
+        config: rowConfig,
+        getId: (o: ObservableRow) => o.id,
+        async autoSave(form) {
+          saved.push(form.changedValue);
+          await response.promise;
+        },
+      });
+      hook.getFormState(first);
+      hook.getFormState(second);
+      return null;
+    }
+    const view = renderReact(
+      <Activity mode="visible">
+        <Table />
+      </Activity>,
+    );
+    first.firstName = "Fred";
+    await wait();
+    // And a second row queues a save before effects disconnect
+    second.firstName = "Sue";
+    view.rerender(
+      <Activity mode="hidden">
+        <Table />
+      </Activity>,
+    );
+    response.resolve();
+    await wait();
+    expect(saved).toEqual([{ id: "a:1", firstName: "Fred" }]);
+
+    // When effects reconnect after the first save has finished
+    view.rerender(
+      <Activity mode="visible">
+        <Table />
+      </Activity>,
+    );
+    await wait();
+
+    // Then the pending row is still queued and resumes saving
+    expect(saved).toEqual([
+      { id: "a:1", firstName: "Fred" },
+      { id: "a:2", firstName: "Sue" },
+    ]);
+  });
 });
 
 type FormValue = Pick<AuthorInput, "id" | "firstName">;
@@ -406,6 +839,16 @@ const config: ObjectConfig<FirstAndLastValue> = {
   firstName: { type: "value" },
   lastName: { type: "value" },
 };
+
+class ObservableRow {
+  firstName = "Bob";
+
+  constructor(public id: string) {
+    makeAutoObservable(this);
+  }
+}
+
+const rowConfig: ObjectConfig<ObservableRow> = { id: { type: "value" }, firstName: { type: "value" } };
 
 function ChildComponent({ os }: { os: ObjectState<FormValue> }) {
   return (

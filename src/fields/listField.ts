@@ -2,6 +2,12 @@ import { computed, createAtom, makeAutoObservable } from "mobx";
 import hash from "object-hash";
 import { type ListFieldConfig, type ObjectFieldConfig } from "src/config";
 import { type ObjectState, type ObjectStateInternal, newObjectState } from "src/fields/objectField";
+import {
+  activateSubscriptions,
+  deactivateSubscriptions,
+  registerSubscriptions,
+  subscriptionsActive,
+} from "src/fields/subscriptions";
 import { type FieldState, type InternalSetOpts } from "src/fields/valueField";
 import { type Rule, required } from "src/rules";
 import { groupBy, isNotUndefined, normalizeHashValue } from "src/utils";
@@ -79,6 +85,7 @@ export function newListFieldState<T, K extends keyof T, U>(
         listConfig.update === "deep-exhaustive",
       ) as ObjectStateInternal<U>;
       rowMap.set(child, childState);
+      if (subscriptionsActive(list)) activateSubscriptions(childState);
     }
     return childState;
   }
@@ -382,7 +389,7 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     /** Disposes every row's ObjectState, including rows that were removed from the list. */
     dispose() {
-      new Set(rowMap.values()).forEach((row) => row.dispose());
+      deactivateSubscriptions(list);
     },
 
     get originalValue(): U[] {
@@ -414,6 +421,14 @@ export function newListFieldState<T, K extends keyof T, U>(
     value: computed({ equals: () => false }),
   }) as any;
 
+  registerSubscriptions(proxy, {
+    activate() {
+      rowMap.forEach((row) => activateSubscriptions(row));
+    },
+    deactivate() {
+      rowMap.forEach((row) => deactivateSubscriptions(row));
+    },
+  });
   return proxy;
 }
 
