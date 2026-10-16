@@ -1,7 +1,8 @@
 import { isPlainObject } from "is-plain-object";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type ObjectConfig } from "src/config";
-import { type ObjectState, type ObjectStateInternal, createObjectState } from "src/fields/objectField";
+import { type ObjectState, type ObjectStateInternal, createInactiveObjectState } from "src/fields/objectField";
+import { activateSubscriptions, deactivateSubscriptions, subscriptionsActive } from "src/fields/subscriptions";
 import { initValue, isInput, isQuery } from "./utils";
 
 // A structural match for useQuery
@@ -113,7 +114,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
       ? [init.query.data, init.query.loading]
       : [];
 
-  const form = useMemo(
+  const state = useMemo(
     () => {
       // If the user's autoSave hook makes some last-minute `.set` calls to sneak
       // in some business logic right before their GraphQL mutation call, ignore it
@@ -128,6 +129,10 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
       let pendingAutoSave = false;
 
       function maybeAutoSave() {
+        if (!subscriptionsActive(form)) {
+          pendingAutoSave = true;
+          return;
+        }
         if (isAutoSaving === "in-flight") {
           pendingAutoSave = true;
         } else if (isAutoSaving === "queued") {
@@ -149,6 +154,11 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
           // We use setTimeout as a cheap way to wait until the end of the current event listener
           setTimeout(async () => {
             try {
+              // Cleanup disconnects reactions, but a timer can already be queued.
+              if (!subscriptionsActive(form) || !autoSaveRef.current) {
+                pendingAutoSave = true;
+                return;
+              }
               // Tell commitChanges to blow up.
               (form as any)._isAutoSaving = true;
               // We technically don't flip to in-flight until after the call in case the
@@ -161,7 +171,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
             } finally {
               isAutoSaving = false;
               (form as any)._isAutoSaving = false;
-              if (pendingAutoSave) {
+              if (pendingAutoSave && subscriptionsActive(form)) {
                 pendingAutoSave = false;
                 // Push out the follow-up by 1 tick to allow refreshes to happen to potentially
                 // un-dirty the just-saved data (e.g. if we run right away, the caller's maybeAutoSave
@@ -173,7 +183,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
         }
       }
       const value = firstRunRef.current ? firstInitValue : initValue(config, init);
-      const form = createObjectState(config, value, { maybeAutoSave }) as FormObjectState<T, I>;
+      const form = createInactiveObjectState(config, value, { maybeAutoSave }) as FormObjectState<T, I>;
       form.update = function update(input) {
         const init = initRef.current;
         const updateInit = isInput(init)
@@ -189,33 +199,41 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
       setLoading(form, opts);
       // The identity of `addRules` is not stable, but assume that it is for better UX.
       (addRules || (() => {}))(form);
-      firstRunRef.current = true;
-      return form;
+      return {
+        form,
+        lastInitDeps: dep,
+        resumeAutoSave() {
+          if (pendingAutoSave) {
+            pendingAutoSave = false;
+            maybeAutoSave();
+          }
+        },
+      };
     },
     // For this useMemo, we (almost) never re-run so that we can have a stable `form` identity across query refreshes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [config, ...(isWrappingMobxProxy ? dep : [])],
   );
+  const { form } = state;
 
-  // When `init` changes while wrapping a mobx proxy, the useMemo above builds a new form, so dispose the
-  // superseded one and its fields stop watching the old store. We deliberately never dispose the *current*
-  // form (i.e. in an effect cleanup), because StrictMode re-runs effects against a still-mounted form.
-  const prevFormRef = useRef<FormObjectState<T, I> | undefined>(undefined);
+  // Keep form values across effect replay, but never let subscriptions outlive their owning effect.
   useEffect(() => {
-    if (prevFormRef.current && prevFormRef.current !== form) prevFormRef.current.dispose();
-    prevFormRef.current = form;
-  }, [form]);
+    activateSubscriptions(state.form);
+    state.resumeAutoSave();
+    return () => deactivateSubscriptions(state.form);
+  }, [state]);
 
   // We use useEffect so that any mutations to the proxies, which will call `setState`s on any observers to
   // queue their components' render), don't happen during our render, per https://fb.me/setstate-in-render.
   useEffect(() => {
-    // Ignore the 1st run b/c our 1st useMemo already initialized `form` with the current `init` value.
-    // Also for mobx proxies, we recreate a new form-state every time init changes, so that our
-    // fields fundamentally pointing to the right proxy. So just defer to the ^ useMemo.
-    if (firstRunRef.current || isWrappingMobxProxy) {
-      firstRunRef.current = false;
-      return;
-    }
+    firstRunRef.current = false;
+    // Construction already applied these inputs. Effect replay/reconnection is not a server refresh:
+    // applying the same mutable input again would mistake unsaved store edits for acknowledgements.
+    // For wrapped class instances, useMemo rebuilds the form so fields point to the new instance.
+    const sameInit =
+      dep.length === state.lastInitDeps.length && dep.every((value, i) => Object.is(value, state.lastInitDeps[i]));
+    if (isWrappingMobxProxy || sameInit) return;
+    state.lastInitDeps = dep;
     setLoading(form, opts);
     // Note: maybe someday we want to watch the `id` value and notice if it's changing (i.e. 2 -> 3),
     // and treat this more as a reset than a refresh, b/c the id changing means it's probably
@@ -226,7 +244,7 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
     (form as any).set(initValue(config, init), { refreshing: true });
     // Only re-run when the `init` values change; `config` and `opts` are treated as stable, like in the useMemo above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, ...dep]);
+  }, [state, ...dep]);
 
   // Use useEffect so that we don't touch the form.init proxy during a render
   useEffect(() => {
