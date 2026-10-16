@@ -129,6 +129,8 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
       let pendingAutoSave = false;
 
       function maybeAutoSave() {
+        // Before effect setup or after cleanup, the form must not start requests. Keep the save
+        // pending so a later setup (StrictMode replay or effect reconnection) can retry it.
         if (!subscriptionsActive(form)) {
           pendingAutoSave = true;
           return;
@@ -183,6 +185,8 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
         }
       }
       const value = firstRunRef.current ? firstInitValue : initValue(config, init);
+      // React can abandon this render without running effect cleanup. Wait for effect setup to
+      // subscribe to the store so an abandoned form cannot leave reactions behind.
       const form = createInactiveObjectState(config, value, { maybeAutoSave }) as FormObjectState<T, I>;
       form.update = function update(input) {
         const init = initRef.current;
@@ -216,7 +220,8 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
   );
   const { form } = state;
 
-  // Keep form values across effect replay, but never let subscriptions outlive their owning effect.
+  // StrictMode runs setup, cleanup, then setup again for the same form. Cleanup disconnects its
+  // store reactions; setup reconnects them and resumes any saves that were paused.
   useEffect(() => {
     activateSubscriptions(state.form);
     state.resumeAutoSave();
