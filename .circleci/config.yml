@@ -12,7 +12,8 @@ workflows:
             - npm-readonly
       - publish:
           context:
-            - npm-publish
+            - npm-trusted-publish
+            - npm-readonly
             - github
           requires:
             - build
@@ -42,7 +43,10 @@ jobs:
     working_directory: ~/project
     steps:
       - checkout
-      - run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> .npmrc
       - node/install-packages:
           pkg-manager: yarn-berry
-      - run: npm run semantic-release
+      - run:
+          name: Release
+          command: |
+            export NPM_ID_TOKEN=$(circleci run oidc get --claims '{"aud":"npm:registry.npmjs.org"}')
+            npm run semantic-release
