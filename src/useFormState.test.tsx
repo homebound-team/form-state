@@ -1,8 +1,8 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
-import { act, renderHook } from "@testing-library/react";
-import { makeAutoObservable, reaction } from "mobx";
+import { act, renderHook, render as renderReact } from "@testing-library/react";
+import { getObserverTree, makeAutoObservable, reaction } from "mobx";
 import { observer, Observer } from "mobx-react";
-import { useMemo, useRef, useState } from "react";
+import { Activity, StrictMode, Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { TextField } from "src/FormStateApp";
 import { type ObjectConfig } from "src/config";
 import { type Fragment, fragment, type ObjectState } from "src/fields/objectField";
@@ -1518,6 +1518,297 @@ describe("useFormState", () => {
     });
   });
 });
+
+describe("useFormState lifecycle", () => {
+  it("releases observable subscriptions synchronously on unmount", () => {
+    // Given a form wrapping an observable instance
+    const author = new ObservableAuthor("a:1");
+    const hook = renderHook(() => useFormState({ config: observableAuthorConfig, init: { input: author } }));
+
+    // When the component unmounts
+    hook.unmount();
+
+    // Then the store immediately releases the field reaction
+    expect(getObserverTree(author, "name").observers ?? []).toEqual([]);
+  });
+
+  it("does not autosave edits after unmount", async () => {
+    // Given a form wrapping an observable instance
+    const author = new ObservableAuthor("a:1");
+    const saved: Partial<ObservableAuthor>[] = [];
+    const hook = renderHook(() =>
+      useFormState({
+        config: observableAuthorConfig,
+        init: { input: author },
+        async autoSave(form) {
+          saved.push(form.changedValue);
+        },
+      }),
+    );
+
+    // When the component unmounts and the store changes
+    hook.unmount();
+    author.name = "Fred";
+    await wait();
+
+    // Then no new request starts
+    expect(saved).toEqual([]);
+  });
+
+  it("does not start a queued autosave after unmount", async () => {
+    // Given an observable edit whose autosave timer has not run
+    const author = new ObservableAuthor("a:1");
+    const autoSave = vi.fn(async () => {});
+    const hook = renderHook(() => useFormState({ config: observableAuthorConfig, init: { input: author }, autoSave }));
+    author.name = "Fred";
+
+    // When the component unmounts before the timer runs
+    hook.unmount();
+    await wait();
+
+    // Then the queued request never starts
+    expect(autoSave).toHaveBeenCalledTimes(0);
+  });
+
+  it("does not drain pending autosaves after unmount", async () => {
+    // Given a request in flight
+    const author = new ObservableAuthor("a:1");
+    const response = Promise.withResolvers<ObservableAuthor>();
+    const saved: Partial<ObservableAuthor>[] = [];
+    const hook = renderHook(() =>
+      useFormState({
+        config: observableAuthorConfig,
+        init: { input: author },
+        async autoSave(form) {
+          saved.push(form.changedValue);
+          hook.result.current.update(await response.promise);
+        },
+      }),
+    );
+    author.name = "Fred";
+    await wait();
+    // And a newer edit is waiting for its turn
+    author.name = "Sue";
+
+    // When the component unmounts and the first request finishes
+    hook.unmount();
+    response.resolve({ id: "a:1", name: "Fred" });
+    await wait();
+
+    // Then only the already-started request ran
+    expect(saved).toEqual([{ id: "a:1", name: "Fred" }]);
+  });
+
+  it("autosaves observable edits after StrictMode effect replay", async () => {
+    // Given a form mounted in StrictMode
+    const author = new ObservableAuthor("a:1");
+    const saved: Partial<ObservableAuthor>[] = [];
+    renderHook(
+      () =>
+        useFormState({
+          config: observableAuthorConfig,
+          init: { input: author },
+          async autoSave(form) {
+            saved.push(form.changedValue);
+          },
+        }),
+      { wrapper: StrictMode },
+    );
+
+    // When an observable edit happens after replay
+    author.name = "Fred";
+    await wait();
+
+    // Then the reconnected form saves exactly once
+    expect(saved).toEqual([{ id: "a:1", name: "Fred" }]);
+  });
+
+  it("saves changes made between render and effect subscription", async () => {
+    // Given a layout effect that edits the observable before passive effects run
+    const author = new ObservableAuthor("a:1");
+    const saved: Partial<ObservableAuthor>[] = [];
+    renderHook(() => {
+      const form = useFormState({
+        config: observableAuthorConfig,
+        init: { input: author },
+        async autoSave(form) {
+          saved.push(form.changedValue);
+        },
+      });
+      useLayoutEffect(() => {
+        author.name = "Fred";
+      }, []);
+      return form;
+    });
+
+    // When subscriptions are acquired and autosave runs
+    await wait();
+
+    // Then the render-to-effect gap did not lose the edit or its original baseline
+    expect(saved).toEqual([{ id: "a:1", name: "Fred" }]);
+  });
+
+  it("keeps the original baseline when acquiring subscriptions", () => {
+    // Given Bob at render time
+    const author = new ObservableAuthor("a:1");
+    const hook = renderHook(() => {
+      const form = useFormState({ config: observableAuthorConfig, init: { input: author } });
+      useLayoutEffect(() => {
+        author.name = "Fred";
+      }, []);
+      return form;
+    });
+
+    // When effect setup connects reactions after the edit
+    // Then the form still knows Bob is the unsaved baseline
+    expect(hook.result.current.name.originalValue).toEqual("Bob");
+  });
+
+  it("releases replaced forms while the replacement remains functional", async () => {
+    // Given a form with the original config and observable input
+    const oldAuthor = new ObservableAuthor("a:1");
+    const newAuthor = new ObservableAuthor("a:2");
+    const saved: Partial<ObservableAuthor>[] = [];
+    const hook = renderHook(
+      (props) =>
+        useFormState({
+          config: props.config,
+          init: { input: props.author },
+          async autoSave(form) {
+            saved.push(form.changedValue);
+          },
+        }),
+      { initialProps: { config: observableAuthorConfig, author: oldAuthor } },
+    );
+
+    // When config and input are replaced and both stores change
+    hook.rerender({ config: { ...observableAuthorConfig }, author: newAuthor });
+    oldAuthor.name = "Old edit";
+    newAuthor.name = "New edit";
+    await wait();
+
+    // Then only the replacement form saves
+    expect(saved).toEqual([{ id: "a:2", name: "New edit" }]);
+  });
+
+  it("does not acquire subscriptions for a suspended render that never commits", () => {
+    // Given a component that suspends after constructing its form
+    const author = new ObservableAuthor("a:1");
+    const loading = Promise.withResolvers<void>();
+    function SuspendedForm(): never {
+      useFormState({ config: observableAuthorConfig, init: { input: author } });
+      throw loading.promise;
+    }
+
+    // When React renders it without committing its effects
+    const view = renderReact(
+      <Suspense fallback="Loading">
+        <SuspendedForm />
+      </Suspense>,
+    );
+
+    // Then the abandoned form does not leave a store subscription behind
+    expect(getObserverTree(author, "name").observers ?? []).toEqual([]);
+    view.unmount();
+  });
+
+  it("resumes a queued save after effects reconnect on a later tick", async () => {
+    // Given an observable form in a visible component
+    const author = new ObservableAuthor("a:1");
+    const saved: Partial<ObservableAuthor>[] = [];
+    function Form() {
+      useFormState({
+        config: observableAuthorConfig,
+        init: { input: author },
+        async autoSave(form) {
+          saved.push(form.changedValue);
+        },
+      });
+      return null;
+    }
+    const view = renderReact(
+      <Activity mode="visible">
+        <Form />
+      </Activity>,
+    );
+    // And an edit queues a request just before effects disconnect
+    author.name = "Fred";
+    view.rerender(
+      <Activity mode="hidden">
+        <Form />
+      </Activity>,
+    );
+    await wait();
+    expect(saved).toEqual([]);
+
+    // When React reconnects the same component's effects later
+    view.rerender(
+      <Activity mode="visible">
+        <Form />
+      </Activity>,
+    );
+    await wait();
+
+    // Then the form resumes its queued save
+    expect(saved).toEqual([{ id: "a:1", name: "Fred" }]);
+  });
+
+  it("does not acknowledge a nested observable's unsaved edit during StrictMode replay", async () => {
+    // Given a plain form shape containing an observable class instance
+    const author = new ObservableAuthor("a:1");
+    const input = { contact: author };
+    const config: ObjectConfig<typeof input> = { contact: { type: "object", config: observableAuthorConfig } };
+    const saved: Partial<typeof input>[] = [];
+    renderHook(
+      () => {
+        const form = useFormState({
+          config,
+          init: { input },
+          async autoSave(form) {
+            saved.push(form.changedValue);
+          },
+        });
+        useLayoutEffect(() => {
+          author.name = "Fred";
+        }, []);
+        return form;
+      },
+      { wrapper: StrictMode },
+    );
+
+    // When replay reconnects subscriptions without a new server input
+    await wait();
+
+    // Then Fred is still an unsaved change, not falsely acknowledged by the repeated effect
+    expect(saved).toEqual([{ contact: { id: "a:1", name: "Fred" } }]);
+  });
+
+  it("uses the new observable input when StrictMode repeats a config replacement render", () => {
+    // Given an existing StrictMode form
+    const oldAuthor = new ObservableAuthor("a:1");
+    const newAuthor = new ObservableAuthor("a:2");
+    const hook = renderHook((props) => useFormState({ config: props.config, init: { input: props.author } }), {
+      initialProps: { config: observableAuthorConfig, author: oldAuthor },
+      wrapper: StrictMode,
+    });
+
+    // When a new config and input cause React to repeat the form constructor
+    hook.rerender({ config: { ...observableAuthorConfig }, author: newAuthor });
+
+    // Then the replacement wraps the new input, not the initial render's input
+    expect(hook.result.current.id.value).toEqual("a:2");
+  });
+});
+
+class ObservableAuthor {
+  name = "Bob";
+
+  constructor(public id: string) {
+    makeAutoObservable(this);
+  }
+}
+
+const observableAuthorConfig: ObjectConfig<ObservableAuthor> = { id: { type: "value" }, name: { type: "value" } };
 
 const authorConfig: ObjectConfig<AuthorInput> = {
   id: { type: "value" },

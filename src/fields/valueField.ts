@@ -1,6 +1,7 @@
 import { isPlainObject } from "is-plain-object";
 import { createAtom, isObservable, reaction, toJS } from "mobx";
 import { type ObjectState } from "src/fields/objectField";
+import { deactivateSubscriptions, registerSubscriptions } from "src/fields/subscriptions";
 import { newDelegateProxy } from "src/proxies";
 import { type Rule, required } from "src/rules";
 import { areEqual, isEmpty, isNotUndefined } from "src/utils";
@@ -132,6 +133,8 @@ export function newValueFieldState<T, K extends keyof T>(
   let lastSubmittedValue: V | undefined = undefined;
   // Set below if we're wrapping a mobx observable, see `dispose`
   let disposeStoreReaction: (() => void) | undefined = undefined;
+  // Remember what the store contained before subscribing, including across effect reconnects.
+  let lastObservedValue = parentInstance[key];
 
   const field = {
     key: key as string,
@@ -359,8 +362,7 @@ export function newValueFieldState<T, K extends keyof T>(
     },
 
     dispose() {
-      disposeStoreReaction?.();
-      disposeStoreReaction = undefined;
+      deactivateSubscriptions(field);
     },
 
     get originalValue(): V {
@@ -392,17 +394,37 @@ export function newValueFieldState<T, K extends keyof T>(
   // If we're wrapping a mobx observer, watching for external mutations, i.e. from callers not
   // going through our FieldState.set/FieldState.value setters.
   if (isObservable(parentInstance)) {
-    disposeStoreReaction = reaction(
-      () => parentInstance[key],
-      () => {
-        // Don't auto-save on maybe-external mutation if our field, or another other field (potentially a computed),
-        // is currently focused, because then it's probably just us doing the writes through `Bound...Field` components.
-        if (!parentState().focused) maybeAutoSave();
-      },
-    );
-  }
+    registerSubscriptions(field, {
+      activate() {
+        disposeStoreReaction = reaction(
+          () => parentInstance[key],
+          (value) => {
+            lastObservedValue = value;
+            saveExternalChange();
+          },
+        );
 
+        // A layout effect or another component can edit the store between render and subscription.
+        // Read again after subscribing so that change is saved without resetting the form's baseline.
+        const value = parentInstance[key];
+        const changed = !Object.is(lastObservedValue, value);
+        lastObservedValue = value;
+        if (changed) saveExternalChange();
+      },
+      deactivate() {
+        disposeStoreReaction?.();
+        disposeStoreReaction = undefined;
+      },
+    });
+  }
   return field as any;
+
+  /** Saves external mutations unless a focused field is still accumulating edits. */
+  function saveExternalChange() {
+    // Don't auto-save on maybe-external mutation if our field, or another other field (potentially a computed),
+    // is currently focused, because then it's probably just us doing the writes through `Bound...Field` components.
+    if (!parentState().focused) maybeAutoSave();
+  }
 }
 
 /**

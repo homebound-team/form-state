@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { type ObjectConfig } from "src/config";
-import { type ObjectState, type ObjectStateInternal, createObjectState } from "src/fields/objectField";
+import { type ObjectState, type ObjectStateInternal, createInactiveObjectState } from "src/fields/objectField";
+import { activateSubscriptions, deactivateSubscriptions } from "src/fields/subscriptions";
 import { initValue } from "src/utils";
 
 export type ObjectStateCache<T, I> = Record<string, [ObjectState<T>, I]>;
@@ -76,23 +77,19 @@ type UseFormStatesHook<T, I> = {
 export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormStatesHook<T, I> {
   const { config, autoSave, getId, map, addRules, readOnly = false } = opts;
 
-  const objectStateCache = useMemo<ObjectStateCache<T, I>>(
-    () => ({}),
-    // Force resetting the cache if config changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Force resetting the cache if config changes.
+  const cache = useMemo(
+    () => ({
+      config,
+      forms: {} as ObjectStateCache<T, I>,
+      active: false,
+      // Keep paused saves with their forms so effect reconnection can resume them.
+      pending: new Map<ObjectState<T>, () => Promise<void>>(),
+    }),
     [config],
   );
-  // When `config` changes we start a new cache, so dispose the superseded forms and their fields stop
-  // watching any mobx stores they wrapped. We never dispose the current cache (i.e. in an effect cleanup),
-  // because StrictMode re-runs effects against a still-mounted component.
-  const prevCacheRef = useRef(objectStateCache);
-  useEffect(() => {
-    const prevCache = prevCacheRef.current;
-    if (prevCache !== objectStateCache) Object.values(prevCache).forEach((entry) => entry[0].dispose());
-    prevCacheRef.current = objectStateCache;
-  }, [objectStateCache]);
-  // Keep track of ObjectStates that triggered auto-save when a save was already in progress.
-  const pendingAutoSaves = useRef<Set<ObjectState<T>>>(new Set());
+  // A previous config's in-flight request must drain the latest committed cache, not its old queue.
+  const currentCacheRef = useRef(cache);
   // If the user's autoSave hook makes some last-minute `.set` calls to sneak
   // in some business logic right before their GraphQL mutation call, ignore it
   // so that we don't infinite loop.
@@ -107,22 +104,45 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
   const readOnlyRef = useRef<boolean>(readOnly);
   readOnlyRef.current = readOnly;
 
+  useEffect(() => {
+    currentCacheRef.current = cache;
+    cache.active = true;
+    Object.values(cache.forms).forEach((entry) => activateSubscriptions(entry[0]));
+    // Resume any auto saves that were made before/after useEffect connected our subscriptions
+    Array.from(cache.pending.values()).forEach((maybeAutosave) => void maybeAutosave());
+    return () => {
+      // Stop queued requests immediately, without cancelling requests already in flight.
+      cache.active = false;
+      Object.values(cache.forms).forEach((entry) => deactivateSubscriptions(entry[0]));
+    };
+  }, [cache]);
+
   const getFormState = useCallback<UseFormStatesHook<T, I>["getFormState"]>(
     (input, opts = {}) => {
+      const { config, forms: objectStateCache } = cache;
       const existing = objectStateCache[getId(input)];
       let form = existing?.[0];
 
-      async function maybeAutoSave(form: ObjectState<T>) {
+      /**
+       * Serializes this form's saves with the other rows owned by the hook.
+       *
+       * Each retry retains its cache so a config replacement cannot revive a released form.
+       */
+      async function maybeAutoSave() {
+        if (!cache.active) {
+          cache.pending.set(form, maybeAutoSave);
+          return;
+        }
         // Don't use form.canSave() because we don't want to set touched for all the fields
         if (autoSaveRef.current && form.dirty) {
           // It's very frustrating to not know why the form is savings, to go ahead and log these
           if (!form.valid) {
             console.debug("Skipping auto-save b/c form is invalid: ", form.errors);
+            cache.pending.delete(form);
             return;
           }
-          const { current: pending } = pendingAutoSaves;
           if (isAutoSaving.current) {
-            pending.add(form);
+            cache.pending.set(form, maybeAutoSave);
             return;
           }
           try {
@@ -130,28 +150,41 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             // See if we have any reactions that want to run (i.e. added by addRules hooks)
             await new Promise((resolve) => setTimeout(resolve, 0));
             // If a reaction re-queued our form during the ^ wait, remove it
-            pending.delete(form);
-            await autoSaveRef.current(form);
+            cache.pending.delete(form);
+            if (cache.active && autoSaveRef.current) {
+              await autoSaveRef.current(form);
+            } else {
+              cache.pending.set(form, maybeAutoSave);
+            }
           } finally {
             isAutoSaving.current = false;
-            if (pending.size > 0) {
-              const first = pending.values().next().value!;
-              pending.delete(first);
-              await maybeAutoSave(first);
+            // Config replacement can commit a new cache while this request is in flight.
+            // Only drain that current cache, and leave its queue intact if effects are disconnected.
+            const currentCache = currentCacheRef.current;
+            if (currentCache.active) {
+              for (const [first, maybeAutosave] of currentCache.pending) {
+                currentCache.pending.delete(first);
+                if (!first.dirty || !first.valid) continue;
+                await maybeAutosave();
+                break;
+              }
             }
           }
+        } else {
+          cache.pending.delete(form);
         }
       }
 
       // If it didn't exist, then add to the cache.
       if (!form) {
-        form = createObjectState(config, initValue(config, { map, input }), {
-          maybeAutoSave: () => maybeAutoSave(form),
+        form = createInactiveObjectState(config, initValue(config, { map, input }), {
+          maybeAutoSave,
         });
         if (addRules) {
           addRules(form);
         }
         objectStateCache[getId(input)] = [form, input];
+        if (cache.active) activateSubscriptions(form);
       }
 
       // If the source of truth changed, then update the existing state and return it.
@@ -168,7 +201,7 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
     },
     // Allow the user to not stable-ize getId, map, addRules, and autoSave
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [objectStateCache, config],
+    [cache],
   );
 
   return { getFormState };
