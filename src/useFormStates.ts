@@ -152,6 +152,8 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             // If a reaction re-queued our form during the ^ wait, remove it
             cache.pending.delete(form);
             if (cache.active && autoSaveRef.current) {
+              // A refresh or edit can change save eligibility while the timer is pending.
+              if (!form.dirty || !form.valid) return;
               await autoSaveRef.current(form);
             } else {
               cache.pending.set(form, maybeAutoSave);

@@ -1798,6 +1798,56 @@ describe("useFormState lifecycle", () => {
     // Then the replacement wraps the new input, not the initial render's input
     expect(hook.result.current.id.value).toEqual("a:2");
   });
+
+  it("skips an autosave when the form is reverted before its timer runs", async () => {
+    // Given a form with autosave enabled
+    const saved: Partial<AuthorInput>[] = [];
+    const hook = renderHook(() =>
+      useFormState({
+        config: authorConfig,
+        init: { input: { id: "a:1", firstName: "Bob" } },
+        async autoSave(form) {
+          saved.push(form.changedValue);
+        },
+      }),
+    );
+    const form = hook.result.current;
+
+    // When an edit queues a save, then is reverted before the timer runs
+    act(() => form.firstName.set("Fred"));
+    act(() => form.revertChanges());
+    await wait();
+
+    // Then the clean form is not saved
+    expect(saved).toEqual([]);
+  });
+
+  it("skips an autosave when the form becomes invalid before its timer runs", async () => {
+    // Given a form whose first name is required
+    const config: ObjectConfig<AuthorInput> = {
+      ...authorConfig,
+      firstName: { type: "value", rules: [required] },
+    };
+    const saved: Partial<AuthorInput>[] = [];
+    const hook = renderHook(() =>
+      useFormState({
+        config,
+        init: { input: { id: "a:1", firstName: "Bob" } },
+        async autoSave(form) {
+          saved.push(form.changedValue);
+        },
+      }),
+    );
+    const form = hook.result.current;
+
+    // When a valid edit queues a save, then the form becomes invalid before the timer runs
+    act(() => form.firstName.set("Fred"));
+    act(() => form.firstName.set(""));
+    await wait();
+
+    // Then the invalid form is not saved
+    expect(saved).toEqual([]);
+  });
 });
 
 class ObservableAuthor {
