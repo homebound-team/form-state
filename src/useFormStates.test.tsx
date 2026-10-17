@@ -829,6 +829,60 @@ describe("useFormStates", () => {
       { id: "a:2", firstName: "Sue" },
     ]);
   });
+
+  it("skips a row refreshed clean before its autosave timer runs and drains the next row", async () => {
+    // Given two cached forms with autosave enabled
+    const saved: Partial<FormValue>[] = [];
+    const hook = renderHook(() =>
+      useFormStates({
+        config,
+        getId: (o: FormValue) => o.id!,
+        async autoSave(form) {
+          saved.push(form.changedValue);
+        },
+      }),
+    );
+    const first = hook.result.current.getFormState({ id: "a:1", firstName: "Bob" });
+    const second = hook.result.current.getFormState({ id: "a:2", firstName: "Steve" });
+
+    // When edits queue both rows, then a refresh acknowledges the first before its timer runs
+    act(() => first.firstName.set("Fred"));
+    act(() => second.firstName.set("Sue"));
+    hook.result.current.getFormState({ id: "a:1", firstName: "Fred" });
+    await wait();
+
+    // Then only the still-dirty row saves
+    expect(saved).toEqual([{ id: "a:2", firstName: "Sue" }]);
+  });
+
+  it("skips a row made invalid before its autosave timer runs and drains the next row", async () => {
+    // Given two cached forms whose names are required
+    const config: ObjectConfig<FormValue> = {
+      id: { type: "value" },
+      firstName: { type: "value", rules: [required] },
+    };
+    const saved: Partial<FormValue>[] = [];
+    const hook = renderHook(() =>
+      useFormStates({
+        config,
+        getId: (o: FormValue) => o.id!,
+        async autoSave(form) {
+          saved.push(form.changedValue);
+        },
+      }),
+    );
+    const first = hook.result.current.getFormState({ id: "a:1", firstName: "Bob" });
+    const second = hook.result.current.getFormState({ id: "a:2", firstName: "Steve" });
+
+    // When edits queue both rows, then the first becomes invalid before its timer runs
+    act(() => first.firstName.set("Fred"));
+    act(() => second.firstName.set("Sue"));
+    act(() => first.firstName.set(""));
+    await wait();
+
+    // Then only the still-valid row saves
+    expect(saved).toEqual([{ id: "a:2", firstName: "Sue" }]);
+  });
 });
 
 type FormValue = Pick<AuthorInput, "id" | "firstName">;

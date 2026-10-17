@@ -162,6 +162,8 @@ export function useFormState<T, I>(opts: UseFormStateOpts<T, I>): FormObjectStat
                 pendingAutoSave = true;
                 return;
               }
+              // A refresh or edit can change save eligibility while the timer is pending.
+              if (!form.dirty || !form.valid) return;
               // Tell commitChanges to blow up.
               (form as any)._isAutoSaving = true;
               // We technically don't flip to in-flight until after the call in case the
