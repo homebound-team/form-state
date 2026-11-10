@@ -172,23 +172,46 @@ See `src/useFormState.test.tsx` for `input`+`map`, `ifUndefined`, `query`, and `
 
 ## useFormStates (one form per table row)
 
-For tables where each row is its own mini-form with independent auto-save. Call the hook once at
-table level; call `getFormState(row)` per row.
+For tables where each row is its own mini-form with a separate save payload. Call `useFormStates`
+once at table level, then call its `useFormState(row)` hook inside a row/editor component.
 
-```ts
-const { getFormState } = useFormStates<TodoForm, ToDoFragment>({
-  config: formConfig,                       // stable module-level const (required)
-  getId: (o) => o.id!,                      // identity to cache each row's ObjectState on
-  map: (frag) => ({ id: frag.id, status: frag.status.code, /* I → T */ }),
-  autoSave: async (os) => { await saveTodo(os.changedValue); },
-  readOnly: !canEdit,                       // per-hook default; can be overridden per row
+Choose this over independent per-row `useFormState` calls for:
+
+- **Cross-row save coordination**: only one autosave callback is in flight per `useFormStates`
+  instance; other dirty rows queue behind it. This avoids overlapping writes from that table when
+  different row mutations also update the same backend parent (e.g. line-item edits recalculating
+  an order total). Independent per-row hooks can save concurrently; separate `useFormStates`
+  instances do not block each other. Rows still validate separately and submit separate mutations,
+  with no aggregate dirty/valid state.
+- **Table-owned caching**: editors for the same `getId` share a form, retaining WIP edits across
+  row unmounts/remounts from virtualization, filtering, or pagination while the owning table stays
+  mounted and its config stays unchanged. Row unmounts do not release cached subscriptions or stop
+  queued saves. Table unmount stops new saves and releases subscriptions without cancelling
+  in-flight requests; changing config replaces the cache.
+
+If neither shared caching nor cross-row save coordination is needed, prefer independent per-row
+`useFormState` calls.
+
+```tsx
+const formStates = useFormStates<TodoForm, ToDoFragment>({
+  config: formConfig, // stable module-level const (required)
+  getId: (o) => o.id!, // identity to cache each row's ObjectState on
+  map: (frag) => ({ id: frag.id, status: frag.status.code /* I → T */ }),
+  autoSave: async (os) => {
+    await saveTodo(os.changedValue);
+  },
+  readOnly: !canEdit, // makes every row read-only
 });
 
-// In a table column render:
-todo: (todo) => {
-  const os = getFormState(todo);
+// A column render returns a component; it must not call hooks directly.
+const columns = {
+  todo: (todo: ToDoFragment) => <TodoStatus formStates={formStates} todo={todo} />,
+};
+
+function TodoStatus(props: { formStates: FormStates<TodoForm, ToDoFragment>; todo: ToDoFragment }) {
+  const os = props.formStates.useFormState(props.todo);
   return <BoundSelectField field={os.status} options={statuses} />;
-},
+}
 ```
 
 - **Config must be stable** (module-level const) — never inline/`useMemo`-less-ly rebuilt; rebuilding
@@ -198,8 +221,15 @@ todo: (todo) => {
   so form-state re-matches the same row when `init.input` re-maps and WIP edits survive.
 - **Per-row `autoSave`**: read `os.changedValue`, fire a single-row mutation; the server-acked value
   flows back in via `map` to reset dirty. Concurrent row saves are serialized by the library.
-- **Per-row read-only**: `getFormState(row, { readOnly: true })` overrides the hook-level default.
-- Thread `getFormState` into your `createColumns`/`createRows` and list it in the `useMemo` deps.
+- **Per-row read-only**: `formStates.useFormState(row, { readOnly: true })` makes that row read-only.
+  A hook-level `readOnly: true` cannot be overridden by a row.
+- Thread `formStates` into your `createColumns`/`createRows` and list it in the `useMemo` deps.
+- **Render-safe refreshes**: the row hook applies new server inputs and permissions after the row
+  commits. Use it at the top level of a component, never in a loop, `useMemo`, or column callback.
+  Import the `FormStates<T, I>` type for row/editor props. Raw field reads still require observers.
+- **Imperative access**: `formStates.getFormState(row)` still refreshes immediately for event/save
+  callbacks. Do not use it during render; move existing render-time calls into row/editor components
+  using `formStates.useFormState(row)` to avoid setState-during-render warnings.
 
 See `src/useFormStates.test.tsx`.
 
@@ -334,7 +364,7 @@ async function onSave() {
 | ------------------------------------------------------ | ------------------------------------------------------------------------ |
 | Define a form's fields                                 | module-level `const config: ObjectConfig<T> = { ... }`                   |
 | One form for a record                                  | `useFormState({ config, init: { input, map } })`                         |
-| One form per table row                                 | `useFormStates({ config, getId, map, autoSave })` + `getFormState(row)`  |
+| One form per table row                                 | `useFormStates({ config, getId, map, autoSave })` + row `useFormState`   |
 | Bind a field to UI                                     | `<BoundTextField field={formState.foo} />`                               |
 | Read a field value in JSX                              | wrap in `<Observer>` / derive via `useComputed`                          |
 | Get the save payload                                   | `formState.changedValue`                                                 |

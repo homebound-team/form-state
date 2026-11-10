@@ -57,24 +57,42 @@ type UseFormStatesOpts<T, I> = {
   readOnly?: boolean;
 };
 
-type UseFormStatesHook<T, I> = {
-  getFormState: (input: I, opts?: { readOnly?: boolean }) => ObjectState<T>;
+type FormStateOpts = { readOnly?: boolean };
+
+export type FormStates<T, I = T> = {
+  /** Gets and refreshes a cached form immediately. Use outside React renders. */
+  getFormState: (input: I, opts?: FormStateOpts) => ObjectState<T>;
+  /** Gets a cached form in a row component, and refreshes it after that row commits. */
+  useFormState: (input: I, opts?: FormStateOpts) => ObjectState<T>;
 };
 
 /**
  * A hook to manage many "mini-forms" on a single page, typically one form per row
  * in a table.
  *
- * This hook basically provides the page/table with a cache, so each table row naively ask "what's
- * the form state for this given row's data?" and get back a new-or-existing `ObjectState` instance
- * that, if already existing, still has any of the user's WIP changes.
+ * Unlike independent per-row `useFormState` calls, this hook shares forms by `getId` and
+ * serializes autosaves across all its rows. Only one autosave callback is in flight at a time,
+ * avoiding overlapping writes when different row mutations also update the same backend parent.
+ * Separate `useFormStates` instances do not block each other. Rows validate and save separately;
+ * this hook does not batch mutations or expose aggregate dirty/valid state.
  *
- * Each mini-form/row can have its own autoSave calls, independent of the other rows.
+ * The table owns the cache, subscriptions, and save queue. WIP edits survive row unmounts/remounts
+ * while the table stays mounted and its config stays unchanged. Removing a row does not release
+ * its cached form's subscriptions or stop its queued saves. Table unmount stops new saves and
+ * releases subscriptions without cancelling in-flight requests; changing config replaces the cache.
+ * Prefer independent per-row `useFormState` calls if neither caching nor save coordination is needed.
+ *
+ * Call the returned `useFormState` hook at the top level of a row component, not in a loop or
+ * column render callback. It returns a cached `ObjectState` and applies server refreshes after
+ * commit, preserving WIP edits without notifying other observers during render. As with
+ * `useFormState`, components that read field values must be MobX observers.
+ *
+ * `getFormState` remains available for imperative code that needs an immediate refresh.
  *
  * @typeparam T the form type, which is usually as close as possible to your *GraphQL input*
  * @typeparam I the *form input* type, which is usually the *GraphQL output* type, i.e. the type of the response from your GraphQL query
  */
-export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormStatesHook<T, I> {
+export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): FormStates<T, I> {
   const { config, autoSave, getId, map, addRules, readOnly = false } = opts;
 
   // Force resetting the cache if config changes.
@@ -82,6 +100,8 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
     () => ({
       config,
       forms: {} as ObjectStateCache<T, I>,
+      // A suspended row can create a form without ever committing its ownership.
+      committedForms: new Set<ObjectState<T>>(),
       active: false,
       // Keep paused saves with their forms so effect reconnection can resume them.
       pending: new Map<ObjectState<T>, () => Promise<void>>(),
@@ -107,20 +127,21 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
   useEffect(() => {
     currentCacheRef.current = cache;
     cache.active = true;
-    Object.values(cache.forms).forEach((entry) => activateSubscriptions(entry[0]));
+    cache.committedForms.forEach((form) => activateSubscriptions(form));
     // Resume any auto saves that were made before/after useEffect connected our subscriptions
     Array.from(cache.pending.values()).forEach((maybeAutosave) => void maybeAutosave());
     return () => {
       // Stop queued requests immediately, without cancelling requests already in flight.
       cache.active = false;
-      Object.values(cache.forms).forEach((entry) => deactivateSubscriptions(entry[0]));
+      cache.committedForms.forEach((form) => deactivateSubscriptions(form));
     };
   }, [cache]);
 
-  const getFormState = useCallback<UseFormStatesHook<T, I>["getFormState"]>(
-    (input, opts = {}) => {
+  const getOrCreateFormState = useCallback(
+    (input: I, opts: FormStateOpts = {}): ObjectStateCache<T, I>[string] => {
       const { config, forms: objectStateCache } = cache;
-      const existing = objectStateCache[getId(input)];
+      const id = getId(input);
+      const existing = objectStateCache[id];
       let form = existing?.[0];
 
       /**
@@ -129,7 +150,7 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
        * Each retry retains its cache so a config replacement cannot revive a released form.
        */
       async function maybeAutoSave() {
-        if (!cache.active) {
+        if (!cache.active || !cache.committedForms.has(form)) {
           cache.pending.set(form, maybeAutoSave);
           return;
         }
@@ -165,6 +186,7 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
             const currentCache = currentCacheRef.current;
             if (currentCache.active) {
               for (const [first, maybeAutosave] of currentCache.pending) {
+                if (!currentCache.committedForms.has(first)) continue;
                 currentCache.pending.delete(first);
                 if (!first.dirty || !first.valid) continue;
                 await maybeAutosave();
@@ -185,26 +207,78 @@ export function useFormStates<T, I = T>(opts: UseFormStatesOpts<T, I>): UseFormS
         if (addRules) {
           addRules(form);
         }
-        objectStateCache[getId(input)] = [form, input];
-        if (cache.active) activateSubscriptions(form);
+        // New forms have no observers yet, so their initial permissions are safe to set during render.
+        form.readOnly = readOnlyRef.current || !!opts.readOnly;
+        objectStateCache[id] = [form, input];
       }
 
-      // If the source of truth changed, then update the existing state and return it.
-      if (existing && existing[1] !== input) {
-        (form as any as ObjectStateInternal<any>).set(initValue(config, { map, input }), {
-          refreshing: true,
-        });
-        existing[1] = input;
-      }
-
-      form.readOnly = readOnlyRef.current || !!opts.readOnly;
-
-      return form;
+      return objectStateCache[id];
     },
     // Allow the user to not stable-ize getId, map, addRules, and autoSave
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cache],
   );
 
-  return { getFormState };
+  /** Acquires table-owned subscriptions only after a row commits or an imperative caller requests it. */
+  const commitFormState = useCallback(
+    (form: ObjectState<T>) => {
+      cache.committedForms.add(form);
+      if (cache.active) {
+        activateSubscriptions(form);
+        void cache.pending.get(form)?.();
+      }
+    },
+    [cache],
+  );
+
+  const getFormState = useCallback<FormStates<T, I>["getFormState"]>(
+    (input, opts = {}) => {
+      const entry = getOrCreateFormState(input, opts);
+      refreshFormState(entry, config, input, map, readOnlyRef.current || !!opts.readOnly);
+      commitFormState(entry[0]);
+      return entry[0];
+    },
+    // Like getOrCreateFormState, capture map with the config rather than requiring a stable callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cache, getOrCreateFormState, commitFormState],
+  );
+
+  const useFormState = useCallback(
+    function useFormState(input: I, opts: FormStateOpts = {}): ObjectState<T> {
+      const entry = getOrCreateFormState(input, opts);
+      const rowReadOnly = readOnly || !!opts.readOnly;
+      useEffect(() => {
+        // The row may render without its table rendering, or suspend without committing.
+        // Its own effect, not a table-level queue or timer, owns this refresh.
+        refreshFormState(entry, config, input, map, rowReadOnly);
+        commitFormState(entry[0]);
+        // The cache callbacks capture config/map until the config changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [entry, input, rowReadOnly, commitFormState]);
+      return entry[0];
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cache, getOrCreateFormState, commitFormState, readOnly],
+  );
+
+  return useMemo(() => ({ getFormState, useFormState }), [getFormState, useFormState]);
+}
+
+/** Refreshes only changed server inputs; effect replay must not acknowledge unsaved observable edits. */
+function refreshFormState<T, I>(
+  entry: ObjectStateCache<T, I>[string],
+  config: ObjectConfig<T>,
+  input: I,
+  map: UseFormStatesOpts<T, I>["map"],
+  readOnly: boolean,
+): void {
+  const form = entry[0];
+  // If the source of truth changed, update the existing state.
+  if (entry[1] !== input) {
+    (form as unknown as ObjectStateInternal<T>).set(initValue(config, { map, input }), {
+      refreshing: true,
+    });
+    entry[1] = input;
+  }
+  form.readOnly = readOnly;
 }

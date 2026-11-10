@@ -5,5 +5,5 @@ export { createObjectState, fragment, type Fragment, type ObjectState } from "sr
 export { type FieldState, type ValueAdapter } from "src/fields/valueField";
 export { required, type Rule } from "src/rules";
 export { useFormState, type FormObjectState } from "src/useFormState";
-export { useFormStates } from "src/useFormStates";
+export { useFormStates, type FormStates } from "src/useFormStates";
 export { type ObjectConfig } from "./config";
