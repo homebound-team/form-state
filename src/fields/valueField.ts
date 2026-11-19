@@ -1,5 +1,5 @@
 import { isPlainObject } from "is-plain-object";
-import { createAtom, isObservable, reaction, toJS } from "mobx";
+import { createAtom, isObservable, makeAutoObservable, reaction, toJS } from "mobx";
 import { type ObjectState } from "src/fields/objectField";
 import { deactivateSubscriptions, registerSubscriptions } from "src/fields/subscriptions";
 import { newDelegateProxy } from "src/proxies";
@@ -393,6 +393,20 @@ export function newValueFieldState<T, K extends keyof T>(
       }
     },
   };
+
+  // Make ourselves observable here, instead of relying on our parent ObjectState's deep
+  // `makeAutoObservable` to clone us into a proxy, so that `field` is the only instance of this field.
+  //
+  // Skip mobx tracking for constants: they cannot change, so observing them is wasted work.
+  makeAutoObservable(field, {
+    key: false,
+    _kind: false,
+    _computed: false,
+    _isIdKey: false,
+    _isDeleteKey: false,
+    _isReadOnlyKey: false,
+    _isLocalOnly: false,
+  });
 
   // If we're wrapping a mobx observer, watching for external mutations, i.e. from callers not
   // going through our FieldState.set/FieldState.value setters.
