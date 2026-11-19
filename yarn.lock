@@ -708,7 +708,7 @@ __metadata:
     jsdom: "npm:^30.0.1"
     lint-staged: "npm:^17.5.0"
     mobx: "npm:^7.1.7"
-    mobx-react: "npm:^10.0.4"
+    mobx-react-lite: "npm:^5.1.3"
     object-hash: "npm:^3.0.0"
     oxlint: "npm:^1.82.0"
     oxlint-tsgolint: "npm:^7.0.2001"
@@ -5685,18 +5685,6 @@ __metadata:
     mobx: ^7.0.0
     react: ^18 || ^19
   checksum: 10/394b0746a82c055bc7cfbe6fa511a6fc2e084cad86d555d1d25685c578d7ac7eed0f682f0e03a1373511edcc9cb7ca3316daf2060b4c65e34e6fb330700d0818
-  languageName: node
-  linkType: hard
-
-"mobx-react@npm:^10.0.4":
-  version: 10.0.4
-  resolution: "mobx-react@npm:10.0.4"
-  dependencies:
-    mobx-react-lite: "npm:^5.1.3"
-  peerDependencies:
-    mobx: ^7.0.0
-    react: ^18 || ^19
-  checksum: 10/44b0b607aa7923a9c32a0f74b58fabb2f680ddf94717bf1ac2f410935e393a76966d9fbf374385d82bf254e6d597ac96d7f747e2315839d9c570fa4ae5633177
   languageName: node
   linkType: hard
 

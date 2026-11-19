@@ -1,4 +1,4 @@
-import { Observer } from "mobx-react";
+import { Observer } from "mobx-react-lite";
 import { type AuthorInput, type BookInput } from "src/formStateDomain";
 import { type FieldState, f, useFormState } from "src/index";
 
