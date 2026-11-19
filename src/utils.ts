@@ -155,6 +155,16 @@ export function areEqual<T>(a?: T, b?: T, strictOrder?: boolean): boolean {
   return a === b;
 }
 
+/**
+ * Returns whether two arrays have the same entries, in the same order.
+ *
+ * We use our own comparer, instead of mobx's, because mobx 6 exports it as `comparer.shallow`
+ * and mobx 7 as `compareShallow`, and we support both.
+ */
+export function shallowEquals<T>(a: readonly T[], b: readonly T[]): boolean {
+  return a.length === b.length && a.every((entry, i) => Object.is(entry, b[i]));
+}
+
 /** Normalizes values into stable object-hash-safe data using our existing `toJSON` semantics. */
 export function normalizeHashValue(value: unknown, seen: WeakMap<object, unknown> = new WeakMap()): unknown {
   if (hasToJSON(value)) {
