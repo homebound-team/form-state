@@ -37,6 +37,12 @@ export function newListFieldState<T, K extends keyof T, U>(
 ): ListFieldState<U> {
   // Keep a map of "item in the parentInstance list" -> "that item's ObjectState"
   const rowMap = new Map<U, ObjectStateInternal<U>>();
+  // We might see multiple POJO instances for the same entity (i.e. a cache refresh passes new
+  // objects with the same ids), and want them all to resolve to the same ObjectState instance.
+  // So while `rowMap` holds the first POJO instance we saw for each row, `aliases` holds every
+  // later instance. These are weak, so that each refresh's objects can be collected, instead
+  // of piling up in `rowMap`.
+  const aliases = new WeakMap<object, ObjectStateInternal<U>>();
   const addedRows = new Set<U>();
   // `parentInstance[key]` and `parentCopy[key]` are not proxies, so we use atoms as our
   // "rows added/removed" and "original value changed" triggers.
@@ -46,28 +52,38 @@ export function newListFieldState<T, K extends keyof T, U>(
   // When child rows don't have ids (i.e. for new rows that aren't saved yet), we need an id-less
   // "clone <-> current" map to tell if we're dirty or not, i.e. whether `parentInstance[key]` has
   // drifted from `parentCopy[key]`
-  const copyMap = new Map<U, U>();
+  //
+  // This is weak so that the copies of each past original value can be collected.
+  const copyMap = new WeakMap<object, U>();
   ((parentCopy[key] ?? []) as U[]).forEach((copy, i) => {
-    copyMap.set(copy, (parentInstance[key] as any)[i]);
+    copyMap.set(copy as object, (parentInstance[key] as any)[i]);
   });
 
-  // Given a child POJO (or a copy/clone of a child POJO), return its ObjectState wrapper.
-  function getOrCreateChildState(child: U, opts?: InternalSetOpts & { skipSet?: boolean }): ObjectState<U> {
-    let childState = rowMap.get(child);
+  /**
+   * Given a child POJO (or a copy/clone of a child POJO), return its ObjectState wrapper.
+   *
+   * Callers that resolve many children at once, i.e. `set`, pass the `rowsById` from `indexRowsById`
+   * so that finding each child's existing row does not scan every row.
+   */
+  function getOrCreateChildState(
+    child: U,
+    opts?: InternalSetOpts & { skipSet?: boolean },
+    rowsById?: RowsById<U>,
+  ): ObjectState<U> {
+    let childState = getRow(child);
     // If we're being reverted to our originalValue, i.e. values is actually
     // a list of copies, use the copyMap to recover the non-copy original value
-    if (!childState && copyMap.has(child)) {
-      childState = rowMap.get(copyMap.get(child)!);
+    if (!childState && copyMap.has(child as object)) {
+      childState = getRow(copyMap.get(child as object)!);
     }
     // Look for an existing child (requires having an id key configured)
     if (!childState) {
-      for (const [, otherState] of rowMap.entries()) {
-        if (otherState.isSameEntity(child)) {
-          // If we're being called from `list.rows`, we should be careful to not trigger mutations
-          if (!opts?.skipSet) otherState.set(child, opts);
-          rowMap.set(child, otherState);
-          return otherState;
-        }
+      const otherState = findSameEntity(child, rowsById);
+      if (otherState) {
+        // If we're being called from `list.rows`, we should be careful to not trigger mutations
+        if (!opts?.skipSet) otherState.set(child, opts);
+        aliases.set(child as object, otherState);
+        return otherState;
       }
     }
     // If we didn't have an existing child, just make a new object state
@@ -85,9 +101,54 @@ export function newListFieldState<T, K extends keyof T, U>(
         listConfig.update === "deep-exhaustive",
       ) as ObjectStateInternal<U>;
       rowMap.set(child, childState);
+      // Let the rest of the caller's batch find this row, i.e. if a later child has the same id
+      const id = rowsById && childState.idKey ? (child as any)[childState.idKey] : undefined;
+      if (isIndexableId(id) && !rowsById!.has(id)) rowsById!.set(id, childState);
       if (subscriptionsActive(list)) activateSubscriptions(childState);
     }
     return childState;
+  }
+
+  /** Returns the ObjectState for `child`, whether it is a row's own instance or another instance of its entity. */
+  function getRow(child: U): ObjectStateInternal<U> | undefined {
+    return rowMap.get(child) ?? aliases.get(child as object);
+  }
+
+  /** Returns the existing row that is for the same entity as `child`, i.e. has the same id. */
+  function findSameEntity(child: U, rowsById?: RowsById<U>): ObjectStateInternal<U> | undefined {
+    // Prefer the index, but it only knows string and number ids
+    if (rowsById) {
+      const idKey = rowMap.values().next().value?.idKey;
+      const id = idKey ? (child as any)[idKey] : undefined;
+      // Without an id, `child` is a new entity, so cannot be the same as any row
+      if (id === undefined) return undefined;
+      if (isIndexableId(id)) return rowsById.get(id);
+    }
+    for (const otherState of rowMap.values()) {
+      if (otherState.isSameEntity(child)) return otherState;
+    }
+    return undefined;
+  }
+
+  /**
+   * Indexes the current rows by their id, so that `findSameEntity` is a lookup instead of a scan.
+   *
+   * Returns `undefined` if any row's id is not a string or number, i.e. a value object that
+   * `isSameEntity` compares with `toJSON`, because a Map cannot do that comparison.
+   *
+   * Row ids can change, i.e. when a refresh assigns a new row its id, so build this right
+   * before each batch of lookups, instead of keeping it.
+   */
+  function indexRowsById(): RowsById<U> | undefined {
+    const rowsById: RowsById<U> = new Map();
+    for (const row of rowMap.values()) {
+      const id = row.idKey ? (row as any)[row.idKey].value : undefined;
+      if (id === undefined || id === null) continue;
+      if (!isIndexableId(id)) return undefined;
+      // Keep the first row for an id, as that is the one a scan would find
+      if (!rowsById.has(id)) rowsById.set(id, row);
+    }
+    return rowsById;
   }
 
   const list = {
@@ -156,10 +217,10 @@ export function newListFieldState<T, K extends keyof T, U>(
       if (current.length !== original.length) return true;
       if (strictOrder) {
         // With strict order, every copy[i] === original[i] must be true
-        return original.some((e, idx) => current[idx] !== copyMap.get(e));
+        return original.some((e, idx) => current[idx] !== copyMap.get(e as object));
       } else {
         // With loose order, we just want every copy to still have its original somewhere
-        return !original.every((e) => current.includes(copyMap.get(e)!));
+        return !original.every((e) => current.includes(copyMap.get(e as object)!));
       }
     },
 
@@ -287,7 +348,7 @@ export function newListFieldState<T, K extends keyof T, U>(
 
         // First, process all current items
         for (const currentItem of currentItems) {
-          const childState = rowMap.get(currentItem)!; // We'll always have a child state for `currentItems`
+          const childState = getRow(currentItem)!; // We'll always have a child state for `currentItems`
           // Try to find a matching item in the incoming data
           const hash = hashById(currentItem);
           const match = (incomingById.get(hash)?.[0] ??
@@ -320,13 +381,16 @@ export function newListFieldState<T, K extends keyof T, U>(
         }
 
         // Then, add any incoming items that don't exist in current
+        //
+        // Index the rows now, after the loop above has refreshed their ids
+        const rowsById = indexRowsById();
         for (const incomingItem of incomingItems) {
           // Look for both `incoming.id` and the incoming-sans-id for new entities
           const match =
             currentById.get(hashById(incomingItem))?.[0] || currentById.get(hashByContent(incomingItem))?.[0];
           if (!match) {
             // New item from server, add it
-            const childState = getOrCreateChildState(incomingItem, opts);
+            const childState = getOrCreateChildState(incomingItem, opts, rowsById);
             mergedItems.push(childState.value);
           }
         }
@@ -337,7 +401,10 @@ export function newListFieldState<T, K extends keyof T, U>(
         // Set original to not merged...
         this.setOriginalValue(incomingItems);
       } else {
-        parentInstance[key] = (values ?? []).map((child) => getOrCreateChildState(child, opts).value) as any as T[K];
+        const rowsById = indexRowsById();
+        parentInstance[key] = (values ?? []).map(
+          (child) => getOrCreateChildState(child, opts, rowsById).value,
+        ) as any as T[K];
         valueAtom.reportChanged();
         // Reset originalCopy so that our dirty checks have the right # of rows.
         if (opts.refreshing) {
@@ -349,7 +416,6 @@ export function newListFieldState<T, K extends keyof T, U>(
     add(value: U, spliceIndex?: number): void {
       // This is called by the user, so value should be a non-proxy value we should keep
       const childState = getOrCreateChildState(value) as ObjectStateInternal<U>;
-      rowMap.set(value, childState);
       // Let `.set` know this is a new row
       addedRows.add(value);
       this.ensureSet();
@@ -402,7 +468,7 @@ export function newListFieldState<T, K extends keyof T, U>(
       // Use the rows' originalValues to update the parentCopy
       parentCopy[key] = incomingItems ?? (this.rows.map((r) => r.originalValue) as any);
       (parentCopy[key] as U[]).forEach((copy, i) => {
-        copyMap.set(copy, (parentInstance[key] as any)[i]);
+        copyMap.set(copy as object, (parentInstance[key] as any)[i]);
       });
       originalValueAtom.reportChanged();
     },
@@ -434,6 +500,14 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
   });
   return proxy;
+}
+
+/** The current rows of a list, by their string or number id. */
+type RowsById<U> = Map<string | number, ObjectStateInternal<U>>;
+
+/** Returns whether `id` can be a `RowsById` key, i.e. Map equality matches `isSameEntity` for it. */
+function isIndexableId(id: unknown): id is string | number {
+  return typeof id === "string" || typeof id === "number";
 }
 
 function hashValue(value: unknown): string {
