@@ -213,5 +213,6 @@ function getAllPropertyNames(obj: unknown): string[] {
   const proto = Object.getPrototypeOf(obj);
   // Don't crawl up into Object.prototype, or into arrays/observable arrays
   const inherited = proto && proto !== Object.prototype && !Array.isArray(obj) ? getAllPropertyNames(proto) : [];
-  return [...new Set(Object.getOwnPropertyNames(obj).concat(inherited))];
+  // Skip `constructor`, which every class prototype has, but is not form data
+  return [...new Set(Object.getOwnPropertyNames(obj).concat(inherited))].filter((key) => key !== "constructor");
 }
