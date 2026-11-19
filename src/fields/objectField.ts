@@ -1,4 +1,4 @@
-import { computed, createAtom, isObservable, makeAutoObservable } from "mobx";
+import { computed, createAtom, isComputedProp, isObservable, makeAutoObservable } from "mobx";
 import {
   type FragmentFieldConfig,
   type ListFieldConfig,
@@ -173,8 +173,9 @@ export function newObjectState<T, P = any>(
         config.isReadOnlyKey || false,
         config.isLocalOnly || false,
         config.computed ??
-          // If instance is a mobx class, we can detect computeds as they won't be enumerable
-          (isObservable(instance) ? !(key in originalCopy) : false),
+          // If instance is a mobx class, we can detect its computeds. We ask mobx, instead of looking
+          // for keys missing from `originalCopy`, because `deepClone` also copies getters.
+          (isObservable(instance) && isComputedProp(instance, key as string)),
         config.readOnly ?? false,
         config.strictOrder ?? true,
         maybeAutoSave,

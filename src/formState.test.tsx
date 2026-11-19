@@ -2397,6 +2397,18 @@ describe("formState", () => {
     // Then the observer sees the form as clean
     expect(dirty).toBe(false);
   });
+
+  it("detects computeds on observable classes without config", () => {
+    // Given a mobx class with a computed that the config does not mark as `computed`
+    const formState = createObjectState(
+      { firstName: { type: "value" }, lastName: { type: "value" }, fullName: { type: "value" } },
+      new ObservableObject(),
+    );
+    // When the firstName changes, which also changes the fullName
+    formState.firstName.value = "First";
+    // Then the changedValue leaves the fullName out
+    expect(formState.changedValue).toEqual({ firstName: "First" });
+  });
 });
 
 export class ObservableObject {
