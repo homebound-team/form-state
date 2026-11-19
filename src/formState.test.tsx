@@ -2409,6 +2409,36 @@ describe("formState", () => {
     // Then the changedValue leaves the fullName out
     expect(formState.changedValue).toEqual({ firstName: "First" });
   });
+
+  it("does not tell errors observers about edits that keep the same errors", () => {
+    // Given an author with a required first name that is not set
+    const a = createObjectState<AuthorInput>(
+      { firstName: { type: "value", rules: [required] }, lastName: { type: "value" } },
+      { lastName: "l1" },
+    );
+    // And an observer of the form's errors
+    let runs = 0;
+    autorun(() => {
+      noop(a.errors);
+      runs++;
+    });
+    // When a field with a rule changes without changing its errors
+    a.firstName.set("  ");
+    // Then the observer did not re-run
+    expect(runs).toBe(1);
+  });
+
+  it("tells errors observers when the errors change", () => {
+    // Given an author with a required first name that is not set
+    const a = createObjectState<AuthorInput>({ firstName: { type: "value", rules: [required] } }, {});
+    // And an observer of the form's errors
+    let errors: string[] = [];
+    autorun(() => (errors = a.errors));
+    // When the first name is set
+    a.firstName.set("f1");
+    // Then the observer sees no errors
+    expect(errors).toEqual([]);
+  });
 });
 
 export class ObservableObject {

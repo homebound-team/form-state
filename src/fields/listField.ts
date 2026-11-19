@@ -10,7 +10,7 @@ import {
 } from "src/fields/subscriptions";
 import { type FieldState, type InternalSetOpts } from "src/fields/valueField";
 import { type Rule, required } from "src/rules";
-import { groupBy, isNotUndefined, normalizeHashValue } from "src/utils";
+import { groupBy, isNotUndefined, normalizeHashValue, shallowEquals } from "src/utils";
 
 /** Form state for list of children, i.e. `U` is a `Book` in a form with a `books: Book[]`. */
 export interface ListFieldState<U> extends FieldState<U[]> {
@@ -421,6 +421,8 @@ export function newListFieldState<T, K extends keyof T, U>(
     _kind: false,
     // See other makeAutoObservable comment
     value: computed({ equals: () => false }),
+    // Our rules return a new array each time, so only tell observers when the messages change
+    errors: computed<string[]>({ equals: shallowEquals }),
   }) as any;
 
   registerSubscriptions(proxy, {

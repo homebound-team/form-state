@@ -1,10 +1,10 @@
 import { isPlainObject } from "is-plain-object";
-import { type IAtom, createAtom, isObservable, makeAutoObservable, reaction, toJS } from "mobx";
+import { type IAtom, computed, createAtom, isObservable, makeAutoObservable, reaction, toJS } from "mobx";
 import { type ObjectState } from "src/fields/objectField";
 import { deactivateSubscriptions, registerSubscriptions } from "src/fields/subscriptions";
 import { newDelegateProxy } from "src/proxies";
 import { type Rule, required } from "src/rules";
-import { areEqual, isEmpty, isNotUndefined } from "src/utils";
+import { areEqual, isEmpty, isNotUndefined, shallowEquals } from "src/utils";
 
 /**
  * Form state for a primitive field in the form, i.e. its value but also touched/validation/etc. state.
@@ -244,14 +244,14 @@ class ValueFieldState<T, K extends keyof T> {
     isDeleteKey: boolean,
     isReadOnlyKey: boolean,
     isLocalOnly: boolean,
-    computed: boolean,
+    isComputed: boolean,
     readOnly: boolean,
     strictOrder: boolean,
     maybeAutoSave: () => void,
   ) {
     this.key = key as string;
     this._readOnly = readOnly || false;
-    this._computed = computed;
+    this._computed = isComputed;
     this._isIdKey = isIdKey;
     this._isDeleteKey = isDeleteKey;
     this._isReadOnlyKey = isReadOnlyKey;
@@ -291,6 +291,8 @@ class ValueFieldState<T, K extends keyof T> {
       _hasInflightChangedValue: false,
       _lastSubmittedValue: false,
       dispose: false,
+      // Our rules return a new array each time, so only tell observers when the messages change
+      errors: computed<string[]>({ equals: shallowEquals }),
     });
   }
 

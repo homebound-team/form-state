@@ -16,7 +16,7 @@ import {
   newValueFieldState,
   type SetOpts,
 } from "src/fields/valueField";
-import { areEqual, type Builtin, deepClone } from "src/utils";
+import { areEqual, type Builtin, deepClone, shallowEquals } from "src/utils";
 
 /**
  * Wraps a given input/on-the-wire type `T` for editing in a form.
@@ -461,6 +461,8 @@ export function newObjectState<T, P = any>(
     // even with our tick-based hacks.
     value: computed({ equals: () => false }),
     originalValue: computed({ equals: () => false }),
+    // We return a new array each time, so only tell observers when the messages change
+    errors: computed<string[]>({ equals: shallowEquals }),
   });
 
   registerSubscriptions(proxy!, {
