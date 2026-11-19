@@ -1,4 +1,4 @@
-import { computed, isObservable, makeAutoObservable } from "mobx";
+import { computed, createAtom, isObservable, makeAutoObservable } from "mobx";
 import {
   type FragmentFieldConfig,
   type ListFieldConfig,
@@ -145,6 +145,10 @@ export function newObjectState<T, P = any>(
   // be a true match (i.e. pass instanceof), but it should be good enough
   const originalCopy: any = deepClone(instance);
 
+  // `parentInstance[key]` is not a proxy, so we use an atom as our "this child object was
+  // unset/restored" trigger: `isUnset` calls `reportObserved`, `set` calls `reportChanged`.
+  const unsetAtom = createAtom(`${String(key)}.unset`);
+
   const objectConfig = config.config;
   const fieldStates = Object.entries(objectConfig).map(([_key, _config]) => {
     const key = _key as keyof T;
@@ -229,6 +233,10 @@ export function newObjectState<T, P = any>(
       // observers of our (identity-stable) `value` re-run when any field deeply changes.
       // (`originalValue` below does the same for `originalCopy`.)
       getFields(this).forEach((f) => f.value);
+      // A child object can be removed from its parent, i.e. `author.address.set(undefined)` writes
+      // `address = undefined` into the author. That changes what the author's `value` holds, but
+      // none of the address's own fields, so observe it here.
+      unsetAtom.reportObserved();
       return instance;
     },
 
@@ -325,9 +333,15 @@ export function newObjectState<T, P = any>(
         throw new Error(`${String(key) || "formState"} is currently readOnly`);
       }
       // Restore our instance if we're being reset
-      if (value && this.isUnset()) (parentInstance as any)[key] = instance;
+      if (value && this.isUnset()) {
+        (parentInstance as any)[key] = instance;
+        unsetAtom.reportChanged();
+      }
       // Delete our instance if we're being unset
-      if (!value && parentInstance) (parentInstance as any)[key] = undefined;
+      if (!value && parentInstance && !this.isUnset()) {
+        (parentInstance as any)[key] = undefined;
+        unsetAtom.reportChanged();
+      }
       // Otherwise just copy over the fields
       getFields(this).forEach((field) => {
         if (value && typeof value === "object" && field.key in value) {
@@ -424,6 +438,7 @@ export function newObjectState<T, P = any>(
     },
 
     isUnset(): boolean {
+      unsetAtom.reportObserved();
       return !!parentInstance && (parentInstance as any)[key] === undefined;
     },
 
