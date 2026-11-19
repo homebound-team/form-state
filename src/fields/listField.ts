@@ -485,6 +485,8 @@ export function newListFieldState<T, K extends keyof T, U>(
     // Skip mobx tracking for constants: they cannot change, so observing them is wasted work
     key: false,
     _kind: false,
+    // Not a computed, so that our value fields see every read, see `ValueFieldState.changedValue`
+    changedValue: false,
     // See other makeAutoObservable comment
     value: computed({ equals: () => false }),
     // Our rules return a new array each time, so only tell observers when the messages change
