@@ -1,5 +1,14 @@
 import { isPlainObject } from "is-plain-object";
-import { type IAtom, computed, createAtom, isObservable, makeAutoObservable, reaction, toJS } from "mobx";
+import {
+  type IAtom,
+  _isComputingDerivation,
+  computed,
+  createAtom,
+  isObservable,
+  makeAutoObservable,
+  reaction,
+  toJS,
+} from "mobx";
 import { type ObjectState } from "src/fields/objectField";
 import { deactivateSubscriptions, registerSubscriptions } from "src/fields/subscriptions";
 import { newDelegateProxy } from "src/proxies";
@@ -37,6 +46,12 @@ export interface FieldState<V> {
    *
    * Reading this also records that the value is probably being put on the wire, so that a later
    * `refreshing` set can tell a server ack of this value apart from a stale cache refresh.
+   *
+   * Only reads from outside a mobx observer/reaction/computed record this, i.e. a save handler or
+   * an `autoSave` callback. Rendering the `changedValue` in an observer does not.
+   *
+   * To save from an `autorun` body, read this inside a mobx `action` or `untracked`, i.e.
+   * `autorun(() => save(untracked(() => form.changedValue)))`.
    */
   readonly changedValue: V;
   /** Focuses the field. Disables changes from `ObjectState.set` calls. */
@@ -291,6 +306,8 @@ class ValueFieldState<T, K extends keyof T> {
       _hasInflightChangedValue: false,
       _lastSubmittedValue: false,
       dispose: false,
+      // Not a computed, so that every read runs its "is this a submission" check, see `changedValue`
+      changedValue: false,
       // Our rules return a new array each time, so only tell observers when the messages change
       errors: computed<string[]>({ equals: shallowEquals }),
     });
@@ -346,10 +363,17 @@ class ValueFieldState<T, K extends keyof T> {
     // Add some hints to let `set(..., { refreshing: true })` accept server-driven changes to our value,
     // if the user hasn't changed it yet-again while the changedValue was in in-flight.
     //
-    // Note this is a side effect inside a mobx computed; it stays correct because every `set` calls
-    // `valueAtom.reportChanged()`, which invalidates this computed, so the next read re-records the hints.
-    this._hasInflightChangedValue = true;
-    this._lastSubmittedValue = this.value;
+    // Only a read from outside an observer/reaction/computed, i.e. from a save handler, means "this is
+    // going on the wire". An observer that merely renders the changedValue (i.e. a debug panel) must
+    // not mark an unsaved edit as submitted, or the next cache refresh would overwrite it as an "ack".
+    //
+    // This is why `changedValue` is a plain getter at every level (see the `changedValue: false`
+    // annotations): a mobx computed would hand the save handler the observer's cached result, and
+    // never run this.
+    if (!_isComputingDerivation()) {
+      this._hasInflightChangedValue = true;
+      this._lastSubmittedValue = this.value;
+    }
     // Usually if we see a field being unset, we set `parent[key] = null`, but if we're wrapping
     // a mobx observable object, it might have changed to `undefined` without us being able to
     // tell it to be `null` (and potentially break the type contract of `string | undefined`).

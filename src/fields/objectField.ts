@@ -455,6 +455,8 @@ export function newObjectState<T, P = any>(
     key: false,
     _kind: false,
     _isAutoSaving: false,
+    // Not a computed, so that our value fields see every read, see `ValueFieldState.changedValue`
+    changedValue: false,
     // Use custom equality on `value` that is _never_ equals. This sounds weird, but
     // because our `value` is always the same `instance` that was passed to `newObjectState`,
     // to mobx this looks like the value never changes, and it will never invoke observers

@@ -2462,6 +2462,34 @@ describe("formState", () => {
     // Then the second book kept its row state
     expect(a.books.rows[0]).toBe(secondRow);
   });
+
+  it("keeps an unsaved edit when changedValue was only read by an observer", () => {
+    // Given an author
+    const a = createObjectState<AuthorInput>({ firstName: { type: "value" } }, { firstName: "Bob" });
+    // And an observer that reads the changedValue, i.e. a debug panel
+    autorun(() => noop(a.changedValue));
+    // And the user makes an edit that is not submitted
+    a.firstName.set("Fred");
+    // When a cache refresh brings in someone else's change
+    (a as any).set({ firstName: "Robert" }, { refreshing: true });
+    // Then the user's edit is kept
+    expect(a.firstName.value).toBe("Fred");
+  });
+
+  it("accepts a server ack of a changedValue read while it is also observed", () => {
+    // Given an author
+    const a = createObjectState<AuthorInput>({ firstName: { type: "value" } }, { firstName: "Bob" });
+    // And an observer that reads the changedValue, i.e. a debug panel
+    autorun(() => noop(a.changedValue));
+    // And the user makes an edit
+    a.firstName.set("fred");
+    // And a save handler reads the changedValue to submit it
+    noop(a.changedValue);
+    // When the server acks with a value that it changed
+    (a as any).set({ firstName: "Fred" }, { refreshing: true });
+    // Then the server's value is accepted
+    expect(a.firstName.value).toBe("Fred");
+  });
 });
 
 export class ObservableObject {
