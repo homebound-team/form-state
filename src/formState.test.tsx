@@ -2439,6 +2439,29 @@ describe("formState", () => {
     // Then the observer sees no errors
     expect(errors).toEqual([]);
   });
+
+  it("keeps row states when refreshed with new instances of the same entities", () => {
+    // Given an author with two books
+    const a = createAuthorInputState({
+      books: [
+        { id: "b:1", title: "t1" },
+        { id: "b:2", title: "t2" },
+      ],
+    });
+    const secondRow = a.books.rows[1];
+    // When a refresh passes new objects, in a new order, for the same books
+    (a as any).set(
+      {
+        books: [
+          { id: "b:2", title: "t2" },
+          { id: "b:1", title: "t1" },
+        ],
+      },
+      { refreshing: true },
+    );
+    // Then the second book kept its row state
+    expect(a.books.rows[0]).toBe(secondRow);
+  });
 });
 
 export class ObservableObject {
