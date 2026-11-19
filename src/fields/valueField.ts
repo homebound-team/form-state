@@ -159,6 +159,9 @@ export function newValueFieldState<T, K extends keyof T>(
     get value(): V {
       // If we're wrapping a mobx store, then we'll also get reactivity from parentInstance[key]
       valueAtom.reportObserved();
+      // We read `parentCopy[key]` below, so a changed original (i.e. `commitChanges` on a cleared
+      // field) must also invalidate observers, even when `parentInstance[key]` did not change.
+      originalValueAtom.reportObserved();
       const value = parentInstance[key];
       // Re-create the `keepNull` logic on sets but for our initial read where our
       // originalValue is null (empty) but we want to expose it as undefined for

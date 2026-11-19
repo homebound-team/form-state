@@ -2351,6 +2351,52 @@ describe("formState", () => {
     const b4 = createObjectState<BookInput>({ title: { type: "value", isIdKey: true } }, { title: "b4" });
     expect((b4 as any).isSameEntity({ title: "b4" })).toBe(true);
   });
+
+  it("tells observers a cleared field is clean after commitChanges", () => {
+    // Given an author with a last name
+    const a = createObjectState<AuthorInput>({ lastName: { type: "value" } }, { lastName: "l1" });
+    // And an observer of the field's dirty state
+    let dirty: boolean | undefined;
+    autorun(() => (dirty = a.lastName.dirty));
+    // And the user clears the field
+    a.lastName.set(undefined);
+    // When the cleared value is committed
+    a.commitChanges();
+    // Then the observer sees the field as clean
+    expect(dirty).toBe(false);
+  });
+
+  it("tells observers the form is dirty when a nested object is unset", () => {
+    // Given an author with an address
+    const a = createObjectState<AuthorInput>(
+      { firstName: { type: "value" }, address: { type: "object", config: { street: { type: "value" } } } },
+      { firstName: "a1", address: { street: "s1" } },
+    );
+    // And an observer of the form's dirty state
+    let dirty: boolean | undefined;
+    autorun(() => (dirty = a.dirty));
+    // When the address is unset
+    a.address.set(undefined as any);
+    // Then the observer sees the form as dirty
+    expect(dirty).toBe(true);
+  });
+
+  it("tells observers the form is clean when a nested object is restored", () => {
+    // Given an author with an address
+    const a = createObjectState<AuthorInput>(
+      { firstName: { type: "value" }, address: { type: "object", config: { street: { type: "value" } } } },
+      { firstName: "a1", address: { street: "s1" } },
+    );
+    // And an observer of the form's dirty state
+    let dirty: boolean | undefined;
+    autorun(() => (dirty = a.dirty));
+    // And the address is unset
+    a.address.set(undefined as any);
+    // When the address is restored
+    a.address.set({ street: "s1" });
+    // Then the observer sees the form as clean
+    expect(dirty).toBe(false);
+  });
 });
 
 export class ObservableObject {
