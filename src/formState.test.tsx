@@ -2490,6 +2490,15 @@ describe("formState", () => {
     // Then the server's value is accepted
     expect(a.firstName.value).toBe("Fred");
   });
+
+  it("keeps the fields of forms with different configs separate", () => {
+    // Given a form for a config with only a first name
+    createObjectState<AuthorInput>({ firstName: { type: "value" } }, { firstName: "f1" });
+    // When a form is created for a config with only a last name
+    const b = createObjectState<AuthorInput>({ lastName: { type: "value", rules: [required] } }, {});
+    // Then the second form only has its own field
+    expect(b.errors).toEqual(["lastName: Required"]);
+  });
 });
 
 export class ObservableObject {
