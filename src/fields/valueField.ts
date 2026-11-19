@@ -1,5 +1,5 @@
 import { isPlainObject } from "is-plain-object";
-import { createAtom, isObservable, makeAutoObservable, reaction, toJS } from "mobx";
+import { type IAtom, createAtom, isObservable, makeAutoObservable, reaction, toJS } from "mobx";
 import { type ObjectState } from "src/fields/objectField";
 import { deactivateSubscriptions, registerSubscriptions } from "src/fields/subscriptions";
 import { newDelegateProxy } from "src/proxies";
@@ -117,296 +117,26 @@ export function newValueFieldState<T, K extends keyof T>(
   strictOrder: boolean,
   maybeAutoSave: () => void,
 ): FieldState<T[K] | null | undefined> {
-  type V = T[K];
-
-  // Because we read/write the value directly back into parentInstance[key] (and the
-  // original into parentCopy[key]), which are not proxies, we use atoms as our
-  // "value changed" triggers: getters call `reportObserved`, writes call `reportChanged`.
-  const valueAtom = createAtom(`${String(key)}.value`);
-  const originalValueAtom = createAtom(`${String(key)}.originalValue`);
-  // Track "this is probably what we put into a mutation to the server" to allow
-  // us to better accept server acks/responses that change our initial submission.
-  //
-  // I.e. we submit `firstName: bob` and the server acks `firstName: Bob`, we should
-  // accept it if we can tell we haven't changed `bob` since our initial submission.
-  let hasInflightChangedValue = false;
-  let lastSubmittedValue: V | undefined = undefined;
   // Set below if we're wrapping a mobx observable, see `dispose`
   let disposeStoreReaction: (() => void) | undefined = undefined;
   // Remember what the store contained before subscribing, including across effect reconnects.
   let lastObservedValue = parentInstance[key];
 
-  const field = {
-    key: key as string,
-
-    touched: false,
-
-    /** Current readOnly value. */
-    _readOnly: readOnly || false,
-    _loading: false,
-    _kind: "value",
-    // Expose so computed can be skipped in changedValue
-    _computed: computed,
-    _focused: false,
-
-    _isIdKey: isIdKey,
-    _isDeleteKey: isDeleteKey,
-    _isReadOnlyKey: isReadOnlyKey,
-    _isLocalOnly: isLocalOnly,
-
+  const field = new ValueFieldState<T, K>(
+    parentCopy,
+    parentInstance,
+    parentState,
+    key,
     rules,
-
-    get value(): V {
-      // If we're wrapping a mobx store, then we'll also get reactivity from parentInstance[key]
-      valueAtom.reportObserved();
-      // We read `parentCopy[key]` below, so a changed original (i.e. `commitChanges` on a cleared
-      // field) must also invalidate observers, even when `parentInstance[key]` did not change.
-      originalValueAtom.reportObserved();
-      const value = parentInstance[key];
-      // Re-create the `keepNull` logic on sets but for our initial read where our
-      // originalValue is null (empty) but we want to expose it as undefined for
-      // consistency of "empty-ness" to our UI components.
-      return value === null && isEmpty(parentCopy[key]) ? (undefined as any) : value;
-    },
-
-    set value(v: V) {
-      this.set(v);
-    },
-
-    get focused(): boolean {
-      return this._focused;
-    },
-
-    get dirty(): boolean {
-      return !areEqual(this.originalValue, this.value, strictOrder);
-    },
-
-    /** Returns whether this field is readOnly, although if our parent is readOnly then it trumps. */
-    get readOnly(): boolean {
-      return parentState().readOnly || this._readOnly;
-    },
-
-    /** Sets the field readOnly, but `loading` will still be or-d with the parent's readOnly state. */
-    set readOnly(readOnly: boolean) {
-      this._readOnly = readOnly;
-    },
-
-    /** Returns whether this field is loading, or if our parent is loading. */
-    get loading(): boolean {
-      return parentState().loading || this._loading;
-    },
-
-    /** Sets the field loading, but `loading` will still be or-d with the parent's loading state. */
-    set loading(loading: boolean) {
-      this._loading = loading;
-    },
-
-    // For primitive fields, the changed value is just the value.
-    get changedValue() {
-      // Add some hints to let `set(..., { refreshing: true })` accept server-driven changes to our value,
-      // if the user hasn't changed it yet-again while the changedValue was in in-flight.
-      //
-      // Note this is a side effect inside a mobx computed; it stays correct because every `set` calls
-      // `valueAtom.reportChanged()`, which invalidates this computed, so the next read re-records the hints.
-      hasInflightChangedValue = true;
-      lastSubmittedValue = this.value;
-      // Usually if we see a field being unset, we set `parent[key] = null`, but if we're wrapping
-      // a mobx observable object, it might have changed to `undefined` without us being able to
-      // tell it to be `null` (and potentially break the type contract of `string | undefined`).
-      // So detect un-set-ness here and return `null`.
-      if (this.value === undefined && this.originalValue !== undefined) return null;
-      return this.value;
-    },
-
-    get valid(): boolean {
-      return this.errors.length === 0;
-    },
-
-    get errors(): string[] {
-      const opts = { value: this.value, key: key as string, originalValue: this.originalValue, object: parentState() };
-      return this.rules.map((r) => r(opts as any)).filter(isNotUndefined);
-    },
-
-    get required(): boolean {
-      return this.rules.some((rule) => rule === required);
-    },
-
-    get isNewEntity(): boolean {
-      return parentState().isNewEntity;
-    },
-
-    focus() {
-      this._focused = true;
-    },
-
-    blur() {
-      this.maybeAutoSave();
-      this._focused = false;
-    },
-
-    maybeAutoSave() {
-      // Now that the user is done editing the field (note maybe w/o blurring, i.e. if they hit enter), we sneak in some trim logic
-      this.maybeTrim();
-
-      // touched is readonly, but we're allowed to change it
-      this.touched = true;
-      maybeAutoSave();
-    },
-
-    set(value: V | null | undefined, opts: InternalSetOpts = {}) {
-      if (this.readOnly && !opts.resetting && !opts.refreshing) {
-        throw new Error(`${String(key)} is currently readOnly`);
-      }
-
-      // If the user has deleted/emptied a value that was originally set, keep it as `null`
-      // so that our partial update to the backend correctly unsets it.
-      const keepNull = !isEmpty(this.originalValue) && isEmpty(value) && !opts.refreshing;
-      // If a list of primitives was originally undefined, coerce `[]` to `undefined`
-      const coerceEmptyList = value && value instanceof Array && value.length === 0 && isEmpty(this.originalValue);
-      const newValue = keepNull ? null : isEmpty(value) || coerceEmptyList ? undefined : value;
-
-      if (opts.refreshing && (this.dirty || hasInflightChangedValue)) {
-        // When accepting (refreshing) a new value from the server (i.e. an ack after our mutation
-        // _or_ just a cache/query refresh, we can't be sure which), make sure we don't drop any
-        // WIP changes the user made after the initial submit.
-        //
-        // - Initially, originalValue is name=Bob.
-        // - The user submits name=Fred, recorded as lastSubmittedValue.
-        // - The user edits back to name=Bob, making the field temporarily clean.
-        // - Before the acknowledgement, a cache refresh happens with `newValue=Bob`.
-        // - Without this early return, we'd accept `value=Bob` and clear hasInflightChangedValue.
-        // - When the Fred ack arrives, the field is clean with no inflight flag, so we'd overwrite the
-        //   user's newer Bob edit with Fred, instead of preserving Bob.
-        if (
-          hasInflightChangedValue &&
-          // Reading changedValue sets the inflight flag even for a clean field, so lastSubmittedValue
-          // can still equal originalValue. Only preserve the flag here if the submission differs from originalValue.
-          !areEqual(lastSubmittedValue, this.originalValue, strictOrder) &&
-          areEqual(newValue, this.originalValue, strictOrder)
-        )
-          return;
-        // See if we should ignore the incoming server-side value, to avoid dropping local WIP changes
-        const isAckingUnset = this.value === null && newValue === undefined;
-        const acceptServerAck =
-          hasInflightChangedValue &&
-          this.value === lastSubmittedValue &&
-          // If value === originalValue, this is likely a cache refresh firing in-between "we put the new value
-          // on the wire" and "the server acked our change". Granted, this heuristic means that if the server
-          // really does reject/rollback our change, we'll ignore it, but atm we don't have a way of differentiating
-          // "this refresh is from a pre-response cache refresh" vs. "post-response cache refresh".
-          !areEqual(newValue, this.originalValue, strictOrder);
-        // Ignore incoming values if we have changes (this.dirty) unless:
-        // - our latest change (this.value) matches the incoming value (value), i.e. the server
-        //   is exactly acking our change, or
-        // - the user hasn't made any changes since `.changedValue` was put on the wire, i.e. the
-        //   server received our value, but wanted to change it.
-        // Compare by content (not `!==`) so array/list-of-primitive values are treated as acked when
-        // the server returns the same contents in a new array instance (otherwise the field would
-        // stay dirty forever, since reference equality never holds for a fresh array).
-        const keepLocalWipChange = !areEqual(this.value, newValue, strictOrder) && !isAckingUnset && !acceptServerAck;
-        if (keepLocalWipChange) {
-          if (hasInflightChangedValue && !areEqual(newValue, this.originalValue, strictOrder)) {
-            // Besides keeping the WIP change, update originalValue to the acked value (we only get here
-            // if the current value no longer matches lastSubmittedValue and the server value differs
-            // from originalValue).
-            // - Initially, originalValue is name=Bob.
-            // - The user submits name=Fred, then edits back to name=Bob.
-            // - The Fred ack arrives with `newValue=Fred`.
-            // - Keep `value=Bob`, but set `originalValue=Fred` and clear the inflight flag.
-            // - Bob is now dirty against Fred and needs a follow-up autosave.
-            this.originalValue = newValue as V;
-            hasInflightChangedValue = false;
-            // Bob matched the old originalValue, so its edit may not have queued a save.
-            // The previous save may also have settled before this ack. Schedule a save now, or wait for blur.
-            if (!this._focused) maybeAutoSave();
-          }
-          return;
-        }
-      } else if (computed && (opts.resetting || opts.refreshing)) {
-        // Computeds can't be either reset or refreshed
-        return;
-      }
-
-      if (opts.refreshing || opts.resetting) hasInflightChangedValue = false;
-
-      // Set the value on our parent object
-      const changed = !areEqual(newValue, this.value, strictOrder);
-      parentInstance[key] = newValue!;
-      valueAtom.reportChanged();
-
-      if (opts.refreshing) {
-        this.originalValue = newValue as any;
-      }
-      // If we're being set programmatically, i.e. we don't currently have focus,
-      // call blur to trigger any auto-saves.
-      if (!this._focused && !opts.refreshing && !opts.resetting && this.dirty && changed && opts.autoSave !== false) {
-        this.maybeAutoSave();
-      }
-    },
-
-    adapt<V2>(adapter: ValueAdapter<V, V2>): FieldState<V2> {
-      return adapt(this, adapter);
-    },
-
-    revertChanges() {
-      if (!computed) {
-        this.set(this.originalValue, { resetting: true });
-      }
-      this.touched = false;
-    },
-
-    commitChanges() {
-      if (isPlainObject(this.originalValue)) {
-        this.originalValue = toJS(this.value);
-      } else {
-        this.originalValue = this.value;
-      }
-      this.touched = false;
-    },
-
-    dispose() {
-      deactivateSubscriptions(field);
-    },
-
-    get originalValue(): V {
-      originalValueAtom.reportObserved();
-      const value = parentCopy[key];
-      // Re-create the `keepNull` logic so that `.value` === `.originalValue`
-      return value === null ? (undefined as any) : value;
-    },
-
-    set originalValue(v: V) {
-      const canSkip = v === undefined && !(key in (parentCopy as any));
-      if (!canSkip) parentCopy[key] = v;
-      originalValueAtom.reportChanged();
-    },
-
-    maybeTrim() {
-      if (typeof this.value === "string") {
-        let newValue: string | undefined = this.value.trim();
-        if (newValue === "") {
-          newValue = undefined;
-        }
-        if (newValue !== this.value) {
-          this.set(newValue as any);
-        }
-      }
-    },
-  };
-
-  // Make ourselves observable here, instead of relying on our parent ObjectState's deep
-  // `makeAutoObservable` to clone us into a proxy, so that `field` is the only instance of this field.
-  //
-  // Skip mobx tracking for constants: they cannot change, so observing them is wasted work.
-  makeAutoObservable(field, {
-    key: false,
-    _kind: false,
-    _computed: false,
-    _isIdKey: false,
-    _isDeleteKey: false,
-    _isReadOnlyKey: false,
-    _isLocalOnly: false,
-  });
+    isIdKey,
+    isDeleteKey,
+    isReadOnlyKey,
+    isLocalOnly,
+    computed,
+    readOnly,
+    strictOrder,
+    maybeAutoSave,
+  );
 
   // If we're wrapping a mobx observer, watching for external mutations, i.e. from callers not
   // going through our FieldState.set/FieldState.value setters.
@@ -441,6 +171,380 @@ export function newValueFieldState<T, K extends keyof T>(
     // Don't auto-save on maybe-external mutation if our field, or another other field (potentially a computed),
     // is currently focused, because then it's probably just us doing the writes through `Bound...Field` components.
     if (!parentState().focused) maybeAutoSave();
+  }
+}
+
+/** The members of `ValueFieldState` that are implementation details, and so are not observable. */
+type ValueFieldStatePrivates =
+  | "_parentCopy"
+  | "_parentInstance"
+  | "_parentState"
+  | "_key"
+  | "_strictOrder"
+  | "_requestAutoSave"
+  | "_valueAtom"
+  | "_originalValueAtom"
+  | "_hasInflightChangedValue"
+  | "_lastSubmittedValue";
+
+/**
+ * The `FieldState` implementation for a primitive field.
+ *
+ * This is a class, instead of an object literal, because forms create one of these per field, per
+ * row: a class keeps its methods on the prototype, so mobx wraps each of them as an action once,
+ * instead of once per field.
+ */
+class ValueFieldState<T, K extends keyof T> {
+  readonly key: string;
+
+  touched = false;
+
+  /** Current readOnly value. */
+  _readOnly: boolean;
+  _loading = false;
+  readonly _kind = "value";
+  // Expose so computed can be skipped in changedValue
+  readonly _computed: boolean;
+  _focused = false;
+
+  readonly _isIdKey: boolean;
+  readonly _isDeleteKey: boolean;
+  readonly _isReadOnlyKey: boolean;
+  readonly _isLocalOnly: boolean;
+
+  rules: Rule<T[K] | null | undefined>[];
+
+  private readonly _parentCopy: T;
+  private readonly _parentInstance: T;
+  private readonly _parentState: () => ObjectState<T>;
+  private readonly _key: K;
+  private readonly _strictOrder: boolean;
+  private readonly _requestAutoSave: () => void;
+
+  // Because we read/write the value directly back into parentInstance[key] (and the
+  // original into parentCopy[key]), which are not proxies, we use atoms as our
+  // "value changed" triggers: getters call `reportObserved`, writes call `reportChanged`.
+  private readonly _valueAtom: IAtom;
+  private readonly _originalValueAtom: IAtom;
+  // Track "this is probably what we put into a mutation to the server" to allow
+  // us to better accept server acks/responses that change our initial submission.
+  //
+  // I.e. we submit `firstName: bob` and the server acks `firstName: Bob`, we should
+  // accept it if we can tell we haven't changed `bob` since our initial submission.
+  private _hasInflightChangedValue = false;
+  private _lastSubmittedValue: T[K] | undefined = undefined;
+
+  constructor(
+    parentCopy: T,
+    parentInstance: T,
+    parentState: () => ObjectState<T>,
+    key: K,
+    rules: Rule<T[K] | null | undefined>[],
+    isIdKey: boolean,
+    isDeleteKey: boolean,
+    isReadOnlyKey: boolean,
+    isLocalOnly: boolean,
+    computed: boolean,
+    readOnly: boolean,
+    strictOrder: boolean,
+    maybeAutoSave: () => void,
+  ) {
+    this.key = key as string;
+    this._readOnly = readOnly || false;
+    this._computed = computed;
+    this._isIdKey = isIdKey;
+    this._isDeleteKey = isDeleteKey;
+    this._isReadOnlyKey = isReadOnlyKey;
+    this._isLocalOnly = isLocalOnly;
+    this.rules = rules;
+
+    this._parentCopy = parentCopy;
+    this._parentInstance = parentInstance;
+    this._parentState = parentState;
+    this._key = key;
+    this._strictOrder = strictOrder;
+    this._requestAutoSave = maybeAutoSave;
+    this._valueAtom = createAtom(`${String(key)}.value`);
+    this._originalValueAtom = createAtom(`${String(key)}.originalValue`);
+
+    // Make ourselves observable here, instead of relying on our parent ObjectState's deep
+    // `makeAutoObservable` to clone us into a proxy, so that `this` is the only instance of this field.
+    //
+    // Skip mobx tracking for constants, which cannot change, and for private members, which no
+    // observer reads.
+    makeAutoObservable<ValueFieldState<T, K>, ValueFieldStatePrivates>(this, {
+      key: false,
+      _kind: false,
+      _computed: false,
+      _isIdKey: false,
+      _isDeleteKey: false,
+      _isReadOnlyKey: false,
+      _isLocalOnly: false,
+      _parentCopy: false,
+      _parentInstance: false,
+      _parentState: false,
+      _key: false,
+      _strictOrder: false,
+      _requestAutoSave: false,
+      _valueAtom: false,
+      _originalValueAtom: false,
+      _hasInflightChangedValue: false,
+      _lastSubmittedValue: false,
+      dispose: false,
+    });
+  }
+
+  get value(): T[K] {
+    // If we're wrapping a mobx store, then we'll also get reactivity from parentInstance[key]
+    this._valueAtom.reportObserved();
+    // We read `parentCopy[key]` below, so a changed original (i.e. `commitChanges` on a cleared
+    // field) must also invalidate observers, even when `parentInstance[key]` did not change.
+    this._originalValueAtom.reportObserved();
+    const value = this._parentInstance[this._key];
+    // Re-create the `keepNull` logic on sets but for our initial read where our
+    // originalValue is null (empty) but we want to expose it as undefined for
+    // consistency of "empty-ness" to our UI components.
+    return value === null && isEmpty(this._parentCopy[this._key]) ? (undefined as any) : value;
+  }
+
+  set value(v: T[K]) {
+    this.set(v);
+  }
+
+  get focused(): boolean {
+    return this._focused;
+  }
+
+  get dirty(): boolean {
+    return !areEqual(this.originalValue, this.value, this._strictOrder);
+  }
+
+  /** Returns whether this field is readOnly, although if our parent is readOnly then it trumps. */
+  get readOnly(): boolean {
+    return this._parentState().readOnly || this._readOnly;
+  }
+
+  /** Sets the field readOnly, but `loading` will still be or-d with the parent's readOnly state. */
+  set readOnly(readOnly: boolean) {
+    this._readOnly = readOnly;
+  }
+
+  /** Returns whether this field is loading, or if our parent is loading. */
+  get loading(): boolean {
+    return this._parentState().loading || this._loading;
+  }
+
+  /** Sets the field loading, but `loading` will still be or-d with the parent's loading state. */
+  set loading(loading: boolean) {
+    this._loading = loading;
+  }
+
+  // For primitive fields, the changed value is just the value.
+  get changedValue() {
+    // Add some hints to let `set(..., { refreshing: true })` accept server-driven changes to our value,
+    // if the user hasn't changed it yet-again while the changedValue was in in-flight.
+    //
+    // Note this is a side effect inside a mobx computed; it stays correct because every `set` calls
+    // `valueAtom.reportChanged()`, which invalidates this computed, so the next read re-records the hints.
+    this._hasInflightChangedValue = true;
+    this._lastSubmittedValue = this.value;
+    // Usually if we see a field being unset, we set `parent[key] = null`, but if we're wrapping
+    // a mobx observable object, it might have changed to `undefined` without us being able to
+    // tell it to be `null` (and potentially break the type contract of `string | undefined`).
+    // So detect un-set-ness here and return `null`.
+    if (this.value === undefined && this.originalValue !== undefined) return null;
+    return this.value;
+  }
+
+  get valid(): boolean {
+    return this.errors.length === 0;
+  }
+
+  get errors(): string[] {
+    const opts = { value: this.value, key: this.key, originalValue: this.originalValue, object: this._parentState() };
+    return this.rules.map((r) => r(opts as any)).filter(isNotUndefined);
+  }
+
+  get required(): boolean {
+    return this.rules.some((rule) => rule === required);
+  }
+
+  get isNewEntity(): boolean {
+    return this._parentState().isNewEntity;
+  }
+
+  /** Focuses the field. Disables changes from `ObjectState.set` calls. */
+  focus() {
+    this._focused = true;
+  }
+
+  /** Blur marks the field as touched and triggers an auto-save. */
+  blur() {
+    this.maybeAutoSave();
+    this._focused = false;
+  }
+
+  /** Triggers an auto-save; the caller (i.e. useFormState) should still dirty & valid check. */
+  maybeAutoSave() {
+    // Now that the user is done editing the field (note maybe w/o blurring, i.e. if they hit enter), we sneak in some trim logic
+    this.maybeTrim();
+
+    // touched is readonly, but we're allowed to change it
+    this.touched = true;
+    this._requestAutoSave();
+  }
+
+  /**
+   * Sets the field's value, i.e. from a user edit, a `revertChanges` reset, or a server refresh.
+   *
+   * A `refreshing` set might be a server ack of our last submission, or just a cache refresh, so it
+   * takes care to not drop edits the user made after that submission.
+   */
+  set(value: T[K] | null | undefined, opts: InternalSetOpts = {}) {
+    const strictOrder = this._strictOrder;
+    if (this.readOnly && !opts.resetting && !opts.refreshing) {
+      throw new Error(`${this.key} is currently readOnly`);
+    }
+
+    // If the user has deleted/emptied a value that was originally set, keep it as `null`
+    // so that our partial update to the backend correctly unsets it.
+    const keepNull = !isEmpty(this.originalValue) && isEmpty(value) && !opts.refreshing;
+    // If a list of primitives was originally undefined, coerce `[]` to `undefined`
+    const coerceEmptyList = value && value instanceof Array && value.length === 0 && isEmpty(this.originalValue);
+    const newValue = keepNull ? null : isEmpty(value) || coerceEmptyList ? undefined : value;
+
+    if (opts.refreshing && (this.dirty || this._hasInflightChangedValue)) {
+      // When accepting (refreshing) a new value from the server (i.e. an ack after our mutation
+      // _or_ just a cache/query refresh, we can't be sure which), make sure we don't drop any
+      // WIP changes the user made after the initial submit.
+      //
+      // - Initially, originalValue is name=Bob.
+      // - The user submits name=Fred, recorded as lastSubmittedValue.
+      // - The user edits back to name=Bob, making the field temporarily clean.
+      // - Before the acknowledgement, a cache refresh happens with `newValue=Bob`.
+      // - Without this early return, we'd accept `value=Bob` and clear hasInflightChangedValue.
+      // - When the Fred ack arrives, the field is clean with no inflight flag, so we'd overwrite the
+      //   user's newer Bob edit with Fred, instead of preserving Bob.
+      if (
+        this._hasInflightChangedValue &&
+        // Reading changedValue sets the inflight flag even for a clean field, so lastSubmittedValue
+        // can still equal originalValue. Only preserve the flag here if the submission differs from originalValue.
+        !areEqual(this._lastSubmittedValue, this.originalValue, strictOrder) &&
+        areEqual(newValue, this.originalValue, strictOrder)
+      )
+        return;
+      // See if we should ignore the incoming server-side value, to avoid dropping local WIP changes
+      const isAckingUnset = this.value === null && newValue === undefined;
+      const acceptServerAck =
+        this._hasInflightChangedValue &&
+        this.value === this._lastSubmittedValue &&
+        // If value === originalValue, this is likely a cache refresh firing in-between "we put the new value
+        // on the wire" and "the server acked our change". Granted, this heuristic means that if the server
+        // really does reject/rollback our change, we'll ignore it, but atm we don't have a way of differentiating
+        // "this refresh is from a pre-response cache refresh" vs. "post-response cache refresh".
+        !areEqual(newValue, this.originalValue, strictOrder);
+      // Ignore incoming values if we have changes (this.dirty) unless:
+      // - our latest change (this.value) matches the incoming value (value), i.e. the server
+      //   is exactly acking our change, or
+      // - the user hasn't made any changes since `.changedValue` was put on the wire, i.e. the
+      //   server received our value, but wanted to change it.
+      // Compare by content (not `!==`) so array/list-of-primitive values are treated as acked when
+      // the server returns the same contents in a new array instance (otherwise the field would
+      // stay dirty forever, since reference equality never holds for a fresh array).
+      const keepLocalWipChange = !areEqual(this.value, newValue, strictOrder) && !isAckingUnset && !acceptServerAck;
+      if (keepLocalWipChange) {
+        if (this._hasInflightChangedValue && !areEqual(newValue, this.originalValue, strictOrder)) {
+          // Besides keeping the WIP change, update originalValue to the acked value (we only get here
+          // if the current value no longer matches lastSubmittedValue and the server value differs
+          // from originalValue).
+          // - Initially, originalValue is name=Bob.
+          // - The user submits name=Fred, then edits back to name=Bob.
+          // - The Fred ack arrives with `newValue=Fred`.
+          // - Keep `value=Bob`, but set `originalValue=Fred` and clear the inflight flag.
+          // - Bob is now dirty against Fred and needs a follow-up autosave.
+          this.originalValue = newValue as T[K];
+          this._hasInflightChangedValue = false;
+          // Bob matched the old originalValue, so its edit may not have queued a save.
+          // The previous save may also have settled before this ack. Schedule a save now, or wait for blur.
+          if (!this._focused) this._requestAutoSave();
+        }
+        return;
+      }
+    } else if (this._computed && (opts.resetting || opts.refreshing)) {
+      // Computeds can't be either reset or refreshed
+      return;
+    }
+
+    if (opts.refreshing || opts.resetting) this._hasInflightChangedValue = false;
+
+    // Set the value on our parent object
+    const changed = !areEqual(newValue, this.value, strictOrder);
+    this._parentInstance[this._key] = newValue!;
+    this._valueAtom.reportChanged();
+
+    if (opts.refreshing) {
+      this.originalValue = newValue as any;
+    }
+    // If we're being set programmatically, i.e. we don't currently have focus,
+    // call blur to trigger any auto-saves.
+    if (!this._focused && !opts.refreshing && !opts.resetting && this.dirty && changed && opts.autoSave !== false) {
+      this.maybeAutoSave();
+    }
+  }
+
+  /** Creates a new FieldState with a transformation of the value, i.e. string to int, or feet to inches. */
+  adapt<V2>(adapter: ValueAdapter<T[K], V2>): FieldState<V2> {
+    return adapt(this as any as FieldState<T[K]>, adapter);
+  }
+
+  /** Reverts back to the original value and resets dirty/touched. */
+  revertChanges() {
+    if (!this._computed) {
+      this.set(this.originalValue, { resetting: true });
+    }
+    this.touched = false;
+  }
+
+  /** Accepts the current changed value (if any) as the original and resets dirty/touched. */
+  commitChanges() {
+    if (isPlainObject(this.originalValue)) {
+      this.originalValue = toJS(this.value);
+    } else {
+      this.originalValue = this.value;
+    }
+    this.touched = false;
+  }
+
+  // An arrow, so that `this` is this field even when we're called through an `adapt` proxy, which
+  // is not a key in the subscriptions registry.
+  dispose = (): void => {
+    deactivateSubscriptions(this);
+  };
+
+  get originalValue(): T[K] {
+    this._originalValueAtom.reportObserved();
+    const value = this._parentCopy[this._key];
+    // Re-create the `keepNull` logic so that `.value` === `.originalValue`
+    return value === null ? (undefined as any) : value;
+  }
+
+  set originalValue(v: T[K]) {
+    const canSkip = v === undefined && !(this._key in (this._parentCopy as any));
+    if (!canSkip) this._parentCopy[this._key] = v;
+    this._originalValueAtom.reportChanged();
+  }
+
+  /** Trims a string value, and unsets it if only whitespace is left. */
+  maybeTrim() {
+    if (typeof this.value === "string") {
+      let newValue: string | undefined = this.value.trim();
+      if (newValue === "") {
+        newValue = undefined;
+      }
+      if (newValue !== this.value) {
+        this.set(newValue as any);
+      }
+    }
   }
 }
 
