@@ -206,7 +206,8 @@ See `src/useFormStates.test.tsx`.
 ## MobX reactivity (the #1 source of bugs)
 
 form-state is MobX. `Bound*` components are self-reactive, but **any raw read of `formState.*`
-in JSX or logic must be inside `<Observer>` or `useComputed`**, or it won't re-render.
+in JSX or logic must be inside `<Observer>` or `useComputed`**, or it won't re-render (unless the
+app uses `mobx-react-plugin`, see below).
 
 ```tsx
 // ✅ Bound components — no wrapper needed
@@ -223,16 +224,23 @@ const saveDisabled = useComputed(
 );
 ```
 
-- `<Observer>` comes from `mobx-react`. Prefer **inline `<Observer>`** around the specific reactive
-  JSX. Reach for the **`observer(function X...)` HOC** only when a whole small component (a card/row)
-  reads `formState` in many places — common in tables.
+- Prefer **`mobx-react-plugin`** (a Babel/Vite plugin; needs MobX 7+ and `mobx-react-lite` 5+) when
+  the app can use it. It wraps every component in `observer` at build time, so raw reads re-render
+  without a wrapper, and it marks components `"use no memo"` so React Compiler leaves them to MobX.
+  You still need `<Observer>` for a render prop that a component from `node_modules` calls, because
+  the plugin skips `node_modules`.
+- Without the plugin, wrap by hand. `<Observer>` and `observer` come from `mobx-react-lite`
+  (`mobx-react` is only needed for class components). Prefer **inline `<Observer>`** around the
+  specific reactive JSX. Reach for the **`observer(function X...)` HOC** only when a whole small
+  component (a card/row) reads `formState` in many places — common in tables.
 - Use **`useComputed`** to derive a scalar/aggregate from fields, and (importantly) to keep a
   query **reactive** to form edits: `useComputed(() => [skip, variables], [f.a.value, f.b.value])`.
 - Reads that need reactivity: `.value`, `.dirty`, `.valid`, `.errors`, `.canSave()`, `list.rows`.
   Note `formState.value.firstName` and `formState.firstName.value` are both reactive and return the
   same value (see "Internal Implementation Notes" in `README.md`).
-- Tests configure `mobx` with `configure({ enforceActions: "never" })` (form-state mutates
-  observables outside actions) — see `src/setupTests.ts`.
+- form-state's own methods and setters are mobx actions, so it works with mobx's default
+  `enforceActions: "observed"`. Its tests use `configure({ enforceActions: "never" })` only because
+  they write directly to the mobx stores they wrap — see `src/setupTests.ts`.
 
 Common Bound components (reference implementation): `BoundSelectField`, `BoundNumberField`,
 `BoundTextField`, `BoundMultiSelectField`, `BoundTextAreaField`, `BoundCheckboxField`,

@@ -1,7 +1,7 @@
 import { click, clickAndWait, render, typeAndWait, wait } from "@homebound/rtl-utils";
 import { act, renderHook, render as renderReact } from "@testing-library/react";
 import { getObserverTree, makeAutoObservable, reaction } from "mobx";
-import { observer, Observer } from "mobx-react";
+import { observer, Observer } from "mobx-react-lite";
 import { Activity, StrictMode, Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { TextField } from "src/FormStateApp";
 import { type ObjectConfig } from "src/config";
