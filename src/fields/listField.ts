@@ -97,8 +97,8 @@ export function newListFieldState<T, K extends keyof T, U>(
     get value() {
       // Read each row's value so observers of our `value` re-run when a row deeply changes,
       // not just when rows are added/removed (which is what `valueAtom` tracks).
+      // (`rows` itself observes `valueAtom`.)
       this.rows.forEach((r) => r.value);
-      valueAtom.reportObserved();
       return (parentInstance[key] ?? []) as any as U[];
     },
 
@@ -191,7 +191,6 @@ export function newListFieldState<T, K extends keyof T, U>(
 
     /** Returns the errors from our own collection-level rules (not the rows' errors). */
     get errors(): string[] {
-      valueAtom.reportObserved();
       // TODO Passing `originalCopy || []` is probably not 100% right
       const opts = { value: this.rows, key: key as string, originalValue: this.originalValue, object: parentState() };
       return this.rules.map((r) => r(opts as any)).filter(isNotUndefined);
@@ -409,14 +408,17 @@ export function newListFieldState<T, K extends keyof T, U>(
     },
 
     ensureSet() {
+      // Our callers, `add` and `remove`, report the change once they have spliced the list
       if (!parentInstance[key]) {
         (parentInstance as any)[key] = [];
       }
-      valueAtom.reportChanged();
     },
   };
 
   const proxy = makeAutoObservable(list, {
+    // Skip mobx tracking for constants: they cannot change, so observing them is wasted work
+    key: false,
+    _kind: false,
     // See other makeAutoObservable comment
     value: computed({ equals: () => false }),
   }) as any;

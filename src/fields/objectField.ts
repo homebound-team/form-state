@@ -449,6 +449,12 @@ export function newObjectState<T, P = any>(
   };
 
   proxy = makeAutoObservable(obj, {
+    // Skip mobx tracking for our child fields: each is already observable, and is never replaced
+    ...Object.fromEntries(fieldNames.map((name) => [name, false])),
+    // Same for constants, and for `_isAutoSaving`, which no observer reads
+    key: false,
+    _kind: false,
+    _isAutoSaving: false,
     // Use custom equality on `value` that is _never_ equals. This sounds weird, but
     // because our `value` is always the same `instance` that was passed to `newObjectState`,
     // to mobx this looks like the value never changes, and it will never invoke observers
@@ -457,7 +463,6 @@ export function newObjectState<T, P = any>(
     originalValue: computed({ equals: () => false }),
   });
 
-  // Use the original children: makeAutoObservable can wrap plain value fields in proxies.
   registerSubscriptions(proxy!, {
     activate() {
       fieldStates.forEach((entry) => activateSubscriptions(entry[1] as object));
